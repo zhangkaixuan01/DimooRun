@@ -140,21 +140,54 @@
     "/v1/agents": {
       "get": {
         "operationId": "list_agents_v1_agents_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Agents V1 Agents Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Agents",
@@ -282,12 +315,19 @@
         "operationId": "get_agent_v1_agents__agent_id__get",
         "parameters": [
           {
-            "in": "path",
-            "name": "agent_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Agent Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -296,11 +336,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Agent V1 Agents  Agent Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -315,6 +351,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Agent",
@@ -610,12 +656,19 @@
         "operationId": "list_agent_versions_v1_agents__agent_id__versions_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "agent_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Agent Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -624,14 +677,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object"
-                  },
-                  "title": "Response List Agent Versions V1 Agents  Agent Id  Versions Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -646,6 +692,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Agent Versions",
@@ -716,21 +772,19 @@
         "operationId": "get_agent_version_v1_agents__agent_id__versions__version__get",
         "parameters": [
           {
-            "in": "path",
-            "name": "agent_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Agent Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "version",
-            "required": true,
-            "schema": {
-              "title": "Version",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -739,11 +793,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Agent Version V1 Agents  Agent Id  Versions  Version  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -758,6 +808,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Agent Version",
@@ -769,21 +829,54 @@
     "/v1/alerts/rules": {
       "get": {
         "operationId": "get_items_v1_alerts_rules_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Alerts Rules Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -854,12 +947,19 @@
         "operationId": "get_artifact_v1_artifacts__artifact_id__get",
         "parameters": [
           {
-            "in": "path",
-            "name": "artifact_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Artifact Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -868,11 +968,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Artifact V1 Artifacts  Artifact Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -887,6 +983,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Artifact",
@@ -898,21 +1004,54 @@
     "/v1/backups/plans": {
       "get": {
         "operationId": "get_items_v1_backups_plans_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Backups Plans Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -981,21 +1120,54 @@
     "/v1/batch-runs": {
       "get": {
         "operationId": "get_items_v1_batch_runs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Batch Runs Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -1064,21 +1236,54 @@
     "/v1/catalog/items": {
       "get": {
         "operationId": "list_catalog_items_v1_catalog_items_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Catalog Items V1 Catalog Items Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Catalog Items",
@@ -1090,21 +1295,54 @@
     "/v1/datasets": {
       "get": {
         "operationId": "get_items_v1_datasets_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Datasets Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -1173,40 +1411,21 @@
     "/v1/deployments": {
       "get": {
         "operationId": "list_deployments_v1_deployments_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Deployments V1 Deployments Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Deployments",
-        "tags": [
-          "native-deployments"
-        ]
-      }
-    },
-    "/v1/deployments/{deployment_id}": {
-      "get": {
-        "operationId": "get_deployment_v1_deployments__deployment_id__get",
         "parameters": [
           {
-            "in": "path",
-            "name": "deployment_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Deployment Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -1215,11 +1434,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Deployment V1 Deployments  Deployment Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -1234,6 +1449,75 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "List Deployments",
+        "tags": [
+          "native-deployments"
+        ]
+      }
+    },
+    "/v1/deployments/{deployment_id}": {
+      "get": {
+        "operationId": "get_deployment_v1_deployments__deployment_id__get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Deployment",
@@ -1365,12 +1649,19 @@
         "operationId": "list_deployment_instances_v1_deployments__deployment_id__instances_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "deployment_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Deployment Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -1379,14 +1670,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object"
-                  },
-                  "title": "Response List Deployment Instances V1 Deployments  Deployment Id  Instances Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -1401,6 +1685,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Deployment Instances",
@@ -1648,21 +1942,54 @@
     "/v1/experiments": {
       "get": {
         "operationId": "get_items_v1_experiments_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Experiments Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -1731,21 +2058,54 @@
     "/v1/human-tasks": {
       "get": {
         "operationId": "list_human_tasks_v1_human_tasks_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Human Tasks V1 Human Tasks Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Human Tasks",
@@ -1875,21 +2235,54 @@
     "/v1/ingress-routes": {
       "get": {
         "operationId": "get_items_v1_ingress_routes_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Ingress Routes Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -1958,21 +2351,54 @@
     "/v1/model-gateways": {
       "get": {
         "operationId": "get_items_v1_model_gateways_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Model Gateways Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -2041,21 +2467,54 @@
     "/v1/notifications/channels": {
       "get": {
         "operationId": "get_items_v1_notifications_channels_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Notifications Channels Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -2124,21 +2583,54 @@
     "/v1/policies": {
       "get": {
         "operationId": "list_policies_v1_policies_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Policies V1 Policies Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Policies",
@@ -2207,21 +2699,54 @@
     "/v1/published-surfaces": {
       "get": {
         "operationId": "get_items_v1_published_surfaces_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Published Surfaces Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -2292,12 +2817,19 @@
         "operationId": "get_run_v1_runs__run_id__get",
         "parameters": [
           {
-            "in": "path",
-            "name": "run_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Run Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -2306,11 +2838,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Run V1 Runs  Run Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -2325,6 +2853,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Run",
@@ -2338,12 +2876,19 @@
         "operationId": "list_run_attempts_v1_runs__run_id__attempts_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "run_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Run Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -2352,12 +2897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Run Attempts V1 Runs  Run Id  Attempts Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -2372,6 +2912,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Run Attempts",
@@ -2444,12 +2994,19 @@
         "operationId": "list_run_events_v1_runs__run_id__events_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "run_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Run Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -2458,12 +3015,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Run Events V1 Runs  Run Id  Events Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -2478,6 +3030,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "List Run Events",
@@ -2666,21 +3228,54 @@
     "/v1/schedules": {
       "get": {
         "operationId": "get_items_v1_schedules_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Schedules Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -2749,21 +3344,54 @@
     "/v1/service-accounts": {
       "get": {
         "operationId": "get_items_v1_service_accounts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Items V1 Service Accounts Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Items",
@@ -2834,12 +3462,19 @@
         "operationId": "get_task_v1_tasks__task_id__get",
         "parameters": [
           {
-            "in": "path",
-            "name": "task_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Task Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
@@ -2848,11 +3483,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Task V1 Tasks  Task Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -2867,6 +3498,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Get Task",

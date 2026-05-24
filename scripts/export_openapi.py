@@ -1,5 +1,6 @@
 import json
 import sys
+from argparse import ArgumentParser
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -9,7 +10,15 @@ from dimoo_run.server import create_app  # noqa: E402
 
 
 def main() -> None:
-    output_path = Path("openapi/dimoorun.openapi.json")
+    parser = ArgumentParser(description="Export the DimooRun OpenAPI schema.")
+    parser.add_argument(
+        "--output",
+        default="openapi/dimoorun.openapi.json",
+        help="Path to the OpenAPI JSON output file.",
+    )
+    args = parser.parse_args()
+
+    output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     schema = create_app().openapi()
     output_path.write_text(

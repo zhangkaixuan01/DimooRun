@@ -18,7 +18,7 @@ from dimoo_run.domain.models import (
     Task,
 )
 from dimoo_run.persistence.database import Base
-from sqlalchemy import Table, inspect
+from sqlalchemy import DateTime, Table, inspect
 
 REQUIRED_TABLES = {
     "tenants",
@@ -147,9 +147,7 @@ def test_critical_uniqueness_constraints_are_present() -> None:
     expected_constraints = {
         Project: "uq_projects_tenant_slug",
         APIKey: "uq_api_keys_key_hash",
-        Agent: "uq_agents_project_name",
         AgentVersion: "uq_agent_versions_agent_version",
-        Deployment: "uq_deployments_project_environment_agent",
         IdempotencyRecord: "uq_idempotency_records_scope_key",
     }
 
@@ -158,6 +156,22 @@ def test_critical_uniqueness_constraints_are_present() -> None:
         assert constraint_name in {
             constraint.name for constraint in table.constraints
         }, model.__tablename__
+
+
+def test_soft_deleted_resources_do_not_block_active_unique_names() -> None:
+    expected_indexes = {
+        Agent: "uq_agents_project_name_active",
+        Deployment: "uq_deployments_project_environment_agent_active",
+    }
+
+    for model, index_name in expected_indexes.items():
+        table = cast(Table, model.__table__)
+        indexes = {index.name: index for index in table.indexes}
+        assert index_name in indexes, model.__tablename__
+        index = indexes[index_name]
+        assert index.unique is True
+        assert "is_deleted" in str(index.dialect_options["postgresql"]["where"])
+        assert "is_deleted" in str(index.dialect_options["sqlite"]["where"])
 
 
 def test_audit_log_keeps_columns_but_is_marked_immutable() -> None:
@@ -192,3 +206,58 @@ def test_metadata_tables_can_be_created_in_sqlite() -> None:
 
     inspector = inspect(engine)
     assert REQUIRED_TABLES <= set(inspector.get_table_names())
+
+
+def test_datetime_columns_are_timezone_aware() -> None:
+    for table_name in REQUIRED_TABLES:
+        table = Base.metadata.tables[table_name]
+        assert cast(DateTime, table.c.created_at.type).timezone is True, table_name
+        assert cast(DateTime, table.c.updated_at.type).timezone is True, table_name
+        assert cast(DateTime, table.c.deleted_at.type).timezone is True, table_name
+
+        for column in table.c:
+            if isinstance(column.type, DateTime):
+                assert column.type.timezone is True, f"{table_name}.{column.name}"
+
+
+def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> None:
+    placeholder_tables = {
+        "published_surfaces",
+        "ingress_routes",
+        "catalog_items",
+        "prompt_assets",
+        "config_assets",
+        "templates",
+        "run_graph_nodes",
+        "run_graph_edges",
+        "datasets",
+        "dataset_items",
+        "experiments",
+        "experiment_runs",
+        "evaluation_results",
+        "feedback",
+        "scheduled_runs",
+        "batch_runs",
+        "replay_jobs",
+        "memory_blocks",
+        "semantic_store_providers",
+        "model_gateways",
+        "model_policies",
+        "model_usage_snapshots",
+        "policies",
+        "policy_decisions",
+        "human_tasks",
+        "approval_requests",
+        "approval_policies",
+        "artifacts",
+        "notification_channels",
+        "alert_rules",
+        "incident_events",
+        "webhook_subscriptions",
+        "extensions",
+        "backup_plans",
+        "restore_jobs",
+    }
+
+    for table_name in placeholder_tables:
+        assert Base.metadata.tables[table_name].info["placeholder"] is True, table_name

@@ -5,9 +5,7 @@ Revises: 0004_observability_quality
 Create Date: 2026-05-24
 """
 
-from alembic import op
-from dimoo_run.domain import models  # noqa: F401
-from dimoo_run.persistence.database import Base
+from migrations.table_helpers import create_placeholder_table, drop_tables
 
 revision = "0005_platform_extensions"
 down_revision = "0004_observability_quality"
@@ -35,11 +33,9 @@ TABLE_NAMES = (
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    Base.metadata.create_all(bind=bind, tables=[Base.metadata.tables[name] for name in TABLE_NAMES])
+    for table_name in TABLE_NAMES:
+        create_placeholder_table(table_name)
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    for name in reversed(TABLE_NAMES):
-        Base.metadata.tables[name].drop(bind=bind, checkfirst=True)
+    drop_tables(TABLE_NAMES)

@@ -1,7 +1,12 @@
 import pytest
-from dimoo_run.domain.models import Agent, AuditLog
+from dimoo_run.domain.models import Agent, AgentVersion, AuditLog, Event
 from dimoo_run.persistence.database import Base
-from dimoo_run.persistence.repositories import AgentRepository, AuditLogRepository
+from dimoo_run.persistence.repositories import (
+    AgentRepository,
+    AgentVersionRepository,
+    AuditLogRepository,
+    EventRepository,
+)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -66,3 +71,40 @@ def test_audit_log_repository_rejects_soft_delete() -> None:
 
         with pytest.raises(TypeError):
             repository.soft_delete_or_archive(audit_log.id, actor_id="user_1")
+
+
+def test_repository_capabilities_match_model_shape() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        agent_version_repository = AgentVersionRepository(session)
+        agent_version = agent_version_repository.create(
+            AgentVersion(
+                id="agent_version_1",
+                agent_id="agent_1",
+                version="0.1.0",
+                package_uri="file://package",
+                framework="langgraph",
+                adapter="langgraph",
+                entrypoint="agent:graph",
+            )
+        )
+
+        updated_version = agent_version_repository.update_status("agent_version_1", "published")
+        assert updated_version == agent_version
+        assert updated_version.status == "published"
+        assert not hasattr(agent_version_repository, "list_by_project")
+
+        event_repository = EventRepository(session)
+        event = event_repository.create(
+            Event(
+                id="event_1",
+                run_id="run_1",
+                tenant_id="tenant_1",
+                project_id="project_1",
+                type="run.started",
+            )
+        )
+        assert event_repository.list_by_project("tenant_1", "project_1") == [event]
+        assert not hasattr(event_repository, "update_status")

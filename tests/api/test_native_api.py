@@ -25,6 +25,8 @@ NATIVE_PATHS = [
     "/v1/deployments/{deployment_id}/stop",
     "/v1/deployments/{deployment_id}/restart",
     "/v1/deployments/{deployment_id}/instances",
+    "/v1/tasks/{task_id}",
+    "/v1/tasks/{task_id}/cancel",
 ]
 
 
@@ -51,6 +53,20 @@ def test_unimplemented_write_api_returns_stable_error_response() -> None:
         "message": "This API contract is registered but not implemented yet.",
         "request_id": "req_123",
         "details": {"path": "/v1/agents/agent_1/invoke"},
+    }
+
+
+def test_unimplemented_read_api_returns_stable_error_response_instead_of_fake_data() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/v1/tasks/task_1", headers={"X-Request-Id": "req_read"})
+
+    assert response.status_code == 501
+    assert response.json() == {
+        "error_code": "not_implemented",
+        "message": "This API contract is registered but not implemented yet.",
+        "request_id": "req_read",
+        "details": {"path": "/v1/tasks/task_1"},
     }
 
 

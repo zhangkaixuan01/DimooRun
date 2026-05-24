@@ -1,7 +1,17 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dimoo_run.domain.enums import (
@@ -55,7 +65,7 @@ class ServiceAccount(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Role(IdMixin, TenantProjectMixin, TimestampMixin, Base):
@@ -88,14 +98,23 @@ class APIKey(IdMixin, TimestampMixin, Base):
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     scopes_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rotation_policy_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Agent(IdMixin, TimestampMixin, Base):
     __tablename__ = "agents"
-    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_agents_project_name"),)
+    __table_args__ = (
+        Index(
+            "uq_agents_project_name_active",
+            "project_id",
+            "name",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
@@ -125,11 +144,14 @@ class AgentVersion(IdMixin, TimestampMixin, Base):
 class Deployment(IdMixin, TimestampMixin, Base):
     __tablename__ = "deployments"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_deployments_project_environment_agent_active",
             "project_id",
             "environment",
             "agent_id",
-            name="uq_deployments_project_environment_agent",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
         ),
     )
 
@@ -165,9 +187,9 @@ class AgentInstance(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(
         String(64), default=AgentInstanceStatus.loading.value, nullable=False
     )
-    loaded_at: Mapped[datetime | None] = mapped_column(DateTime)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
-    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime)
+    loaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     running_runs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -204,8 +226,8 @@ class Run(IdMixin, AuditMixin, Base):
     input_ref: Mapped[str | None] = mapped_column(String(1024))
     output_ref: Mapped[str | None] = mapped_column(String(1024))
     error: Mapped[str | None] = mapped_column(Text)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class RunAttempt(IdMixin, AuditMixin, Base):
@@ -218,8 +240,8 @@ class RunAttempt(IdMixin, AuditMixin, Base):
     status: Mapped[str] = mapped_column(
         String(64), default=RunAttemptStatus.running.value, nullable=False
     )
-    started_at: Mapped[datetime | None] = mapped_column(DateTime)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
 
@@ -235,12 +257,12 @@ class Task(IdMixin, AuditMixin, Base):
     max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     queue: Mapped[str] = mapped_column(String(128), default="default", nullable=False)
     priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
-    leased_until: Mapped[datetime | None] = mapped_column(DateTime)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     worker_id: Mapped[str | None] = mapped_column(String(128))
-    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dedupe_key: Mapped[str | None] = mapped_column(String(255))
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
     error: Mapped[str | None] = mapped_column(Text)
@@ -290,7 +312,7 @@ class Secret(IdMixin, TimestampMixin, Base):
     provider: Mapped[str] = mapped_column(String(128), nullable=False)
     scope: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuditLog(IdMixin, AuditMixin, Base):
@@ -332,7 +354,7 @@ class IdempotencyRecord(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     request_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     response_ref: Mapped[str | None] = mapped_column(String(1024))
     status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 def create_metadata_model(table_name: str) -> type[Base]:
@@ -341,6 +363,7 @@ def create_metadata_model(table_name: str) -> type[Base]:
         (IdMixin, TenantProjectMixin, TimestampMixin, Base),
         {
             "__tablename__": table_name,
+            "__table_args__": {"info": {"placeholder": True}},
             "status": mapped_column(String(64), default="active", nullable=False),
             "metadata_json": mapped_column(JSON, default=dict, nullable=False),
         },

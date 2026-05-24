@@ -1,5 +1,3 @@
-from typing import Any
-
 from fastapi import APIRouter, Request, Response
 
 from dimoo_run.api.dependencies import RequestIdHeader, not_implemented_response
@@ -8,19 +6,37 @@ from dimoo_run.domain.schemas import ErrorResponse
 router = APIRouter(tags=["native-deployments"])
 
 
-@router.get("/deployments")
-def list_deployments() -> list[dict[str, Any]]:
-    return []
+@router.get("/deployments", responses={501: {"model": ErrorResponse}})
+def list_deployments(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(request, x_request_id)
+    response.status_code = status_code
+    return error
 
 
-@router.get("/deployments/{deployment_id}")
-def get_deployment(deployment_id: str) -> dict[str, str]:
-    return {"id": deployment_id}
+@router.get("/deployments/{deployment_id}", responses={501: {"model": ErrorResponse}})
+def get_deployment(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(request, x_request_id)
+    response.status_code = status_code
+    return error
 
 
-@router.get("/deployments/{deployment_id}/instances")
-def list_deployment_instances(deployment_id: str) -> list[dict[str, str]]:
-    return []
+@router.get("/deployments/{deployment_id}/instances", responses={501: {"model": ErrorResponse}})
+def list_deployment_instances(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(request, x_request_id)
+    response.status_code = status_code
+    return error
 
 
 def control_response(request: Request, response: Response, request_id: str | None) -> ErrorResponse:

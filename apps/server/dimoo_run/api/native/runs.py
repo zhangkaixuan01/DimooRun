@@ -1,5 +1,3 @@
-from typing import Any
-
 from fastapi import APIRouter, Request, Response
 
 from dimoo_run.api.dependencies import RequestIdHeader, not_implemented_response
@@ -8,19 +6,37 @@ from dimoo_run.domain.schemas import ErrorResponse
 router = APIRouter(tags=["native-runs"])
 
 
-@router.get("/runs/{run_id}")
-def get_run(run_id: str) -> dict[str, str]:
-    return {"id": run_id}
+@router.get("/runs/{run_id}", responses={501: {"model": ErrorResponse}})
+def get_run(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(request, x_request_id)
+    response.status_code = status_code
+    return error
 
 
-@router.get("/runs/{run_id}/events")
-def list_run_events(run_id: str) -> list[dict[str, Any]]:
-    return []
+@router.get("/runs/{run_id}/events", responses={501: {"model": ErrorResponse}})
+def list_run_events(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(request, x_request_id)
+    response.status_code = status_code
+    return error
 
 
-@router.get("/runs/{run_id}/attempts")
-def list_run_attempts(run_id: str) -> list[dict[str, Any]]:
-    return []
+@router.get("/runs/{run_id}/attempts", responses={501: {"model": ErrorResponse}})
+def list_run_attempts(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(request, x_request_id)
+    response.status_code = status_code
+    return error
 
 
 def run_action_response(

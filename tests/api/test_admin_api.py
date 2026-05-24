@@ -41,3 +41,17 @@ def test_high_risk_admin_action_marks_audit_required() -> None:
 
     assert response.status_code == 501
     assert response.json()["details"]["audit_required"] is True
+
+
+def test_unimplemented_admin_read_api_returns_stable_error_response() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/v1/policies", headers={"X-Request-Id": "req_admin_read"})
+
+    assert response.status_code == 501
+    assert response.json() == {
+        "error_code": "not_implemented",
+        "message": "This API contract is registered but not implemented yet.",
+        "request_id": "req_admin_read",
+        "details": {"path": "/v1/policies"},
+    }
