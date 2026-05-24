@@ -1,0 +1,357 @@
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from dimoo_run.domain.enums import (
+    AgentInstanceStatus,
+    AuditActorType,
+    DeploymentDesiredStatus,
+    DeploymentRuntimeStatus,
+    RunAttemptStatus,
+    RunStatus,
+    TaskStatus,
+)
+from dimoo_run.persistence.database import Base, IdMixin, TenantProjectMixin, TimestampMixin, utcnow
+
+
+class Tenant(IdMixin, TimestampMixin, Base):
+    __tablename__ = "tenants"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class Project(IdMixin, TimestampMixin, Base):
+    __tablename__ = "projects"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class User(IdMixin, TimestampMixin, Base):
+    __tablename__ = "users"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class ServiceAccount(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "service_accounts"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class Role(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "roles"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class Permission(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "permissions"
+
+    resource: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class APIKey(IdMixin, TimestampMixin, Base):
+    __tablename__ = "api_keys"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    owner_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    scopes_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    rotation_policy_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+
+
+class Agent(IdMixin, TimestampMixin, Base):
+    __tablename__ = "agents"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    owner_id: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class AgentVersion(IdMixin, TimestampMixin, Base):
+    __tablename__ = "agent_versions"
+
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(String(128), nullable=False)
+    package_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    framework: Mapped[str] = mapped_column(String(128), nullable=False)
+    adapter: Mapped[str] = mapped_column(String(128), nullable=False)
+    capabilities_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    entrypoint: Mapped[str] = mapped_column(String(512), nullable=False)
+    manifest_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="draft", nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+
+
+class Deployment(IdMixin, TimestampMixin, Base):
+    __tablename__ = "deployments"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
+    agent_version_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_versions.id"), nullable=False, index=True
+    )
+    environment: Mapped[str] = mapped_column(String(128), nullable=False)
+    desired_status: Mapped[str] = mapped_column(
+        String(64), default=DeploymentDesiredStatus.draft.value, nullable=False
+    )
+    runtime_status: Mapped[str] = mapped_column(
+        String(64), default=DeploymentRuntimeStatus.not_loaded.value, nullable=False
+    )
+    replicas: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    last_runtime_error: Mapped[str | None] = mapped_column(Text)
+
+
+class AgentInstance(IdMixin, TimestampMixin, Base):
+    __tablename__ = "agent_instances"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    deployment_id: Mapped[str] = mapped_column(ForeignKey("deployments.id"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    agent_version_id: Mapped[str] = mapped_column(ForeignKey("agent_versions.id"), nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    execution_profile_id: Mapped[str | None] = mapped_column(String(128))
+    cache_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(64), default=AgentInstanceStatus.loading.value, nullable=False
+    )
+    loaded_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime)
+    running_runs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class SessionModel(IdMixin, TimestampMixin, Base):
+    __tablename__ = "sessions"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    service_account_id: Mapped[str | None] = mapped_column(ForeignKey("service_accounts.id"))
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class Run(IdMixin, Base):
+    __tablename__ = "runs"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    service_account_id: Mapped[str | None] = mapped_column(ForeignKey("service_accounts.id"))
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    agent_version_id: Mapped[str] = mapped_column(ForeignKey("agent_versions.id"), nullable=False)
+    deployment_id: Mapped[str | None] = mapped_column(ForeignKey("deployments.id"))
+    session_id: Mapped[str | None] = mapped_column(ForeignKey("sessions.id"))
+    framework: Mapped[str | None] = mapped_column(String(128))
+    adapter: Mapped[str | None] = mapped_column(String(128))
+    thread_id: Mapped[str | None] = mapped_column(String(255))
+    trace_id: Mapped[str | None] = mapped_column(String(255))
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(64), default=RunStatus.pending.value, nullable=False)
+    input_ref: Mapped[str | None] = mapped_column(String(1024))
+    output_ref: Mapped[str | None] = mapped_column(String(1024))
+    error: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class RunAttempt(IdMixin, Base):
+    __tablename__ = "run_attempts"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    worker_id: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(
+        String(64), default=RunAttemptStatus.running.value, nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    error: Mapped[str | None] = mapped_column(Text)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class Task(IdMixin, Base):
+    __tablename__ = "tasks"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default=TaskStatus.queued.value, nullable=False)
+    attempt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    queue: Mapped[str] = mapped_column(String(128), default="default", nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    leased_until: Mapped[datetime | None] = mapped_column(DateTime)
+    worker_id: Mapped[str | None] = mapped_column(String(128))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime)
+    dedupe_key: Mapped[str | None] = mapped_column(String(255))
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    error: Mapped[str | None] = mapped_column(Text)
+    dead_letter_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class Event(IdMixin, Base):
+    __tablename__ = "events"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    type: Mapped[str] = mapped_column(String(128), nullable=False)
+    framework: Mapped[str | None] = mapped_column(String(128))
+    payload_ref: Mapped[str | None] = mapped_column(String(1024))
+    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    visibility_level: Mapped[str] = mapped_column(String(64), default="internal", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class CheckpointIndex(IdMixin, Base):
+    __tablename__ = "checkpoint_indexes"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    thread_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    checkpoint_ns: Mapped[str | None] = mapped_column(String(255))
+    checkpoint_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class Tool(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "tools"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    schema_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(64), default="read", nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class Secret(IdMixin, TimestampMixin, Base):
+    __tablename__ = "secrets"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class AuditLog(IdMixin, Base):
+    __tablename__ = "audit_logs"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"))
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    actor_id: Mapped[str | None] = mapped_column(String(64))
+    actor_type: Mapped[str] = mapped_column(
+        String(64), default=AuditActorType.system.value, nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(64))
+    result: Mapped[str] = mapped_column(String(64), nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(128))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+    request_id: Mapped[str | None] = mapped_column(String(255))
+    trace_id: Mapped[str | None] = mapped_column(String(255))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+def create_metadata_model(table_name: str) -> type[Base]:
+    return type(
+        "".join(part.capitalize() for part in table_name.split("_")),
+        (IdMixin, TenantProjectMixin, TimestampMixin, Base),
+        {
+            "__tablename__": table_name,
+            "status": mapped_column(String(64), default="active", nullable=False),
+            "metadata_json": mapped_column(JSON, default=dict, nullable=False),
+        },
+    )
+
+
+for _table_name in [
+    "published_surfaces",
+    "ingress_routes",
+    "catalog_items",
+    "prompt_assets",
+    "config_assets",
+    "templates",
+    "run_graph_nodes",
+    "run_graph_edges",
+    "datasets",
+    "dataset_items",
+    "experiments",
+    "experiment_runs",
+    "evaluation_results",
+    "feedback",
+    "scheduled_runs",
+    "batch_runs",
+    "replay_jobs",
+    "memory_blocks",
+    "semantic_store_providers",
+    "model_gateways",
+    "model_policies",
+    "model_usage_snapshots",
+    "policies",
+    "policy_decisions",
+    "human_tasks",
+    "approval_requests",
+    "approval_policies",
+    "artifacts",
+    "notification_channels",
+    "alert_rules",
+    "incident_events",
+    "webhook_subscriptions",
+    "extensions",
+    "backup_plans",
+    "restore_jobs",
+]:
+    globals()["".join(part.capitalize() for part in _table_name.split("_"))] = (
+        create_metadata_model(_table_name)
+    )

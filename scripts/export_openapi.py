@@ -1,0 +1,23 @@
+import json
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "apps" / "server"))
+
+from dimoo_run.server import create_app  # noqa: E402
+
+
+def main() -> None:
+    output_path = Path("openapi/dimoorun.openapi.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    schema = create_app().openapi()
+    output_path.write_text(
+        json.dumps(schema, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Exported OpenAPI schema to {output_path}")
+
+
+if __name__ == "__main__":
+    main()

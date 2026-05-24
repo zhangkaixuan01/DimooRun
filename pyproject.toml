@@ -5,8 +5,11 @@ description = "Adapter-first enterprise runtime platform for AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiosqlite>=0.21,<1.0",
+    "alembic>=1.17,<2.0",
     "fastapi>=0.116,<1.0",
     "pydantic>=2.0,<3.0",
+    "sqlalchemy>=2.0,<3.0",
     "uvicorn[standard]>=0.35,<1.0",
 ]
 
