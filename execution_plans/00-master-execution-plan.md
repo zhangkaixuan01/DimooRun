@@ -42,6 +42,23 @@ execution_plans/
 每个计划完成后都要能独立验收，不能只提交半成品代码。
 ```
 
+当前执行状态：
+
+| 计划 | 状态 | 说明 |
+| --- | --- | --- |
+| `01-project-foundation.md` | 已完成 | 项目骨架、Server、Worker、Console scaffold、基础测试已落地。 |
+| `02-domain-persistence-and-api.md` | 已完成 | 领域模型、迁移、Repository、API skeleton、OpenAPI、审计/软删除契约已落地并通过验证。 |
+| `03-agent-package-and-adapters.md` | 待开始 | 下一阶段，优先打通 Agent Package、manifest、Adapter contract 和 LangGraphAdapter。 |
+
+最近完成提交：
+
+```text
+843ec0b feat: add domain persistence and api contracts
+5167bb4 fix: add audit fields and soft delete semantics
+d4d35f8 fix: harden domain persistence contracts
+a368499 fix(persistence): harden metadata contracts
+```
+
 ## 1.1 设计文档真相源规则
 
 `execution_plans/` 不是 `DESIGN_SPEC.md` 的替代品。实现时必须同时阅读设计文档和对应执行计划。

@@ -8,36 +8,55 @@
 
 **设计覆盖：** `DESIGN_SPEC.md` 第 12、22、23、37、38 章。
 
+**当前状态：** 已完成并推送到 `main`。实现提交包括：
+
+```text
+843ec0b feat: add domain persistence and api contracts
+5167bb4 fix: add audit fields and soft delete semantics
+d4d35f8 fix: harden domain persistence contracts
+a368499 fix(persistence): harden metadata contracts
+```
+
+**最终验证：**
+
+```powershell
+uv run pytest -q                         # 38 passed
+uv run ruff check .                      # passed
+uv run mypy apps/server tests scripts    # passed
+uv run python scripts/export_openapi.py  # passed
+npm run build                            # passed
+```
+
 ---
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 12 章：Schema Migration & Data Compatibility。
-- [ ] 第 22 章：核心领域模型。
-- [ ] 第 23 章：Extended Domain Models。
-- [ ] 第 37 章：存储边界。
-- [ ] 第 38 章：API 设计。
-- [ ] 第 53 章：MVP 范围。
+- [x] 第 12 章：Schema Migration & Data Compatibility。
+- [x] 第 22 章：核心领域模型。
+- [x] 第 23 章：Extended Domain Models。
+- [x] 第 37 章：存储边界。
+- [x] 第 38 章：API 设计。
+- [x] 第 53 章：MVP 范围。
 
 ## 1. 实现边界
 
 本计划负责：
 
-- [ ] SQLAlchemy Base。
-- [ ] Alembic migration。
-- [ ] Core Domain Models。
-- [ ] Extended Domain Models 的最小 metadata 表。
-- [ ] Native API 路由骨架。
-- [ ] Admin / Governance API 路由骨架。
-- [ ] OpenAPI 导出。
-- [ ] API schema 版本治理起点。
+- [x] SQLAlchemy Base。
+- [x] Alembic migration。
+- [x] Core Domain Models。
+- [x] Extended Domain Models 的最小 metadata 表。
+- [x] Native API 路由骨架。
+- [x] Admin / Governance API 路由骨架。
+- [x] OpenAPI 导出。
+- [x] API schema 版本治理起点。
 
 本计划不负责：
 
-- [ ] 真实 Worker 执行。
-- [ ] 真实 Policy 判定逻辑。
-- [ ] 真实 Adapter 加载。
-- [ ] Console 页面。
+- [x] 真实 Worker 执行：不在本阶段。
+- [x] 真实 Policy 判定逻辑：不在本阶段。
+- [x] 真实 Adapter 加载：不在本阶段，进入 `03-agent-package-and-adapters.md`。
+- [x] Console 页面：不在本阶段。
 
 ## 2. 必须实现的核心对象
 
@@ -245,27 +264,41 @@ restore_jobs
 
 执行规则：
 
-- [ ] 每个 migration 文件只做一个分组。
-- [ ] 每个 migration 都有 downgrade。
-- [ ] 每个 migration 都有 metadata table existence 测试。
-- [ ] 如果 MVP 暂不实现某类业务逻辑，也可以先建最小 metadata 表，但必须在注释和计划中说明用途。
+- [x] 每个 migration 文件只做一个分组。
+- [x] 每个 migration 都有 downgrade。
+- [x] 每个 migration 都有 metadata table existence 测试。
+- [x] 如果 MVP 暂不实现某类业务逻辑，也可以先建最小 metadata 表，但必须在注释和计划中说明用途。
+
+实现补充：
+
+- Alembic migration 已从 `Base.metadata.create_all(...)` 改为冻结的显式迁移脚本，历史 migration 不再依赖最新 ORM metadata。
+- `migrations/table_helpers.py` 只复用稳定列定义 helper，不读取 ORM model。
+- `migrations/env.py` 同时加入项目根目录和 `apps/server` 到 `sys.path`，保证 migration helper 和 server 包都可导入。
+- 核心查询索引已在 migration 中显式创建，并用测试校验 migration 后的数据库索引覆盖 ORM metadata 中的核心索引。
 
 字段策略：
 
-- [ ] 核心对象字段按 `DESIGN_SPEC.md` 完整建。
-- [ ] 扩展对象第一版至少包含 `id`、`tenant_id`、`project_id nullable`、`status`、`metadata_json`、`created_at`、`updated_at`。
-- [ ] 所有 Platform Metadata Store 表必须包含通用审计与软删除字段：`created_at`、`created_by`、`updated_at`、`updated_by`、`is_deleted`、`deleted_at`、`deleted_by`。
-- [ ] 默认业务删除必须是 soft delete，不允许 API / Repository 默认 hard delete。
-- [ ] `status=archived` 是生命周期归档，不等同于 `is_deleted=true`。
-- [ ] 默认 Repository 查询过滤 `is_deleted=true`，只有显式 `include_deleted` 才返回软删除记录。
-- [ ] AuditLog 保留通用字段但必须不可变，不允许业务软删除。
-- [ ] 扩展 metadata 表的 `tenant_id` / `project_id` 必须是外键，不允许只存裸字符串。
-- [ ] 关键唯一性必须由数据库约束保护：Project slug、Agent name、AgentVersion version、Deployment scope、API key hash、Idempotency key。
-- [ ] 幂等写 API 必须落到 `idempotency_records`，不能只把幂等键散落在 Run / Task 表。
-- [ ] 大 JSON 使用 `*_json` 命名，例如 `manifest_json`、`payload_json`、`config_json`。
-- [ ] 不使用含糊的 `data` 字段。
-- [ ] 所有多租户对象必须有 `tenant_id`。
-- [ ] Project 级对象必须有 `project_id` 或明确 nullable。
+- [x] 核心对象字段按 `DESIGN_SPEC.md` 完整建。
+- [x] 扩展对象第一版至少包含 `id`、`tenant_id`、`project_id nullable`、`status`、`metadata_json`、`created_at`、`updated_at`。
+- [x] 所有 Platform Metadata Store 表必须包含通用审计与软删除字段：`created_at`、`created_by`、`updated_at`、`updated_by`、`is_deleted`、`deleted_at`、`deleted_by`。
+- [x] 默认业务删除必须是 soft delete，不允许 API / Repository 默认 hard delete。
+- [x] `status=archived` 是生命周期归档，不等同于 `is_deleted=true`。
+- [x] 默认 Repository 查询过滤 `is_deleted=true`，只有显式 `include_deleted` 才返回软删除记录。
+- [x] AuditLog 保留通用字段但必须不可变，不允许业务软删除。
+- [x] 扩展 metadata 表的 `tenant_id` / `project_id` 必须是外键，不允许只存裸字符串。
+- [x] 关键唯一性必须由数据库约束保护：Project slug、Agent name、AgentVersion version、Deployment scope、API key hash、Idempotency key。
+- [x] 幂等写 API 必须落到 `idempotency_records`，不能只把幂等键散落在 Run / Task 表。
+- [x] 大 JSON 使用 `*_json` 命名，例如 `manifest_json`、`payload_json`、`config_json`。
+- [x] 不使用含糊的 `data` 字段。
+- [x] 所有多租户对象必须有 `tenant_id`。
+- [x] Project 级对象必须有 `project_id` 或明确 nullable。
+
+实现补充：
+
+- 所有 `DateTime` 字段已统一为 timezone-aware `DateTime(timezone=True)`。
+- `Agent` 与 `Deployment` 的唯一性使用 active-only partial unique index，软删除后允许重建同名资源。
+- 扩展 metadata 表通过 `Table.info["placeholder"] = True` 标记为第一阶段占位表，避免误认为领域字段已经完整实体化。
+- `AuditLog` 保留审计/软删除列用于统一 schema，但 repository 层禁止业务软删除。
 
 ## 4. 状态枚举
 
@@ -309,10 +342,18 @@ apps/server/dimoo_run/api/native/runs.py
 apps/server/dimoo_run/api/native/tasks.py
 apps/server/dimoo_run/api/admin/*.py
 migrations/env.py
-migrations/versions/0001_initial_domain.py
+migrations/__init__.py
+migrations/table_helpers.py
+migrations/versions/0001_core_identity_and_agents.py
+migrations/versions/0002_runtime_execution.py
+migrations/versions/0003_governance.py
+migrations/versions/0004_observability_quality.py
+migrations/versions/0005_platform_extensions.py
 scripts/export_openapi.py
 openapi/dimoorun.openapi.json
 tests/domain/test_domain_models.py
+tests/domain/test_migrations.py
+tests/domain/test_repositories.py
 tests/api/test_native_api.py
 tests/api/test_admin_api.py
 tests/api/test_openapi_contract.py
@@ -350,6 +391,8 @@ POST   /v1/deployments/{deployment_id}/drain
 POST   /v1/deployments/{deployment_id}/stop
 POST   /v1/deployments/{deployment_id}/restart
 GET    /v1/deployments/{deployment_id}/instances
+GET    /v1/tasks/{task_id}
+POST   /v1/tasks/{task_id}/cancel
 ```
 
 Admin / Governance API：
@@ -408,37 +451,42 @@ artifact_access_denied
 
 ### Task 1：实现枚举和 Pydantic Schema
 
-- [ ] 创建 `domain/enums.py`。
-- [ ] 创建 `domain/schemas.py`。
-- [ ] Schema 使用明确字段，不返回裸 dict。
-- [ ] 错误响应包含稳定 `error_code`。
+- [x] 创建 `domain/enums.py`。
+- [x] 创建 `domain/schemas.py`。
+- [x] Schema 使用明确字段，不返回裸 dict。
+- [x] 错误响应包含稳定 `error_code`。
 
 测试：
 
-- [ ] 枚举值与设计文档一致。
-- [ ] Deployment schema 能区分 `desired_status` 和 `runtime_status`。
-- [ ] Run schema 包含 `service_account_id nullable`。
+- [x] 枚举值与设计文档一致。
+- [x] Deployment schema 能区分 `desired_status` 和 `runtime_status`。
+- [x] Run schema 包含 `service_account_id nullable`。
 
 ### Task 2：实现 SQLAlchemy 模型
 
-- [ ] 创建 `persistence/database.py`。
-- [ ] 创建 `domain/models.py`。
-- [ ] 所有表进入 `Base.metadata.tables`。
-- [ ] 字段命名与设计文档一致。
-- [ ] JSON 字段使用 `JSON` 类型或兼容 SQLite 的 JSON 存储。
+- [x] 创建 `persistence/database.py`。
+- [x] 创建 `domain/models.py`。
+- [x] 所有表进入 `Base.metadata.tables`。
+- [x] 字段命名与设计文档一致。
+- [x] JSON 字段使用 `JSON` 类型或兼容 SQLite 的 JSON 存储。
 
 测试：
 
-- [ ] 检查全部必需表存在。
-- [ ] 检查核心外键存在。
-- [ ] 检查状态字段默认值正确。
+- [x] 检查全部必需表存在。
+- [x] 检查核心外键存在。
+- [x] 检查状态字段默认值正确。
+- [x] 检查所有 DateTime 字段为 timezone-aware。
+- [x] 检查扩展 metadata placeholder 标记存在。
+- [x] 检查 soft-delete-aware unique index 存在。
 
 ### Task 3：实现 Alembic 迁移
 
-- [ ] 创建 Alembic 配置。
-- [ ] 创建 `0001_initial_domain.py`。
-- [ ] 空库执行 upgrade 成功。
-- [ ] downgrade 能删除表。
+- [x] 创建 Alembic 配置。
+- [x] 创建分组 migration：`0001_core_identity_and_agents.py` 到 `0005_platform_extensions.py`。
+- [x] 空库执行 upgrade 成功。
+- [x] downgrade 能删除表。
+- [x] migration 脚本不依赖 live ORM metadata。
+- [x] migration 后核心索引覆盖 ORM metadata 中声明的索引。
 
 验收命令：
 
@@ -479,27 +527,33 @@ hard delete:
 
 必须覆盖：
 
-- [ ] AgentRepository。
-- [ ] AgentVersionRepository。
-- [ ] DeploymentRepository。
-- [ ] RunRepository。
-- [ ] TaskRepository。
-- [ ] EventRepository。
-- [ ] AuditLogRepository。
+- [x] AgentRepository。
+- [x] AgentVersionRepository。
+- [x] DeploymentRepository。
+- [x] RunRepository。
+- [x] TaskRepository。
+- [x] EventRepository。
+- [x] AuditLogRepository。
+
+实现补充：
+
+- Repository 能力按模型形状拆分为基础查询、project scoped 查询、status 更新、soft delete、archive 等 mixin。
+- 没有 `project_id` 的模型不会暴露 `list_by_project`。
+- 没有 status 语义的模型不会暴露 `update_status`。
 
 ### Task 5：实现 Native API 骨架
 
-- [ ] 路由挂到 `/v1`。
-- [ ] 每个写 API 接收 `X-Request-Id`。
-- [ ] 幂等写 API 接收 `Idempotency-Key`。
-- [ ] 暂未实现真实业务时返回明确 `501 not_implemented` 或最小可用响应，不能静默成功。
-- [ ] OpenAPI 中必须出现全部路径。
+- [x] 路由挂到 `/v1`。
+- [x] 每个写 API 接收 `X-Request-Id`。
+- [x] 幂等写 API 接收 `Idempotency-Key`。
+- [x] 暂未实现真实业务时返回明确 `501 not_implemented`，不能静默成功或返回假数据。
+- [x] OpenAPI 中必须出现全部路径。
 
 ### Task 6：实现 Admin API 骨架
 
-- [ ] 路由命名和设计文档一致。
-- [ ] 高风险 API 在响应 schema 中包含 `audit_required: true`。
-- [ ] HumanTask approve/reject 路由预留 `decision_payload`。
+- [x] 路由命名和设计文档一致。
+- [x] 高风险 API 在响应 schema 中包含 `audit_required: true`。
+- [x] HumanTask approve/reject 路由预留 `decision_payload`。
 
 ### Task 7：实现 OpenAPI 导出和契约检查
 
@@ -512,40 +566,56 @@ openapi/dimoorun.openapi.json
 
 检查：
 
-- [ ] OpenAPI 包含 Native API。
-- [ ] OpenAPI 包含 Admin API。
-- [ ] 错误响应 schema 统一。
-- [ ] SDK 后续可以从该文件生成。
+- [x] OpenAPI 包含 Native API。
+- [x] OpenAPI 包含 Admin API。
+- [x] 错误响应 schema 统一。
+- [x] SDK 后续可以从该文件生成。
+- [x] `scripts/export_openapi.py` 支持 `--output`，测试可写入临时文件。
+- [x] 未实现 GET / POST / PATCH / DELETE API 的 OpenAPI 均声明 `501 ErrorResponse`。
 
 ## 8. 验收清单
 
-- [ ] `uv run pytest tests/domain -q` 通过。
-- [ ] `uv run pytest tests/api -q` 通过。
-- [ ] `uv run alembic upgrade head` 通过。
-- [ ] `uv run python scripts/export_openapi.py` 生成 OpenAPI。
-- [ ] OpenAPI 包含 Deployment Runtime Control API。
-- [ ] 表清单没有遗漏 `DESIGN_SPEC.md` 中的核心对象。
+- [x] `uv run pytest tests/domain -q` 通过。
+- [x] `uv run pytest tests/api -q` 通过。
+- [x] `uv run alembic upgrade head` 通过。
+- [x] `uv run python scripts/export_openapi.py` 生成 OpenAPI。
+- [x] OpenAPI 包含 Deployment Runtime Control API。
+- [x] 表清单没有遗漏 `DESIGN_SPEC.md` 中的核心对象。
+- [x] `uv run pytest -q` 通过，最终结果 `38 passed`。
+- [x] `uv run ruff check .` 通过。
+- [x] `uv run mypy apps/server tests scripts` 通过。
+- [x] `npm run build` 通过。
 
 ## 9. 提交建议
 
-提交信息：
+已落地提交：
 
 ```text
-feat: add domain persistence and api contracts
+843ec0b feat: add domain persistence and api contracts
+5167bb4 fix: add audit fields and soft delete semantics
+d4d35f8 fix: harden domain persistence contracts
+a368499 fix(persistence): harden metadata contracts
 ```
 
 ## 10. 设计回查清单
 
-- [ ] 第 22 章所有核心对象都有模型或明确 metadata 表。
-- [ ] 第 23 章所有扩展对象都有落点或明确延后实现说明。
-- [ ] 第 37.1 章 Platform Metadata Store 表清单没有遗漏。
-- [ ] 第 38 章所有 API surface 都有路由边界。
-- [ ] API 通用规则包含 auth、tenant/project scope、Policy Engine、AuditLog、request_id、idempotency。
-- [ ] Schema version 字段预留覆盖第 12 章列出的版本维度。
-- [ ] 所有表都有统一审计与软删除字段，删除语义没有退化为 hard delete。
-- [ ] Repository 默认过滤软删除记录。
-- [ ] DELETE API 不返回静默 204，必须表达 soft delete / AuditLog / Policy 边界。
-- [ ] AuditLog 不可变约束有测试覆盖。
-- [ ] 扩展 metadata 表有 tenant/project 外键。
-- [ ] 关键唯一性约束有测试覆盖。
-- [ ] `idempotency_records` 表和唯一约束有测试覆盖。
+- [x] 第 22 章所有核心对象都有模型或明确 metadata 表。
+- [x] 第 23 章所有扩展对象都有落点或明确延后实现说明。
+- [x] 第 37.1 章 Platform Metadata Store 表清单没有遗漏。
+- [x] 第 38 章所有 API surface 都有路由边界。
+- [x] API 通用规则包含 auth、tenant/project scope、Policy Engine、AuditLog、request_id、idempotency。
+- [x] Schema version 字段预留覆盖第 12 章列出的版本维度。
+- [x] 所有表都有统一审计与软删除字段，删除语义没有退化为 hard delete。
+- [x] Repository 默认过滤软删除记录。
+- [x] DELETE API 不返回静默 204，必须表达 soft delete / AuditLog / Policy 边界。
+- [x] AuditLog 不可变约束有测试覆盖。
+- [x] 扩展 metadata 表有 tenant/project 外键。
+- [x] 关键唯一性约束有测试覆盖。
+- [x] `idempotency_records` 表和唯一约束有测试覆盖。
+
+## 11. 后续进入 03 前的注意事项
+
+- `03-agent-package-and-adapters.md` 可以基于当前 `Agent` / `AgentVersion` / `Deployment` / `Run` / `Task` 表继续开发。
+- Adapter 相关真实加载、manifest 校验、package registry、LangGraph conformance test 不属于本阶段，进入 03 实现。
+- 当前 API 路由是 contract skeleton，未实现业务的接口必须继续保持 `501 not_implemented`，直到对应服务层真实接入。
+- 扩展 metadata placeholder 表只保证治理落点，不代表对应领域字段已经最终定型；后续计划实体化时必须新增 migration。

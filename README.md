@@ -26,16 +26,29 @@ Runtime behavior is a white box.
 
 ## Current Status
 
-This repository is in the design and project-initialization stage.
+This repository is in the early implementation stage.
 
 The primary artifact is [DESIGN_SPEC.md](DESIGN_SPEC.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
 roadmap.
 
-The current implementation is a foundation scaffold only: FastAPI health checks,
-configuration models, a Worker entrypoint, and a minimal Console shell. Production
-runtime, persistence, task execution, adapters, and governance logic are still
-planned work.
+Completed implementation phases:
+
+- `01-project-foundation`: FastAPI server scaffold, configuration models,
+  Worker entrypoint, Vue Console scaffold, examples, OpenAPI output directory,
+  and baseline tests.
+- `02-domain-persistence-and-api`: SQLAlchemy domain models, Alembic migrations,
+  repository boundaries, Native/Admin API contract skeletons, audit and soft
+  delete semantics, idempotency records, placeholder metadata tables, and
+  generated OpenAPI.
+
+Next implementation phase:
+
+- `03-agent-package-and-adapters`: Agent Package manifest, package loading,
+  Adapter contract, LangGraphAdapter, and adapter conformance tests.
+
+Production runtime execution, real task queues, real adapters, governance
+decision logic, and full Console product screens are still planned work.
 
 ## LangChain Ecosystem Version Policy
 
@@ -66,7 +79,9 @@ lockfile, and run adapter conformance tests before accepting the upgrade.
 │   ├── compatibility/  # LangGraph Compatibility API examples
 │   └── langgraph/      # LangGraph Agent examples
 ├── execution_plans/    # Chinese implementation plans mapped to DESIGN_SPEC.md
-├── openapi/            # Generated OpenAPI artifacts placeholder
+├── migrations/         # Alembic migrations for platform metadata tables
+├── openapi/            # Generated OpenAPI artifacts
+├── tests/              # Backend API, domain, persistence, and server tests
 ├── DESIGN_SPEC.md      # Architecture and product design specification
 ├── README.md           # Project overview
 ├── main.py             # Minimal Python entrypoint placeholder
@@ -91,10 +106,36 @@ Run backend scaffold tests:
 uv run pytest -q
 ```
 
+Run backend quality checks:
+
+```bash
+uv run ruff check .
+uv run mypy apps/server tests scripts
+```
+
+Run database migrations:
+
+```bash
+uv run alembic upgrade head
+```
+
+Export OpenAPI:
+
+```bash
+uv run python scripts/export_openapi.py
+```
+
 Run the Worker entrypoint:
 
 ```bash
 uv run python apps/worker/dimoo_run_worker/main.py
+```
+
+Build the Console:
+
+```bash
+cd apps/console
+npm run build
 ```
 
 ## Design Principle
