@@ -6,6 +6,10 @@ dist/
 wheels/
 *.egg-info
 
+# Node / frontend-generated files
+node_modules/
+apps/console/dist/
+
 # Virtual environments
 .venv
 .worktrees/

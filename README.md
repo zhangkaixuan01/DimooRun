@@ -32,7 +32,10 @@ The primary artifact is [DESIGN_SPEC.md](DESIGN_SPEC.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
 roadmap.
 
-No production runtime implementation has been started yet.
+The current implementation is a foundation scaffold only: FastAPI health checks,
+configuration models, a Worker entrypoint, and a minimal Console shell. Production
+runtime, persistence, task execution, adapters, and governance logic are still
+planned work.
 
 ## LangChain Ecosystem Version Policy
 
@@ -54,12 +57,21 @@ lockfile, and run adapter conformance tests before accepting the upgrade.
 
 ```text
 .
+├── apps/
+│   ├── server/         # FastAPI Runtime API scaffold
+│   ├── worker/         # Worker process entrypoint scaffold
+│   └── console/        # Vue Console scaffold
+├── deploy/             # Deployment assets placeholder
+├── examples/
+│   ├── compatibility/  # LangGraph Compatibility API examples
+│   └── langgraph/      # LangGraph Agent examples
+├── execution_plans/    # Chinese implementation plans mapped to DESIGN_SPEC.md
+├── openapi/            # Generated OpenAPI artifacts placeholder
 ├── DESIGN_SPEC.md      # Architecture and product design specification
 ├── README.md           # Project overview
 ├── main.py             # Minimal Python entrypoint placeholder
-├── pyproject.toml      # Python project metadata
-├── uv.lock             # uv lockfile
-└── .python-version     # Python version pin
+├── pyproject.toml      # Python project metadata and tool config
+└── uv.lock             # uv lockfile
 ```
 
 ## Development Prerequisites
@@ -71,6 +83,18 @@ Run the placeholder entrypoint:
 
 ```bash
 uv run python main.py
+```
+
+Run backend scaffold tests:
+
+```bash
+uv run pytest -q
+```
+
+Run the Worker entrypoint:
+
+```bash
+uv run python apps/worker/dimoo_run_worker/main.py
 ```
 
 ## Design Principle
