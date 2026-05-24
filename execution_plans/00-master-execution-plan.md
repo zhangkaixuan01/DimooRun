@@ -48,7 +48,7 @@ execution_plans/
 | --- | --- | --- |
 | `01-project-foundation.md` | 已完成 | 项目骨架、Server、Worker、Console scaffold、基础测试已落地。 |
 | `02-domain-persistence-and-api.md` | 已完成 | 领域模型、迁移、Repository、API skeleton、OpenAPI、审计/软删除契约已落地并通过验证。 |
-| `03-agent-package-and-adapters.md` | 待开始 | 下一阶段，优先打通 Agent Package、manifest、Adapter contract 和 LangGraphAdapter。 |
+| `03-agent-package-and-adapters.md` | 已完成 | Agent Package manifest、entrypoint loader、Adapter contract、RuntimeContext、版本治理、Conformance Kit 和三类早期 Adapter 已落地。 |
 
 最近完成提交：
 
@@ -57,6 +57,7 @@ execution_plans/
 5167bb4 fix: add audit fields and soft delete semantics
 d4d35f8 fix: harden domain persistence contracts
 a368499 fix(persistence): harden metadata contracts
+33b29a4 docs(plans): sync foundation and persistence progress
 ```
 
 ## 1.1 设计文档真相源规则

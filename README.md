@@ -41,14 +41,21 @@ Completed implementation phases:
   repository boundaries, Native/Admin API contract skeletons, audit and soft
   delete semantics, idempotency records, placeholder metadata tables, and
   generated OpenAPI.
+- `03-agent-package-and-adapters`: Agent Package manifest validation, package
+  entrypoint loading, RuntimeContext, AgentAdapter contract, capability model,
+  adapter version metadata, conformance report scaffold, event identity fields,
+  LangGraphAdapter, LangChainAgentAdapter, and DeepAgentsAdapter. Package
+  loading uses temporary module-path isolation for local package helpers.
+  Checkpoint, resume, and cancel are intentionally not certified until the
+  Worker and persistence runtime are connected.
 
 Next implementation phase:
 
-- `03-agent-package-and-adapters`: Agent Package manifest, package loading,
-  Adapter contract, LangGraphAdapter, and adapter conformance tests.
+- `04-runtime-task-worker-streaming`: Task queue, worker execution, run/task
+  lifecycle, event persistence, and streaming runtime.
 
-Production runtime execution, real task queues, real adapters, governance
-decision logic, and full Console product screens are still planned work.
+Production runtime execution, real task queues, governance decision logic, and
+full Console product screens are still planned work.
 
 ## LangChain Ecosystem Version Policy
 
@@ -104,6 +111,12 @@ Run backend scaffold tests:
 
 ```bash
 uv run pytest -q
+```
+
+Run adapter contract tests:
+
+```bash
+uv run pytest tests/adapters -q
 ```
 
 Run backend quality checks:

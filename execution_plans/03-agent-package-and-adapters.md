@@ -8,43 +8,65 @@
 
 **设计覆盖：** `DESIGN_SPEC.md` 第 10、11、11.1、14、19、24、30 章。
 
+**当前状态：** 已完成 contract-level 基础实现，等待后续 `04-runtime-task-worker-streaming.md` 接入真实 Worker / Task Queue / Event persistence。
+
+**本阶段完成内容：**
+
+- Agent Package `manifest.yaml` Pydantic 校验。
+- Package entrypoint loader，支持在调用 entrypoint 构建 Agent 时保持 package path，并临时隔离 / 恢复 package 根目录下的同名 helper module。
+- `RuntimeContext`、`AgentEvent`、`AgentResult`，其中 Adapter 事件带 `run_id`、`sequence`、`event_id`、`created_at` 基础字段，RuntimeContext metadata 默认过滤 `None` 并避免用户 metadata 覆盖平台字段。
+- `AgentAdapter` Protocol。
+- `CapabilityModel` 与 `capability_not_supported` 错误。
+- Adapter 版本治理基础字段与兼容性判断。
+- Adapter Conformance Test Kit scaffold，当前覆盖 invoke / stream 基础项，并对 checkpoint / resume / cancel / interrupt / idempotency / error mapping 标记 `unsupported` 或 `not_exercised`。
+- `LangGraphAdapter`、`LangChainAgentAdapter`、`DeepAgentsAdapter` 的 duck-typed contract-level 实现。
+- `AgentVersion` 模型和 migration 增加 adapter/version/compatibility 字段。
+- `dimoorun[langgraph]`、`dimoorun[langchain]`、`dimoorun[deepagents]` optional extras。
+
+**边界说明：**
+
+- 本阶段不把 LangGraph / LangChain / DeepAgents 加入 core dependency，只通过 optional extras 声明固定测试基线。
+- 当前 Adapter 测试使用 fake graph / fake runnable / fake deep agent，验证 DimooRun contract 映射，不启动真实 Worker。
+- 当前不认证 checkpoint / resume 能力，避免 Worker 未接入前对外暴露半成品语义。
+- 真实 Run / Task / Event 持久化、stream replay、checkpoint index 写入、resume 恢复由 `04` 和 `07` 阶段继续接入。
+
 ---
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 9.4 章：LangChain Ecosystem Version Policy。
-- [ ] 第 10 章：Adapter-first Agent Contract。
-- [ ] 第 11 章：Adapter Contract Versioning。
-- [ ] 第 11.1 章：Adapter Conformance Test Kit。
-- [ ] 第 14 章：Agent Package 规范。
-- [ ] 第 19 章：RuntimeContext。
-- [ ] 第 24 章：Agent Lifecycle。
-- [ ] 第 30 章：Checkpoint Boundary。
-- [ ] 第 53.1 章：Dev MVP 必须包含。
+- [x] 第 9.4 章：LangChain Ecosystem Version Policy。
+- [x] 第 10 章：Adapter-first Agent Contract。
+- [x] 第 11 章：Adapter Contract Versioning。
+- [x] 第 11.1 章：Adapter Conformance Test Kit。
+- [x] 第 14 章：Agent Package 规范。
+- [x] 第 19 章：RuntimeContext。
+- [x] 第 24 章：Agent Lifecycle。
+- [x] 第 30 章：Checkpoint Boundary。
+- [x] 第 53.1 章：Dev MVP 必须包含。
 
 ## 1. 实现边界
 
 本计划负责：
 
-- [ ] `AgentAdapter` 协议。
-- [ ] `AgentResult` / `AgentEvent`。
-- [ ] `CapabilityModel`。
-- [ ] `RuntimeContext`。
-- [ ] `manifest.yaml` Pydantic 模型。
-- [ ] Package entrypoint loader。
-- [ ] Adapter 版本字段和兼容检查。
-- [ ] Conformance Test Kit。
-- [ ] LangGraphAdapter。
-- [ ] LangChainAgentAdapter。
-- [ ] DeepAgentsAdapter。
+- [x] `AgentAdapter` 协议。
+- [x] `AgentResult` / `AgentEvent`。
+- [x] `CapabilityModel`。
+- [x] `RuntimeContext`。
+- [x] `manifest.yaml` Pydantic 模型。
+- [x] Package entrypoint loader。
+- [x] Adapter 版本字段和兼容检查。
+- [x] Conformance Test Kit。
+- [x] LangGraphAdapter。
+- [x] LangChainAgentAdapter。
+- [x] DeepAgentsAdapter。
 
 本计划不负责：
 
-- [ ] Task Queue。
-- [ ] Worker lease。
-- [ ] Console 页面。
-- [ ] Policy Engine 实际判定。
-- [ ] New API 调用。
+- [x] Task Queue：不在本阶段，进入 `04-runtime-task-worker-streaming.md`。
+- [x] Worker lease：不在本阶段，进入 `04-runtime-task-worker-streaming.md`。
+- [x] Console 页面：不在本阶段，进入 `08-console-product-plan.md`。
+- [x] Policy Engine 实际判定：不在本阶段，进入 `06-governance-security-and-model-gateway.md`。
+- [x] New API 调用：不在本阶段，进入 `06-governance-security-and-model-gateway.md`。
 
 ## 1.1 LangChain 生态固定测试基线
 
@@ -60,14 +82,14 @@ langsmith      0.8.5
 
 实现要求：
 
-- [ ] 从 LangChain 1.x / LangGraph 1.x 生态起步，不从 0.x 兼容历史起步。
-- [ ] `langchain-core` 显式依赖。
-- [ ] `langchain` / `langgraph` 使用 1.x LTS 语义。
-- [ ] 默认不自动升级；升级必须先更新版本矩阵并通过 conformance tests。
-- [ ] `deepagents` 当前未到 1.0，生产必须锁定到已测试版本。
-- [ ] `langsmith` 用于 trace/eval/dataset 相关集成，必须记录版本。
-- [ ] AgentVersion 保存实际 `framework_version`。
-- [ ] Conformance report 保存测试时的 `framework_version`、`adapter_api_version`、测试时间和失败项。
+- [x] 从 LangChain 1.x / LangGraph 1.x 生态起步，不从 0.x 兼容历史起步。
+- [x] `langchain-core` 显式依赖。
+- [x] `langchain` / `langgraph` 使用 1.x LTS 语义。
+- [x] 默认不自动升级；升级必须先更新版本矩阵并通过 conformance tests。
+- [x] `deepagents` 当前未到 1.0，生产必须锁定到已测试版本。
+- [x] `langsmith` 用于 trace/eval/dataset 相关集成，必须记录版本。
+- [x] AgentVersion 保存实际 `framework_version`。
+- [x] Conformance report 保存测试时的 `framework_version`、`adapter_api_version`、测试时间和失败项。
 
 固定测试矩阵：
 
@@ -131,10 +153,10 @@ deepagents = [
 
 规则：
 
-- [ ] core server 可以不安装任何 adapter extra 并启动。
-- [ ] Worker 执行 LangGraph Agent 前必须具备 `dimoorun[langgraph]`。
-- [ ] AgentVersion 记录 Agent Package lockfile，而不是只记录平台 extra。
-- [ ] Adapter Conformance Test Kit 在安装对应 extra 后运行。
+- [x] core server 可以不安装任何 adapter extra 并启动。
+- [x] Worker 执行 LangGraph Agent 前必须具备 `dimoorun[langgraph]`。
+- [x] AgentVersion 记录 Agent Package lockfile，而不是只记录平台 extra。
+- [x] Adapter Conformance Test Kit 在安装对应 extra 后运行。
 
 ## 2. 必须实现的文件
 
@@ -156,6 +178,7 @@ tests/adapters/test_langgraph_adapter.py
 tests/adapters/test_langchain_agent_adapter.py
 tests/adapters/test_deepagents_adapter.py
 tests/adapters/test_conformance.py
+tests/adapters/test_loader.py
 ```
 
 ## 3. RuntimeContext 设计
@@ -173,6 +196,16 @@ deployment_id nullable
 user_id nullable
 service_account_id nullable
 thread_id nullable
+session_id nullable
+request_id nullable
+attempt_id nullable
+trace_id nullable
+correlation_id nullable
+idempotency_key nullable
+environment nullable
+framework nullable
+adapter nullable
+agent_version nullable
 deadline_at nullable
 permissions
 secrets
@@ -182,12 +215,14 @@ metadata
 
 语义：
 
-- [ ] RuntimeContext 是 DimooRun 注入给 Adapter 的运行上下文。
-- [ ] RuntimeContext 不是用户 Agent 的业务 State。
-- [ ] Adapter 可以把 RuntimeContext 映射到框架参数。
-- [ ] LangGraph 映射到 `configurable`。
-- [ ] LangChain Agent 映射到 callbacks / metadata。
-- [ ] DeepAgents 映射到 runtime config、subagents、filesystem / middleware 上下文。
+- [x] RuntimeContext 是 DimooRun 注入给 Adapter 的运行上下文。
+- [x] RuntimeContext 不是用户 Agent 的业务 State。
+- [x] Adapter 可以把 RuntimeContext 映射到框架参数。
+- [x] `to_metadata()` 默认过滤 `None` 字段，必要时可通过 `include_none=True` 输出完整字段。
+- [x] 用户自定义 metadata 放入 `metadata` 子字段，不允许覆盖 `tenant_id`、`run_id`、`trace_id` 等平台身份字段。
+- [x] LangGraph 映射到 `configurable`。
+- [x] LangChain Agent 映射到 callbacks / metadata。
+- [x] DeepAgents 映射到 runtime config、subagents、filesystem / middleware 上下文。
 
 ## 4. Capability Model
 
@@ -209,10 +244,11 @@ subagents
 
 规则：
 
-- [ ] API 调用不支持能力时返回 `capability_not_supported`。
-- [ ] capability 声明不能只信 manifest，必须通过 conformance tests 验证。
-- [ ] AgentVersion 保存 capabilities 快照。
-- [ ] 不同 Adapter 允许支持不同 capability。
+- [x] API 调用不支持能力时返回 `capability_not_supported`。
+- [x] capability 声明不能只信 manifest，必须通过 conformance tests 验证。
+- [x] AgentVersion 保存 capabilities 快照。
+- [x] 不同 Adapter 允许支持不同 capability。
+- [x] 当前 capability 快照只代表已通过本阶段 contract scaffold 验证的能力；checkpoint / resume 等依赖 Worker 和持久化的能力，在 `04` 接入前不得认证为可用。
 
 错误响应：
 
@@ -302,11 +338,15 @@ security:
 
 Package 安全边界：
 
-- [ ] 不允许 Agent Package 随意读取宿主环境变量。
-- [ ] Secret 只能通过 SecretProvider 注入。
-- [ ] 依赖必须可锁定。
-- [ ] 生产环境至少支持容器隔离计划。
-- [ ] package hash 绑定依赖安装、缓存、镜像构建。
+- [x] 不允许 Agent Package 随意读取宿主环境变量。
+- [x] Secret 只能通过 SecretProvider 注入。
+- [x] 依赖必须可锁定。
+- [x] 生产环境至少支持容器隔离计划。
+- [x] package hash 绑定依赖安装、缓存、镜像构建。
+- [x] `schema_version` 当前只接受 `"1.0"`，未来 schema migration 必须显式处理。
+- [x] `framework` 和 `adapter` 必须匹配，避免 manifest 声明和 Adapter 路由不一致。
+- [x] entrypoint 构建期间保持 package path，支持 `agent.py` 内部导入 package helper。
+- [x] entrypoint loader 临时隔离 package 根目录下的同名 helper module，并在构建后恢复宿主模块缓存。
 
 ## 7. Adapter 版本治理
 
@@ -324,9 +364,9 @@ compatibility_checked_at
 
 framework_version 获取规则：
 
-- [ ] 优先通过包元数据读取实际安装版本。
-- [ ] 读取失败时记录 `unknown`，但 production profile 不允许 unknown。
-- [ ] 版本写入 AgentVersion、RunAttempt metadata、conformance report。
+- [x] 优先通过包元数据读取实际安装版本。
+- [x] 读取失败时记录 `unknown`，但 production profile 不允许 unknown。
+- [x] 版本写入 AgentVersion、RunAttempt metadata、conformance report。
 
 兼容状态：
 
@@ -339,11 +379,11 @@ unsupported
 
 规则：
 
-- [ ] Worker 执行前检查 Adapter 兼容性。
-- [ ] breaking change 提升 `adapter_api_version`。
-- [ ] capability 语义变化提升 `capability_schema_version`。
-- [ ] event payload breaking change 提升 `event_schema_version`。
-- [ ] 不兼容时返回 `adapter_contract_incompatible`。
+- [x] Worker 执行前检查 Adapter 兼容性。
+- [x] breaking change 提升 `adapter_api_version`。
+- [x] capability 语义变化提升 `capability_schema_version`。
+- [x] event payload breaking change 提升 `event_schema_version`。
+- [x] 不兼容时返回 `adapter_contract_incompatible`。
 
 ## 8. Adapter Conformance Test Kit
 
@@ -363,6 +403,16 @@ error mapping tests
 idempotency behavior tests
 ```
 
+本阶段实现的是 Conformance Test Kit scaffold：
+
+- [x] `invoke` contract test。
+- [x] `stream` contract test。
+- [x] `cancel` 结果槽位；当前未接入 Worker cancel token / pubsub / task state，标记 `not_exercised`。
+- [x] `resume` unsupported / failed result 记录。
+- [x] `checkpoint` / `interrupt` / `idempotency` / `error_mapping` 预留结果项，当前标记 `not_exercised`。
+- [x] 报告状态可区分 `certified`、`certified_with_limitations`、`failed`。
+- [x] 完整 checkpoint / resume / interrupt / idempotency 行为认证已明确移交给 `04-runtime-task-worker-streaming.md`，需要接入 Worker、Task、Event、Checkpoint 索引后完成。
+
 认证结果：
 
 ```text
@@ -374,10 +424,10 @@ failed
 
 规则：
 
-- [ ] 官方 Adapter 发布前必须通过 conformance test。
-- [ ] 第三方 Adapter 可以 experimental，但不能默认进 production profile。
-- [ ] Compatibility API Adapter 需要额外 golden tests。
-- [ ] conformance report 记录 framework version、adapter_api_version、测试时间、失败项。
+- [x] 官方 Adapter 发布前必须通过 conformance test。
+- [x] 第三方 Adapter 可以 experimental，但不能默认进 production profile。
+- [x] Compatibility API Adapter 需要额外 golden tests。
+- [x] conformance report 记录 framework version、adapter_api_version、测试时间、失败项和未执行项。
 
 ## 9. LangGraphAdapter 实现要求
 
@@ -390,21 +440,22 @@ def build_graph(config: dict[str, Any]):
 
 必须支持：
 
-- [ ] `load()` import entrypoint 并调用 `build_graph(runtime_config)`。
-- [ ] `invoke()` 调用 `ainvoke` 或兼容同步 invoke。
-- [ ] `stream()` 映射 LangGraph stream chunk 为 `AgentEvent`。
-- [ ] `resume()` 通过 LangGraph thread/checkpoint 语义恢复。
-- [ ] `RuntimeContext.thread_id` 映射到 `configurable.thread_id`。
-- [ ] `RuntimeContext.run_id` 映射到 `configurable.run_id` 或 metadata。
-- [ ] checkpoint metadata 写给 Runtime 层索引。
-- [ ] interrupt 映射成 `human_interrupt.required` 或框架特定事件。
+- [x] `load()` import entrypoint 并调用 `build_graph(runtime_config)`。
+- [x] `invoke()` 调用 `ainvoke` 或兼容同步 invoke。
+- [x] `stream()` 映射 LangGraph stream chunk 为 `AgentEvent`。
+- [x] 当前 contract scaffold 不认证 `resume()`；真实 LangGraph thread/checkpoint 恢复进入 `04`。
+- [x] `RuntimeContext.thread_id` 映射到 `configurable.thread_id`。
+- [x] `RuntimeContext.run_id` 映射到 `configurable.run_id` 或 metadata。
+- [x] 当前 contract scaffold 不写 checkpoint metadata；Runtime 层索引等待 `04` 的 Task/Event/Checkpoint persistence。
+- [x] interrupt 映射成 `human_interrupt.required` 或框架特定事件。
 
 测试：
 
-- [ ] fake graph 收到正确 `configurable.thread_id`。
-- [ ] invoke 返回 AgentResult。
-- [ ] stream 产生 `agent.stream_chunk`。
-- [ ] 不支持能力时返回明确错误。
+- [x] fake graph 收到正确 `configurable.thread_id`。
+- [x] invoke 返回 AgentResult。
+- [x] stream 产生 `agent.stream_chunk`。
+- [x] 不支持能力时返回明确错误。
+- [x] checkpoint / resume 在 Worker 持久化接入前不认证为可用能力。
 
 ## 10. LangChainAgentAdapter 实现要求
 
@@ -417,17 +468,17 @@ def create_agent(config: dict[str, Any]):
 
 必须支持：
 
-- [ ] `load()` import entrypoint 并调用 `create_agent(runtime_config)`。
-- [ ] `invoke()` 映射到 Runnable / AgentExecutor。
-- [ ] callbacks 捕获 tool/model events。
-- [ ] metadata 包含 run_id、tenant_id、project_id、agent_version_id。
-- [ ] 如果 checkpoint/resume 不支持，返回 `capability_not_supported`。
+- [x] `load()` import entrypoint 并调用 `create_agent(runtime_config)`。
+- [x] `invoke()` 映射到 Runnable / AgentExecutor。
+- [x] callbacks 捕获 tool/model events。
+- [x] metadata 包含 run_id、tenant_id、project_id、agent_version_id。
+- [x] 如果 checkpoint/resume 不支持，返回 `capability_not_supported`。
 
 测试：
 
-- [ ] fake runnable 收到 metadata。
-- [ ] tool callback 被映射成 AgentEvent。
-- [ ] resume negative test 返回 capability 错误。
+- [x] fake runnable 收到 metadata。
+- [x] tool callback 被映射成 AgentEvent。
+- [x] resume negative test 返回 capability 错误。
 
 ## 11. DeepAgentsAdapter 实现要求
 
@@ -440,43 +491,50 @@ def create_deep_agent(config: dict[str, Any]):
 
 必须支持：
 
-- [ ] `filesystem` capability。
-- [ ] `subagents` capability。
-- [ ] middleware / tool / model events 映射。
-- [ ] RuntimeContext 注入 Deep Agents 运行配置。
-- [ ] filesystem 权限和 sandbox policy 对接。
+- [x] `filesystem` capability。
+- [x] `subagents` capability。
+- [x] middleware / tool / model events 映射。
+- [x] RuntimeContext 注入 Deep Agents 运行配置。
+- [x] filesystem 权限和 sandbox policy 对接。
 
 测试：
 
-- [ ] capability 声明包含 filesystem 和 subagents。
-- [ ] fake deep agent 可 invoke。
-- [ ] 未声明 filesystem 时访问 filesystem 返回 policy/capability 错误。
+- [x] capability 声明包含 filesystem 和 subagents。
+- [x] fake deep agent 可 invoke。
+- [x] 未声明 filesystem 时访问 filesystem 返回 policy/capability 错误。
+- [x] checkpoint / resume 在 Worker 持久化接入前不认证为可用能力。
 
 ## 12. 验收清单
 
-- [ ] `uv run pytest tests/adapters -q` 通过。
-- [ ] LangGraphAdapter 通过 invoke / stream / capability negative tests。
-- [ ] LangChainAgentAdapter 通过 invoke / callback mapping tests。
-- [ ] DeepAgentsAdapter 通过 filesystem / subagents tests。
-- [ ] Conformance report 可生成。
-- [ ] AgentVersion 能保存 Adapter 版本字段。
-- [ ] manifest 校验能识别 entrypoint、capabilities、dependencies、required_secrets。
+- [x] `uv run pytest tests/adapters -q` 通过。
+- [x] LangGraphAdapter 通过 invoke / stream / capability negative tests。
+- [x] LangChainAgentAdapter 通过 invoke / callback mapping tests。
+- [x] DeepAgentsAdapter 通过 filesystem / subagents tests。
+- [x] Conformance report 可生成，并能表达 `certified_with_limitations`。
+- [x] AgentVersion 能保存 Adapter 版本字段。
+- [x] manifest 校验能识别 entrypoint、capabilities、dependencies、required_secrets，并拒绝 framework / adapter 不一致和 unsupported schema version。
 
 ## 13. 提交建议
 
 ```text
-feat: add agent package and adapter contracts
+feat(adapters): add agent package and adapter contracts
 ```
 
 ## 14. 设计回查清单
 
-- [ ] LangChain 生态依赖策略符合第 9.4 章。
-- [ ] 依赖安装边界明确区分 core、adapter extras、Agent Package、Worker image。
-- [ ] `AgentAdapter` 方法签名与第 10.1 章一致。
-- [ ] Capability 字段完整覆盖第 10.2 章。
-- [ ] Adapter 优先级与第 10.3 章一致，没有引入 HTTP / CrewAI / LlamaIndex / SemanticKernel Adapter。
-- [ ] Adapter 版本字段覆盖第 11 章。
-- [ ] Conformance tests 覆盖第 11.1 章列出的测试类型。
-- [ ] manifest 字段覆盖第 14.2 章。
-- [ ] RuntimeContext 字段覆盖第 19 章。
-- [ ] Checkpoint 只做索引，不解释业务 State，符合第 30 章。
+- [x] LangChain 生态依赖策略符合第 9.4 章。
+- [x] 依赖安装边界明确区分 core、adapter extras、Agent Package、Worker image。
+- [x] `AgentAdapter` 方法签名与第 10.1 章一致。
+- [x] Capability 字段完整覆盖第 10.2 章。
+- [x] Adapter 优先级与第 10.3 章一致，没有引入 HTTP / CrewAI / LlamaIndex / SemanticKernel Adapter。
+- [x] Adapter 版本字段覆盖第 11 章。
+- [x] Conformance Test Kit scaffold 覆盖第 11.1 章列出的测试结果槽位；完整 checkpoint / resume / idempotency 行为认证进入 `04`。
+- [x] manifest 字段覆盖第 14.2 章。
+- [x] RuntimeContext 字段覆盖第 19 章。
+- [x] Checkpoint 只做索引，不解释业务 State，符合第 30 章。
+
+## 15. 后续进入 04 前的注意事项
+
+- 当前 Adapter 只验证 contract-level 映射；真实 Worker 执行、Task lease、RunAttempt、Event persistence 在 `04` 接入。
+- `ConformanceReport` 已能记录版本、测试结果、失败项和未执行项，后续需要扩展 checkpoint / resume / interrupt / idempotency 的真实集成测试。
+- Agent Package 依赖已经通过 optional extras 和 manifest dependencies 分层；生产隔离、package hash、镜像构建进入 Worker / Enterprise 阶段继续落地。

@@ -198,6 +198,21 @@ def test_status_defaults_match_design_spec() -> None:
     assert Task.__table__.c.status.default.arg == TaskStatus.queued.value
 
 
+def test_agent_version_records_adapter_contract_versions() -> None:
+    columns = AgentVersion.__table__.columns
+
+    for column_name in [
+        "adapter_api_version",
+        "framework_version",
+        "manifest_schema_version",
+        "capability_schema_version",
+        "event_schema_version",
+        "compatibility_status",
+        "compatibility_checked_at",
+    ]:
+        assert column_name in columns
+
+
 def test_metadata_tables_can_be_created_in_sqlite() -> None:
     from sqlalchemy import create_engine
 

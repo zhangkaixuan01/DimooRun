@@ -138,6 +138,13 @@ class AgentVersion(IdMixin, TimestampMixin, Base):
     capabilities_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     entrypoint: Mapped[str] = mapped_column(String(512), nullable=False)
     manifest_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    adapter_api_version: Mapped[str | None] = mapped_column(String(64))
+    framework_version: Mapped[str | None] = mapped_column(String(128))
+    manifest_schema_version: Mapped[str | None] = mapped_column(String(64))
+    capability_schema_version: Mapped[str | None] = mapped_column(String(64))
+    event_schema_version: Mapped[str | None] = mapped_column(String(64))
+    compatibility_status: Mapped[str | None] = mapped_column(String(64))
+    compatibility_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(64), default="draft", nullable=False)
 
 
