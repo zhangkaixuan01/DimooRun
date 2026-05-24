@@ -2,9 +2,9 @@
 
 DimooRun is an adapter-first enterprise runtime platform for AI agents.
 
-The project starts with LangGraph compatibility and is designed to expand to
-LangChain Agents, DeepAgents, HTTP Agents, CrewAI, LlamaIndex, and other agent
-frameworks through a stable adapter contract.
+The project starts with LangGraph compatibility and keeps the early adapter
+roadmap focused on the LangChain ecosystem: LangGraph, LangChain Agents, and
+DeepAgents.
 
 ## Positioning
 
@@ -33,6 +33,22 @@ target architecture, runtime model, compatibility strategy, MVP scope, and
 roadmap.
 
 No production runtime implementation has been started yet.
+
+## LangChain Ecosystem Version Policy
+
+DimooRun starts from the LangChain 1.x / LangGraph 1.x ecosystem line and uses a
+fixed tested baseline for reproducible implementation and production runs:
+
+```text
+langchain      1.3.1
+langchain-core 1.4.0
+langgraph      1.2.1
+deepagents     0.6.3
+langsmith      0.8.5
+```
+
+Version upgrades are explicit maintenance work: update the matrix, update the
+lockfile, and run adapter conformance tests before accepting the upgrade.
 
 ## Repository Layout
 
