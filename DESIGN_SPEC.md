@@ -1527,6 +1527,35 @@ stream.replay_expired
 
 本章描述 Runtime 最核心的领域对象。PublishedSurface、CatalogItem、PromptAsset、Dataset、MemoryBlock 等扩展对象在后续专题章节中定义，但它们同样属于平台领域模型。
 
+### 22.0 通用审计与软删除字段
+
+所有 Platform Metadata Store 表都必须具备统一审计字段和软删除字段。
+
+通用字段：
+
+```text
+created_at
+created_by nullable
+updated_at
+updated_by nullable
+is_deleted
+deleted_at nullable
+deleted_by nullable
+```
+
+规则：
+
+```text
+1. 默认业务删除不是 hard delete，而是 soft delete。
+2. soft delete 必须设置 is_deleted=true、deleted_at、deleted_by，并写 AuditLog。
+3. 生命周期归档使用 status=archived，不等同于删除。
+4. archive 表示资源仍作为历史事实保留，可查询、可审计、可回放。
+5. is_deleted=true 表示默认列表和业务操作应过滤该记录，只有审计、恢复、retention、管理员视图可查询。
+6. hard delete 只允许出现在 migration rollback、测试清理、retention purge job 或显式管理员物理清理任务中。
+7. API、Repository 和 Console 默认不得执行物理删除。
+8. 删除高风险资源时必须经过 Policy Engine，并记录 actor、request_id、resource_type、resource_id。
+```
+
 ### 22.1 Tenant
 
 企业租户。
@@ -3257,6 +3286,15 @@ promote / block / rollback
 * restore_jobs
 * audit_logs
 
+Platform Metadata Store 通用存储规则：
+
+```text
+1. 所有表包含通用审计与软删除字段。
+2. 默认查询必须过滤 is_deleted=true，除非调用方显式请求 include_deleted 且具备权限。
+3. 软删除不破坏历史 Run、Event、Trace、Artifact、AuditLog 的可追溯性。
+4. retention purge job 可以物理清理已满足保留期的软删除数据，但必须生成 AuditLog 或 IncidentEvent。
+```
+
 ### 37.2 Framework Runtime Store
 
 不同框架的运行时存储。
@@ -3443,6 +3481,14 @@ X-Request-Id: <request_id>
 
 ```text
 同一个 tenant_id + project_id + endpoint + idempotency_key 在一定时间窗口内只产生一个业务结果。
+```
+
+删除规则：
+
+```text
+1. 所有 DELETE 语义默认执行 soft delete，不执行 hard delete。
+2. archive 与 soft delete 分离：archive 是生命周期状态，soft delete 是默认业务可见性删除。
+3. 需要恢复、保留期清理或物理清理时，必须通过明确的 Admin / Governance API 或后台任务完成。
 ```
 
 ### 38.3 Agent 管理 API

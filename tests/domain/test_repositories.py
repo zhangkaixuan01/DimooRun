@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 
-def test_repository_create_get_list_update_and_archive() -> None:
+def test_repository_create_get_list_update_and_soft_delete() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
@@ -30,6 +30,9 @@ def test_repository_create_get_list_update_and_archive() -> None:
         session.commit()
         assert updated_agent.status == "paused"
 
-        archived_agent = repository.soft_delete_or_archive("agent_1")
+        archived_agent = repository.soft_delete_or_archive("agent_1", actor_id="user_1")
         session.commit()
         assert archived_agent.status == "archived"
+        assert archived_agent.is_deleted is True
+        assert archived_agent.deleted_by == "user_1"
+        assert archived_agent.deleted_at is not None

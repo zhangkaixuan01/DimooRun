@@ -71,6 +71,21 @@ def test_all_required_tables_are_registered() -> None:
     assert REQUIRED_TABLES <= set(Base.metadata.tables)
 
 
+def test_all_domain_tables_have_audit_and_soft_delete_columns() -> None:
+    required_columns = {
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "is_deleted",
+        "deleted_at",
+        "deleted_by",
+    }
+
+    for table_name in REQUIRED_TABLES:
+        assert required_columns <= set(Base.metadata.tables[table_name].columns.keys()), table_name
+
+
 def test_core_foreign_keys_are_present() -> None:
     agent_version_fks = {
         fk.column.table.name for fk in Base.metadata.tables["agent_versions"].foreign_keys

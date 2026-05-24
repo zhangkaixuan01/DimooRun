@@ -13,7 +13,14 @@ from dimoo_run.domain.enums import (
     RunStatus,
     TaskStatus,
 )
-from dimoo_run.persistence.database import Base, IdMixin, TenantProjectMixin, TimestampMixin, utcnow
+from dimoo_run.persistence.database import (
+    AuditMixin,
+    Base,
+    IdMixin,
+    TenantProjectMixin,
+    TimestampMixin,
+    utcnow,
+)
 
 
 class Tenant(IdMixin, TimestampMixin, Base):
@@ -167,7 +174,7 @@ class SessionModel(IdMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
-class Run(IdMixin, Base):
+class Run(IdMixin, AuditMixin, Base):
     __tablename__ = "runs"
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
@@ -192,7 +199,7 @@ class Run(IdMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
-class RunAttempt(IdMixin, Base):
+class RunAttempt(IdMixin, AuditMixin, Base):
     __tablename__ = "run_attempts"
 
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
@@ -209,7 +216,7 @@ class RunAttempt(IdMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
-class Task(IdMixin, Base):
+class Task(IdMixin, AuditMixin, Base):
     __tablename__ = "tasks"
 
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
@@ -233,7 +240,7 @@ class Task(IdMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
-class Event(IdMixin, Base):
+class Event(IdMixin, AuditMixin, Base):
     __tablename__ = "events"
 
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
@@ -248,7 +255,7 @@ class Event(IdMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
-class CheckpointIndex(IdMixin, Base):
+class CheckpointIndex(IdMixin, AuditMixin, Base):
     __tablename__ = "checkpoint_indexes"
 
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
@@ -281,7 +288,7 @@ class Secret(IdMixin, TimestampMixin, Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
-class AuditLog(IdMixin, Base):
+class AuditLog(IdMixin, AuditMixin, Base):
     __tablename__ = "audit_logs"
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)

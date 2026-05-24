@@ -252,6 +252,9 @@ restore_jobs
 
 - [ ] 核心对象字段按 `DESIGN_SPEC.md` 完整建。
 - [ ] 扩展对象第一版至少包含 `id`、`tenant_id`、`project_id nullable`、`status`、`metadata_json`、`created_at`、`updated_at`。
+- [ ] 所有 Platform Metadata Store 表必须包含通用审计与软删除字段：`created_at`、`created_by`、`updated_at`、`updated_by`、`is_deleted`、`deleted_at`、`deleted_by`。
+- [ ] 默认业务删除必须是 soft delete，不允许 API / Repository 默认 hard delete。
+- [ ] `status=archived` 是生命周期归档，不等同于 `is_deleted=true`。
 - [ ] 大 JSON 使用 `*_json` 命名，例如 `manifest_json`、`payload_json`、`config_json`。
 - [ ] 不使用含糊的 `data` 字段。
 - [ ] 所有多租户对象必须有 `tenant_id`。
@@ -450,6 +453,19 @@ update_status
 soft_delete_or_archive
 ```
 
+删除语义：
+
+```text
+soft_delete_or_archive:
+  设置 is_deleted=true。
+  设置 deleted_at。
+  设置 deleted_by。
+  如果模型有 status 字段，同时设置 status=archived。
+
+hard delete:
+  仅允许 migration rollback、测试清理、retention purge job 或显式管理员物理清理任务使用。
+```
+
 必须覆盖：
 
 - [ ] AgentRepository。
@@ -515,3 +531,4 @@ feat: add domain persistence and api contracts
 - [ ] 第 38 章所有 API surface 都有路由边界。
 - [ ] API 通用规则包含 auth、tenant/project scope、Policy Engine、AuditLog、request_id、idempotency。
 - [ ] Schema version 字段预留覆盖第 12 章列出的版本维度。
+- [ ] 所有表都有统一审计与软删除字段，删除语义没有退化为 hard delete。

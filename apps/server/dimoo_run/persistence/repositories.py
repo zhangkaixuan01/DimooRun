@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import select
@@ -34,8 +35,12 @@ class BaseRepository(Generic[ModelT]):
         instance.status = status
         return instance
 
-    def soft_delete_or_archive(self, entity_id: str) -> ModelT:
-        return self.update_status(entity_id, "archived")
+    def soft_delete_or_archive(self, entity_id: str, actor_id: str | None = None) -> ModelT:
+        instance = self.update_status(entity_id, "archived")
+        instance.is_deleted = True
+        instance.deleted_at = datetime.utcnow()
+        instance.deleted_by = actor_id
+        return instance
 
 
 class AgentRepository(BaseRepository[Agent]):
