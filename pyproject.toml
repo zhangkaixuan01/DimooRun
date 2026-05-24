@@ -1,0 +1,7 @@
+[project]
+name = "dimoorun"
+version = "0.1.0"
+description = "Adapter-first enterprise runtime platform for AI agents."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
