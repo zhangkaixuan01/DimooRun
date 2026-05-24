@@ -1554,6 +1554,9 @@ deleted_by nullable
 6. hard delete 只允许出现在 migration rollback、测试清理、retention purge job 或显式管理员物理清理任务中。
 7. API、Repository 和 Console 默认不得执行物理删除。
 8. 删除高风险资源时必须经过 Policy Engine，并记录 actor、request_id、resource_type、resource_id。
+9. Repository 默认查询必须过滤 is_deleted=true；只有显式 include_deleted 且有权限时才能返回软删除记录。
+10. AuditLog 是不可变合规事实，不能通过业务 API 更新、归档、软删除或物理删除。
+11. created_at / created_by / updated_at / updated_by / is_deleted / deleted_at / deleted_by 必须由统一 mixin 提供，业务模型不得重复定义同名字段。
 ```
 
 ### 22.1 Tenant
@@ -1731,6 +1734,42 @@ API Key scopes：
 3. Project-scoped API Key 不能访问其他 project。
 4. API Key 禁用后，所有 Runtime / Admin / Compatibility API 均必须拒绝。
 5. 高风险 scope，如 secret:read、tool:call、run:read_input、trace:read_prompt，应支持额外审批或管理员授权。
+```
+
+幂等记录：
+
+```text
+id
+tenant_id
+project_id nullable
+endpoint
+idempotency_key
+request_hash
+response_ref nullable
+status
+expires_at nullable
+created_at
+created_by nullable
+updated_at
+updated_by nullable
+is_deleted
+deleted_at nullable
+deleted_by nullable
+```
+
+唯一约束：
+
+```text
+tenant_id + project_id + endpoint + idempotency_key
+```
+
+用途：
+
+```text
+1. 所有需要幂等的写 API 先写入或读取 IdempotencyRecord。
+2. 同一 scope 下 request_hash 不一致时返回 idempotency_conflict。
+3. response_ref 可指向 Run、Task、Artifact 或缓存响应。
+4. 过期记录由 retention job 清理，不由普通 API 硬删除。
 ```
 
 ### 22.6 APIKey
@@ -3245,6 +3284,7 @@ promote / block / rollback
 * roles
 * permissions
 * api_keys
+* idempotency_records
 * agents
 * agent_versions
 * deployments
@@ -3293,6 +3333,8 @@ Platform Metadata Store 通用存储规则：
 2. 默认查询必须过滤 is_deleted=true，除非调用方显式请求 include_deleted 且具备权限。
 3. 软删除不破坏历史 Run、Event、Trace、Artifact、AuditLog 的可追溯性。
 4. retention purge job 可以物理清理已满足保留期的软删除数据，但必须生成 AuditLog 或 IncidentEvent。
+5. 扩展 metadata 表也必须使用 tenant_id / project_id 外键，不能只存裸字符串。
+6. 关键业务唯一性必须由数据库约束保护，例如 Project slug、Agent name、AgentVersion version、Deployment scope、API key hash、Idempotency key。
 ```
 
 ### 37.2 Framework Runtime Store
@@ -3480,7 +3522,10 @@ X-Request-Id: <request_id>
 幂等规则：
 
 ```text
-同一个 tenant_id + project_id + endpoint + idempotency_key 在一定时间窗口内只产生一个业务结果。
+1. 同一个 tenant_id + project_id + endpoint + idempotency_key 在一定时间窗口内只产生一个业务结果。
+2. 幂等状态统一记录到 idempotency_records。
+3. 相同 idempotency_key 但 request_hash 不一致时返回 idempotency_conflict。
+4. API 不允许只把幂等键散落在 Run / Task 表中。
 ```
 
 删除规则：

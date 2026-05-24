@@ -23,6 +23,7 @@ TABLE_NAMES = (
     "checkpoint_indexes",
     "artifacts",
     "audit_logs",
+    "idempotency_records",
 )
 
 

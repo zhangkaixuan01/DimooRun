@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Request, Response
 
 from dimoo_run.api.dependencies import (
     IdempotencyKeyHeader,
@@ -44,9 +44,20 @@ def update_agent(
     return error
 
 
-@router.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_agent(agent_id: str) -> Response:
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/agents/{agent_id}", responses={501: {"model": ErrorResponse}})
+def delete_agent(
+    request: Request,
+    response: Response,
+    x_request_id: RequestIdHeader,
+) -> ErrorResponse:
+    error, status_code = not_implemented_response(
+        request,
+        x_request_id,
+        audit_required=True,
+        extra_details={"soft_delete_required": True},
+    )
+    response.status_code = status_code
+    return error
 
 
 @router.post("/agents/{agent_id}/versions", responses={501: {"model": ErrorResponse}})

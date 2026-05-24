@@ -18,14 +18,28 @@ class BaseRepository(Generic[ModelT]):
         self.session.add(instance)
         return instance
 
-    def get_by_id(self, entity_id: str) -> ModelT | None:
-        return self.session.get(self.model, entity_id)
+    def get_by_id(self, entity_id: str, *, include_deleted: bool = False) -> ModelT | None:
+        instance = self.session.get(self.model, entity_id)
+        if instance is None:
+            return None
+        if not include_deleted and instance.is_deleted:
+            return None
+        return instance
 
-    def list_by_project(self, tenant_id: str, project_id: str) -> list[ModelT]:
-        statement = select(self.model).where(
+    def list_by_project(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        include_deleted: bool = False,
+    ) -> list[ModelT]:
+        conditions = [
             self.model.tenant_id == tenant_id,
             self.model.project_id == project_id,
-        )
+        ]
+        if not include_deleted:
+            conditions.append(self.model.is_deleted.is_(False))
+        statement = select(self.model).where(*conditions)
         return list(self.session.scalars(statement))
 
     def update_status(self, entity_id: str, status: str) -> ModelT:
@@ -76,3 +90,7 @@ class EventRepository(BaseRepository[Event]):
 class AuditLogRepository(BaseRepository[AuditLog]):
     def __init__(self, session: Session) -> None:
         super().__init__(session, AuditLog)
+
+    def soft_delete_or_archive(self, entity_id: str, actor_id: str | None = None) -> AuditLog:
+        _ = entity_id, actor_id
+        raise TypeError("AuditLog is immutable and cannot be soft deleted.")

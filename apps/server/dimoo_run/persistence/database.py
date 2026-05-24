@@ -2,7 +2,7 @@ from collections.abc import Generator
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, String, Text, create_engine
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 
@@ -33,8 +33,10 @@ class TimestampMixin(AuditMixin):
 
 
 class TenantProjectMixin:
-    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    project_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
+    )
 
 
 def json_column(default: Any | None = None) -> Mapped[dict[str, Any]]:

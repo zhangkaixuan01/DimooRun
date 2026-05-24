@@ -1,12 +1,24 @@
+from typing import cast
+
 from dimoo_run.domain.enums import (
     DeploymentDesiredStatus,
     DeploymentRuntimeStatus,
     RunStatus,
     TaskStatus,
 )
-from dimoo_run.domain.models import Deployment, Run, Task
+from dimoo_run.domain.models import (
+    Agent,
+    AgentVersion,
+    APIKey,
+    AuditLog,
+    Deployment,
+    IdempotencyRecord,
+    Project,
+    Run,
+    Task,
+)
 from dimoo_run.persistence.database import Base
-from sqlalchemy import inspect
+from sqlalchemy import Table, inspect
 
 REQUIRED_TABLES = {
     "tenants",
@@ -16,6 +28,7 @@ REQUIRED_TABLES = {
     "roles",
     "permissions",
     "api_keys",
+    "idempotency_records",
     "agents",
     "agent_versions",
     "deployments",
@@ -98,6 +111,65 @@ def test_core_foreign_keys_are_present() -> None:
     assert "agents" in agent_version_fks
     assert {"agents", "agent_versions", "tenants", "projects"} <= deployment_fks
     assert {"agents", "agent_versions", "tenants", "projects"} <= run_fks
+
+
+def test_metadata_tables_have_tenant_and_project_foreign_keys() -> None:
+    metadata_tables = REQUIRED_TABLES - {
+        "tenants",
+        "projects",
+        "users",
+        "api_keys",
+        "agents",
+        "agent_versions",
+        "deployments",
+        "agent_instances",
+        "sessions",
+        "runs",
+        "run_attempts",
+        "tasks",
+        "events",
+        "checkpoint_indexes",
+        "tools",
+        "secrets",
+        "audit_logs",
+        "idempotency_records",
+    }
+
+    for table_name in metadata_tables:
+        foreign_key_tables = {
+            foreign_key.column.table.name
+            for foreign_key in Base.metadata.tables[table_name].foreign_keys
+        }
+        assert {"tenants", "projects"} <= foreign_key_tables, table_name
+
+
+def test_critical_uniqueness_constraints_are_present() -> None:
+    expected_constraints = {
+        Project: "uq_projects_tenant_slug",
+        APIKey: "uq_api_keys_key_hash",
+        Agent: "uq_agents_project_name",
+        AgentVersion: "uq_agent_versions_agent_version",
+        Deployment: "uq_deployments_project_environment_agent",
+        IdempotencyRecord: "uq_idempotency_records_scope_key",
+    }
+
+    for model, constraint_name in expected_constraints.items():
+        table = cast(Table, model.__table__)
+        assert constraint_name in {
+            constraint.name for constraint in table.constraints
+        }, model.__tablename__
+
+
+def test_audit_log_keeps_columns_but_is_marked_immutable() -> None:
+    audit_log_table = cast(Table, AuditLog.__table__)
+    assert audit_log_table.info["immutable"] is True
+    assert "is_deleted" in audit_log_table.columns
+
+
+def test_audit_fields_come_from_shared_mixins_only() -> None:
+    for model in [Run, Task, AuditLog, AgentVersion]:
+        assert list(model.__table__.columns.keys()).count("created_at") == 1
+        assert list(model.__table__.columns.keys()).count("created_by") == 1
 
 
 def test_status_defaults_match_design_spec() -> None:

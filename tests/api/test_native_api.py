@@ -52,3 +52,24 @@ def test_unimplemented_write_api_returns_stable_error_response() -> None:
         "request_id": "req_123",
         "details": {"path": "/v1/agents/agent_1/invoke"},
     }
+
+
+def test_delete_agent_returns_soft_delete_contract_placeholder() -> None:
+    client = TestClient(create_app())
+
+    response = client.delete(
+        "/v1/agents/agent_1",
+        headers={"X-Request-Id": "req_delete"},
+    )
+
+    assert response.status_code == 501
+    assert response.json() == {
+        "error_code": "not_implemented",
+        "message": "This API contract is registered but not implemented yet.",
+        "request_id": "req_delete",
+        "details": {
+            "path": "/v1/agents/agent_1",
+            "audit_required": True,
+            "soft_delete_required": True,
+        },
+    }

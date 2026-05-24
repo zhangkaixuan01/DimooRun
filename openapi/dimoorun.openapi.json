@@ -225,17 +225,31 @@
         "operationId": "delete_agent_v1_agents__agent_id__delete",
         "parameters": [
           {
-            "in": "path",
-            "name": "agent_id",
+            "in": "header",
+            "name": "X-Request-Id",
             "required": true,
             "schema": {
-              "title": "Agent Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
             }
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "422": {
@@ -247,6 +261,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
           }
         },
         "summary": "Delete Agent",

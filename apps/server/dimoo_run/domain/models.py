@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dimoo_run.domain.enums import (
@@ -19,7 +19,6 @@ from dimoo_run.persistence.database import (
     IdMixin,
     TenantProjectMixin,
     TimestampMixin,
-    utcnow,
 )
 
 
@@ -33,6 +32,7 @@ class Tenant(IdMixin, TimestampMixin, Base):
 
 class Project(IdMixin, TimestampMixin, Base):
     __tablename__ = "projects"
+    __table_args__ = (UniqueConstraint("tenant_id", "slug", name="uq_projects_tenant_slug"),)
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -55,7 +55,6 @@ class ServiceAccount(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
-    created_by: Mapped[str | None] = mapped_column(String(64))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
@@ -77,6 +76,7 @@ class Permission(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 
 class APIKey(IdMixin, TimestampMixin, Base):
     __tablename__ = "api_keys"
+    __table_args__ = (UniqueConstraint("key_hash", name="uq_api_keys_key_hash"),)
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     project_id: Mapped[str | None] = mapped_column(
@@ -91,11 +91,11 @@ class APIKey(IdMixin, TimestampMixin, Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
     rotation_policy_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_by: Mapped[str | None] = mapped_column(String(64))
 
 
 class Agent(IdMixin, TimestampMixin, Base):
     __tablename__ = "agents"
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_agents_project_name"),)
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
@@ -107,6 +107,9 @@ class Agent(IdMixin, TimestampMixin, Base):
 
 class AgentVersion(IdMixin, TimestampMixin, Base):
     __tablename__ = "agent_versions"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "version", name="uq_agent_versions_agent_version"),
+    )
 
     agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
     version: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -117,11 +120,18 @@ class AgentVersion(IdMixin, TimestampMixin, Base):
     entrypoint: Mapped[str] = mapped_column(String(512), nullable=False)
     manifest_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="draft", nullable=False)
-    created_by: Mapped[str | None] = mapped_column(String(64))
 
 
 class Deployment(IdMixin, TimestampMixin, Base):
     __tablename__ = "deployments"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "environment",
+            "agent_id",
+            name="uq_deployments_project_environment_agent",
+        ),
+    )
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
@@ -196,7 +206,6 @@ class Run(IdMixin, AuditMixin, Base):
     error: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class RunAttempt(IdMixin, AuditMixin, Base):
@@ -213,7 +222,6 @@ class RunAttempt(IdMixin, AuditMixin, Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     error: Mapped[str | None] = mapped_column(Text)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class Task(IdMixin, AuditMixin, Base):
@@ -237,7 +245,6 @@ class Task(IdMixin, AuditMixin, Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
     error: Mapped[str | None] = mapped_column(Text)
     dead_letter_reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class Event(IdMixin, AuditMixin, Base):
@@ -252,7 +259,6 @@ class Event(IdMixin, AuditMixin, Base):
     payload_ref: Mapped[str | None] = mapped_column(String(1024))
     payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     visibility_level: Mapped[str] = mapped_column(String(64), default="internal", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class CheckpointIndex(IdMixin, AuditMixin, Base):
@@ -263,7 +269,6 @@ class CheckpointIndex(IdMixin, AuditMixin, Base):
     checkpoint_ns: Mapped[str | None] = mapped_column(String(255))
     checkpoint_id: Mapped[str] = mapped_column(String(255), nullable=False)
     payload_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class Tool(IdMixin, TenantProjectMixin, TimestampMixin, Base):
@@ -290,6 +295,7 @@ class Secret(IdMixin, TimestampMixin, Base):
 
 class AuditLog(IdMixin, AuditMixin, Base):
     __tablename__ = "audit_logs"
+    __table_args__ = {"info": {"immutable": True}}
 
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"))
@@ -307,7 +313,26 @@ class AuditLog(IdMixin, AuditMixin, Base):
     request_id: Mapped[str | None] = mapped_column(String(255))
     trace_id: Mapped[str | None] = mapped_column(String(255))
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class IdempotencyRecord(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "project_id",
+            "endpoint",
+            "idempotency_key",
+            name="uq_idempotency_records_scope_key",
+        ),
+    )
+
+    endpoint: Mapped[str] = mapped_column(String(512), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    response_ref: Mapped[str | None] = mapped_column(String(1024))
+    status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 def create_metadata_model(table_name: str) -> type[Base]:

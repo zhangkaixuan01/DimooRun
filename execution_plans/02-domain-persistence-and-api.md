@@ -118,6 +118,7 @@ service_accounts
 roles
 permissions
 api_keys
+idempotency_records
 agents
 agent_versions
 deployments
@@ -197,6 +198,7 @@ restore_jobs
   checkpoint_indexes
   artifacts
   audit_logs
+  idempotency_records
 
 0003_governance:
   policies
@@ -255,6 +257,11 @@ restore_jobs
 - [ ] 所有 Platform Metadata Store 表必须包含通用审计与软删除字段：`created_at`、`created_by`、`updated_at`、`updated_by`、`is_deleted`、`deleted_at`、`deleted_by`。
 - [ ] 默认业务删除必须是 soft delete，不允许 API / Repository 默认 hard delete。
 - [ ] `status=archived` 是生命周期归档，不等同于 `is_deleted=true`。
+- [ ] 默认 Repository 查询过滤 `is_deleted=true`，只有显式 `include_deleted` 才返回软删除记录。
+- [ ] AuditLog 保留通用字段但必须不可变，不允许业务软删除。
+- [ ] 扩展 metadata 表的 `tenant_id` / `project_id` 必须是外键，不允许只存裸字符串。
+- [ ] 关键唯一性必须由数据库约束保护：Project slug、Agent name、AgentVersion version、Deployment scope、API key hash、Idempotency key。
+- [ ] 幂等写 API 必须落到 `idempotency_records`，不能只把幂等键散落在 Run / Task 表。
 - [ ] 大 JSON 使用 `*_json` 命名，例如 `manifest_json`、`payload_json`、`config_json`。
 - [ ] 不使用含糊的 `data` 字段。
 - [ ] 所有多租户对象必须有 `tenant_id`。
@@ -461,6 +468,10 @@ soft_delete_or_archive:
   设置 deleted_at。
   设置 deleted_by。
   如果模型有 status 字段，同时设置 status=archived。
+  默认查询不返回该记录，除非 include_deleted=true。
+
+AuditLog:
+  AuditLog 是不可变事实，Repository 不允许 update / archive / soft delete。
 
 hard delete:
   仅允许 migration rollback、测试清理、retention purge job 或显式管理员物理清理任务使用。
@@ -532,3 +543,9 @@ feat: add domain persistence and api contracts
 - [ ] API 通用规则包含 auth、tenant/project scope、Policy Engine、AuditLog、request_id、idempotency。
 - [ ] Schema version 字段预留覆盖第 12 章列出的版本维度。
 - [ ] 所有表都有统一审计与软删除字段，删除语义没有退化为 hard delete。
+- [ ] Repository 默认过滤软删除记录。
+- [ ] DELETE API 不返回静默 204，必须表达 soft delete / AuditLog / Policy 边界。
+- [ ] AuditLog 不可变约束有测试覆盖。
+- [ ] 扩展 metadata 表有 tenant/project 外键。
+- [ ] 关键唯一性约束有测试覆盖。
+- [ ] `idempotency_records` 表和唯一约束有测试覆盖。
