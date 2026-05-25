@@ -113,8 +113,8 @@ class InMemoryTaskBackend:
     async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
         task = self.tasks[task_id]
         self._assert_fencing_token(task, fencing_token)
-        self._transition(task, "succeeded")
         self._assert_owner(task, worker_id)
+        self._transition(task, "succeeded")
         task.status = "succeeded"
 
     async def fail(
@@ -126,6 +126,7 @@ class InMemoryTaskBackend:
     ) -> None:
         task = self.tasks[task_id]
         self._assert_fencing_token(task, fencing_token)
+        self._assert_owner(task, worker_id)
         if task.status == "leased":
             self._transition(task, "running")
             task.status = "running"
@@ -135,7 +136,6 @@ class InMemoryTaskBackend:
             self._transition(task, "dead_letter")
         else:
             self._transition(task, "retrying")
-        self._assert_owner(task, worker_id)
         task.error = error
         if task.attempt + 1 >= task.max_attempts:
             task.status = "dead_letter"

@@ -13,7 +13,9 @@ from dimoo_run.domain.models import (
     AuditLog,
     Deployment,
     IdempotencyRecord,
+    IngressRoute,
     Project,
+    PublishedSurface,
     Run,
     Task,
 )
@@ -227,6 +229,53 @@ def test_runtime_tables_include_scheduler_and_streaming_columns() -> None:
     }
 
 
+def test_published_surface_and_ingress_route_tables_are_hardened() -> None:
+    surface_table = cast(Table, PublishedSurface.__table__)
+    route_table = cast(Table, IngressRoute.__table__)
+    surface_columns = PublishedSurface.__table__.columns
+    route_columns = IngressRoute.__table__.columns
+
+    assert surface_table.info.get("placeholder") is not True
+    assert route_table.info.get("placeholder") is not True
+    for column_name in [
+        "deployment_id",
+        "type",
+        "status",
+    ]:
+        assert column_name in surface_columns
+    for column_name in [
+        "surface_id",
+        "path",
+        "auth_mode",
+        "rate_limit_policy_id",
+        "access_log_enabled",
+    ]:
+        assert column_name in route_columns
+
+
+def test_gateway_tables_have_active_uniqueness_indexes() -> None:
+    surface_table = cast(Table, PublishedSurface.__table__)
+    route_table = cast(Table, IngressRoute.__table__)
+
+    surface_index = next(
+        index
+        for index in surface_table.indexes
+        if index.name == "uq_published_surfaces_deployment_type_active"
+    )
+    route_index = next(
+        index
+        for index in route_table.indexes
+        if index.name == "uq_ingress_routes_surface_path_active"
+    )
+
+    assert surface_index.unique is True
+    assert "is_deleted" in str(surface_index.dialect_options["postgresql"]["where"])
+    assert "is_deleted" in str(surface_index.dialect_options["sqlite"]["where"])
+    assert route_index.unique is True
+    assert "is_deleted" in str(route_index.dialect_options["postgresql"]["where"])
+    assert "is_deleted" in str(route_index.dialect_options["sqlite"]["where"])
+
+
 def test_metadata_tables_can_be_created_in_sqlite() -> None:
     from sqlalchemy import create_engine
 
@@ -251,8 +300,6 @@ def test_datetime_columns_are_timezone_aware() -> None:
 
 def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> None:
     placeholder_tables = {
-        "published_surfaces",
-        "ingress_routes",
         "catalog_items",
         "prompt_assets",
         "config_assets",

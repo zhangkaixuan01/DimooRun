@@ -5,7 +5,7 @@ import pytest
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentEvent, AgentResult
 from dimoo_run.runtime.run_manager import InMemoryRunStore, RunManager
-from dimoo_run.scheduler.in_memory import InMemoryTaskBackend
+from dimoo_run.scheduler.in_memory import InMemoryTaskBackend, StaleFencingTokenError
 from dimoo_run.streaming.replay_buffer import ReplayBuffer
 from dimoo_run.worker.executor import AgentRuntimeSpec, WorkerExecutor
 
@@ -96,6 +96,12 @@ class FailingStreamAdapter(FakeAdapter):
         _ = agent, input_data, context
         yield AgentEvent(type="agent.stream_chunk", payload={"delta": "first"})
         raise RuntimeError("stream broke")
+
+
+class StaleCompleteBackend(InMemoryTaskBackend):
+    async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+        _ = task_id, worker_id, fencing_token
+        raise StaleFencingTokenError("stale")
 
 
 async def create_task(
@@ -224,6 +230,37 @@ async def test_worker_executor_runs_adapter_and_persists_events() -> None:
         "run.completed",
         "stream.completed",
     ]
+
+
+@pytest.mark.asyncio
+async def test_worker_executor_does_not_mark_run_failed_on_stale_complete() -> None:
+    run_store = InMemoryRunStore()
+    task_backend = StaleCompleteBackend()
+    replay_buffer = ReplayBuffer()
+    task_id = await create_task(run_store, task_backend)
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=replay_buffer,
+        adapters={"fake": FakeAdapter()},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={},
+            )
+        },
+    )
+
+    with pytest.raises(StaleFencingTokenError):
+        await executor.execute_once(queue="default")
+
+    run_id = task_backend.tasks[task_id].run_id
+    assert run_store.runs[run_id].status == "running"
+    assert list(run_store.attempts.values())[0].status == "running"
+    assert "run.failed" not in [event.type for event in replay_buffer.replay(run_id)]
 
 
 @pytest.mark.asyncio

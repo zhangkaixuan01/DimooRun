@@ -46,6 +46,8 @@ def test_alembic_core_indexes_match_orm_metadata(tmp_path) -> None:  # type: ign
         "agent_versions",
         "deployments",
         "agent_instances",
+        "published_surfaces",
+        "ingress_routes",
         "runs",
         "tasks",
     ]:

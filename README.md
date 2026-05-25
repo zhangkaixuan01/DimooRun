@@ -56,17 +56,22 @@ Completed implementation phases:
   without marking the Run terminal, and terminal failures emit `run.failed` /
   `stream.failed`. Event `sequence` and `event_id` are required fields with a
   per-run sequence uniqueness constraint.
+- `05-deployment-runtime-control`: Deployment desired-status control,
+  AgentInstance cache semantics, runtime-status aggregation, Deployment API
+  control routes, RunManager deployment gating, and governed PublishedSurface /
+  IngressRoute boundaries.
 
 Next implementation phase:
 
-- `05-deployment-runtime-control`: Deployment lifecycle, runtime control,
-  AgentInstance cache semantics, and published runtime surfaces.
+- `06-governance-security-and-model-gateway`: RBAC, API keys,
+  ServiceAccounts, Policy Engine, Tool Gateway, SecretProvider, Model Gateway /
+  New API integration, HITL governance, Catalog, Prompt/Config/Template assets,
+  and Sandbox Policy.
 
-Native Runtime API handlers, the long-running worker process loop, Redis queue
-command mapping, production event store fan-out, governance decision logic, and
-full Console product screens are still planned work. Current API route stubs may
-still return `501` until phase `05` connects the runtime core to published API
-surfaces.
+The long-running worker process loop, Redis queue command mapping, production
+event store fan-out, production Policy Engine, durable deployment repositories,
+Agent Gateway request forwarding, and full Console product screens are still
+planned work.
 
 ## LangChain Ecosystem Version Policy
 

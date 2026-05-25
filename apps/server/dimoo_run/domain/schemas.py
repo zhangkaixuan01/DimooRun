@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from dimoo_run.domain.enums import (
+    AgentInstanceStatus,
     DeploymentDesiredStatus,
     DeploymentRuntimeStatus,
     RunStatus,
@@ -27,6 +28,21 @@ class DeploymentRead(BaseModel):
     runtime_status: DeploymentRuntimeStatus
     replicas: int
     last_runtime_error: str | None = None
+
+
+class AgentInstanceRead(BaseModel):
+    id: str
+    tenant_id: str
+    project_id: str
+    deployment_id: str
+    agent_id: str
+    agent_version_id: str
+    worker_id: str
+    execution_profile_id: str | None = None
+    cache_key: str
+    status: AgentInstanceStatus
+    running_runs: int
+    error: str | None = None
 
 
 class RunRead(BaseModel):

@@ -72,6 +72,18 @@ class RuntimeRunStore(Protocol):
     def fail_attempt(self, attempt_id: str, error: dict[str, Any]) -> None: ...
 
 
+class DeploymentRunGate(Protocol):
+    def assert_accepts_new_run(
+        self,
+        deployment_id: str,
+        *,
+        tenant_id: str | None = None,
+        project_id: str | None = None,
+        agent_id: str | None = None,
+        agent_version_id: str | None = None,
+    ) -> None: ...
+
+
 class InMemoryRunStore:
     def __init__(self) -> None:
         self.runs: dict[str, RuntimeRun] = {}
@@ -151,9 +163,16 @@ class InMemoryRunStore:
 
 
 class RunManager:
-    def __init__(self, *, run_store: RuntimeRunStore, task_backend: TaskBackend) -> None:
+    def __init__(
+        self,
+        *,
+        run_store: RuntimeRunStore,
+        task_backend: TaskBackend,
+        deployment_gate: DeploymentRunGate | None = None,
+    ) -> None:
         self.run_store = run_store
         self.task_backend = task_backend
+        self.deployment_gate = deployment_gate
 
     async def create_run_task(
         self,
@@ -166,6 +185,14 @@ class RunManager:
         input_data: dict[str, Any],
         queue: str = "default",
     ) -> tuple[RuntimeRun, str]:
+        if deployment_id is not None and self.deployment_gate is not None:
+            self.deployment_gate.assert_accepts_new_run(
+                deployment_id,
+                tenant_id=tenant_id,
+                project_id=project_id,
+                agent_id=agent_id,
+                agent_version_id=agent_version_id,
+            )
         run = await self.run_store.create_run(
             tenant_id=tenant_id,
             project_id=project_id,

@@ -88,25 +88,6 @@ class WorkerExecutor:
         try:
             agent = await adapter.load(spec.package_uri, spec.manifest, spec.runtime_config)
             result = await self._execute_agent(adapter, agent, leased, context, attempt.attempt_id)
-            self.run_store.complete_run(run_id, result.output)
-            self.run_store.complete_attempt(attempt.attempt_id)
-            self._append(
-                run_id,
-                attempt.attempt_id,
-                AgentEvent(type="run.completed", payload={"output": result.output}),
-            )
-            self._append(
-                run_id,
-                attempt.attempt_id,
-                AgentEvent(type="stream.completed", payload={}),
-            )
-            await self.task_backend.complete(task_id, self.worker_id, fencing_token)
-            return WorkerExecutionResult(
-                task_id=task_id,
-                run_id=run_id,
-                attempt_id=attempt.attempt_id,
-                status="succeeded",
-            )
         except Exception as exc:
             error = {"message": str(exc), "type": exc.__class__.__name__}
             self.run_store.fail_attempt(attempt.attempt_id, error)
@@ -141,6 +122,26 @@ class WorkerExecutor:
                 attempt_id=attempt.attempt_id,
                 status="failed",
             )
+
+        await self.task_backend.complete(task_id, self.worker_id, fencing_token)
+        self.run_store.complete_run(run_id, result.output)
+        self.run_store.complete_attempt(attempt.attempt_id)
+        self._append(
+            run_id,
+            attempt.attempt_id,
+            AgentEvent(type="run.completed", payload={"output": result.output}),
+        )
+        self._append(
+            run_id,
+            attempt.attempt_id,
+            AgentEvent(type="stream.completed", payload={}),
+        )
+        return WorkerExecutionResult(
+            task_id=task_id,
+            run_id=run_id,
+            attempt_id=attempt.attempt_id,
+            status="succeeded",
+        )
 
     def _append(self, run_id: str, attempt_id: str, event: AgentEvent) -> AgentEvent:
         return self.replay_buffer.append(run_id, attempt_id, event)

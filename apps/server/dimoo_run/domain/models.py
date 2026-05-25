@@ -304,6 +304,55 @@ class CheckpointIndex(IdMixin, AuditMixin, Base):
     payload_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
 
 
+class PublishedSurface(IdMixin, AuditMixin, Base):
+    __tablename__ = "published_surfaces"
+    __table_args__ = (
+        Index(
+            "uq_published_surfaces_deployment_type_active",
+            "deployment_id",
+            "type",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    deployment_id: Mapped[str] = mapped_column(ForeignKey("deployments.id"), nullable=False)
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class IngressRoute(IdMixin, AuditMixin, Base):
+    __tablename__ = "ingress_routes"
+    __table_args__ = (
+        Index(
+            "uq_ingress_routes_surface_path_active",
+            "surface_id",
+            "path",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    surface_id: Mapped[str] = mapped_column(ForeignKey("published_surfaces.id"), nullable=False)
+    path: Mapped[str] = mapped_column(String(512), nullable=False)
+    custom_domain: Mapped[str | None] = mapped_column(String(255))
+    auth_mode: Mapped[str] = mapped_column(String(64), nullable=False)
+    cors_policy_id: Mapped[str | None] = mapped_column(String(64))
+    rate_limit_policy_id: Mapped[str | None] = mapped_column(String(64))
+    request_transform_ref: Mapped[str | None] = mapped_column(String(1024))
+    response_transform_ref: Mapped[str | None] = mapped_column(String(1024))
+    access_log_enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class Tool(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "tools"
 
@@ -382,8 +431,6 @@ def create_metadata_model(table_name: str) -> type[Base]:
 
 
 for _table_name in [
-    "published_surfaces",
-    "ingress_routes",
     "catalog_items",
     "prompt_assets",
     "config_assets",

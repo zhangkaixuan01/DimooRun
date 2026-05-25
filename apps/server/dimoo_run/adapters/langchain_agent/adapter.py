@@ -82,6 +82,7 @@ class LangChainAgentAdapter:
 
     async def cancel(self, run_id: str, context: RuntimeContext) -> None:
         _ = run_id, context
+        raise CapabilityNotSupportedError(capability="cancel", framework=self.framework)
 
     def map_callback_event(self, kind: str, name: str, payload: dict[str, Any]) -> AgentEvent:
         event_type = {

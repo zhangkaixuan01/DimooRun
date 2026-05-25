@@ -50,6 +50,7 @@ execution_plans/
 | `02-domain-persistence-and-api.md` | 已完成 | 领域模型、迁移、Repository、API skeleton、OpenAPI、审计/软删除契约已落地并通过验证。 |
 | `03-agent-package-and-adapters.md` | 已完成 | Agent Package manifest、entrypoint loader、Adapter contract、RuntimeContext、版本治理、Conformance Kit 和三类早期 Adapter 已落地。 |
 | `04-runtime-task-worker-streaming.md` | 已完成 | 状态机、幂等、InMemory TaskBackend、lease / heartbeat / retry / dead letter、fencing token、ReplayBuffer、SSE 编码、CheckpointIndex、ReplayScheduler 和 Worker fake-adapter 执行闭环已落地；Redis 命令映射保留为生产阶段边界。 |
+| `05-deployment-runtime-control.md` | 已完成 | Deployment desired-status 控制、AgentInstance 缓存、runtime_status 聚合、RunManager deployment gate、Deployment API 接线、PublishedSurface / IngressRoute 治理边界和字段硬化已落地。 |
 
 最近完成提交：
 
@@ -60,6 +61,7 @@ d4d35f8 fix: harden domain persistence contracts
 a368499 fix(persistence): harden metadata contracts
 33b29a4 docs(plans): sync foundation and persistence progress
 f712f67 feat(adapters): add agent package contracts
+84ac221 feat(runtime): add task worker streaming core
 ```
 
 ## 1.1 设计文档真相源规则
@@ -265,7 +267,7 @@ deployment_control_conflict
 agent_instance_not_ready
 stale_fencing_token
 task_lease_expired
-idempotency_conflict
+idempotency_key_conflict
 stream_replay_unavailable
 compatibility_not_supported
 policy_denied

@@ -56,6 +56,17 @@ async def test_langchain_agent_adapter_resume_is_not_supported() -> None:
     assert exc_info.value.framework == "langchain-agent"
 
 
+@pytest.mark.asyncio
+async def test_langchain_agent_adapter_cancel_is_not_supported() -> None:
+    adapter = LangChainAgentAdapter()
+
+    with pytest.raises(CapabilityNotSupportedError) as exc_info:
+        await adapter.cancel("run_1", make_context())
+
+    assert exc_info.value.capability == "cancel"
+    assert exc_info.value.framework == "langchain-agent"
+
+
 def test_langchain_agent_adapter_maps_tool_callback_event() -> None:
     adapter = LangChainAgentAdapter()
 

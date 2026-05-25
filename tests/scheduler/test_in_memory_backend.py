@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from dimoo_run.runtime.state_machine import InvalidStateTransitionError
 from dimoo_run.scheduler.backend import RuntimeTaskBackend
 from dimoo_run.scheduler.in_memory import (
     InMemoryTaskBackend,
@@ -83,6 +82,27 @@ async def test_in_memory_backend_rejects_stale_fencing_token_on_complete() -> No
 
 
 @pytest.mark.asyncio
+async def test_in_memory_backend_fail_checks_owner_before_mutating_task() -> None:
+    backend = InMemoryTaskBackend(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
+    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
+
+    assert leased is not None
+    with pytest.raises(TaskLeaseError):
+        await backend.fail(
+            task_id,
+            worker_id="worker_2",
+            fencing_token=leased["fencing_token"],
+            error={"message": "wrong owner"},
+        )
+
+    task = backend.tasks[task_id]
+    assert task.status == "leased"
+    assert task.worker_id == "worker_1"
+    assert task.error is None
+
+
+@pytest.mark.asyncio
 async def test_in_memory_backend_retries_then_dead_letters() -> None:
     backend = InMemoryTaskBackend(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
     task_id = await backend.enqueue(
@@ -103,9 +123,9 @@ async def test_in_memory_backend_retries_then_dead_letters() -> None:
 
 
 @pytest.mark.asyncio
-async def test_in_memory_backend_rejects_invalid_task_transition() -> None:
+async def test_in_memory_backend_rejects_complete_without_lease_owner() -> None:
     backend = InMemoryTaskBackend(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
     task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
 
-    with pytest.raises(InvalidStateTransitionError):
+    with pytest.raises(TaskLeaseError):
         await backend.complete(task_id, worker_id="worker_1", fencing_token=0)
