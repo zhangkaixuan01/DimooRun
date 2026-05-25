@@ -270,6 +270,7 @@ class Task(IdMixin, AuditMixin, Base):
     leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     worker_id: Mapped[str | None] = mapped_column(String(128))
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fencing_token: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     dedupe_key: Mapped[str | None] = mapped_column(String(255))
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
     error: Mapped[str | None] = mapped_column(Text)
@@ -278,12 +279,15 @@ class Task(IdMixin, AuditMixin, Base):
 
 class Event(IdMixin, AuditMixin, Base):
     __tablename__ = "events"
+    __table_args__ = (UniqueConstraint("run_id", "sequence", name="uq_events_run_sequence"),)
 
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
     attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(128), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_id: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
     framework: Mapped[str | None] = mapped_column(String(128))
     payload_ref: Mapped[str | None] = mapped_column(String(1024))
     payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)

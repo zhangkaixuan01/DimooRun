@@ -213,6 +213,20 @@ def test_agent_version_records_adapter_contract_versions() -> None:
         assert column_name in columns
 
 
+def test_runtime_tables_include_scheduler_and_streaming_columns() -> None:
+    task_columns = Task.__table__.columns
+    event_columns = Base.metadata.tables["events"].columns
+
+    assert "fencing_token" in task_columns
+    assert "sequence" in event_columns
+    assert "event_id" in event_columns
+    assert event_columns["sequence"].nullable is False
+    assert event_columns["event_id"].nullable is False
+    assert "uq_events_run_sequence" in {
+        constraint.name for constraint in Base.metadata.tables["events"].constraints
+    }
+
+
 def test_metadata_tables_can_be_created_in_sqlite() -> None:
     from sqlalchemy import create_engine
 

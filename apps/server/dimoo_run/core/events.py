@@ -8,6 +8,7 @@ class AgentEvent:
     type: str
     payload: dict[str, Any]
     run_id: str | None = None
+    attempt_id: str | None = None
     sequence: int | None = None
     event_id: str | None = None
     framework: str | None = None

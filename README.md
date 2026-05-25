@@ -48,14 +48,25 @@ Completed implementation phases:
   loading uses temporary module-path isolation for local package helpers.
   Checkpoint, resume, and cancel are intentionally not certified until the
   Worker and persistence runtime are connected.
+- `04-runtime-task-worker-streaming`: Runtime state machines, idempotency
+  store, InMemory task backend, lease reaper, fencing token checks, replay
+  buffer, SSE encoding, checkpoint index scaffold, replay scheduler scaffold,
+  and Worker executor fake-adapter invoke / stream execution paths. Stream
+  events are appended incrementally, retryable failures emit `task.retrying`
+  without marking the Run terminal, and terminal failures emit `run.failed` /
+  `stream.failed`. Event `sequence` and `event_id` are required fields with a
+  per-run sequence uniqueness constraint.
 
 Next implementation phase:
 
-- `04-runtime-task-worker-streaming`: Task queue, worker execution, run/task
-  lifecycle, event persistence, and streaming runtime.
+- `05-deployment-runtime-control`: Deployment lifecycle, runtime control,
+  AgentInstance cache semantics, and published runtime surfaces.
 
-Production runtime execution, real task queues, governance decision logic, and
-full Console product screens are still planned work.
+Native Runtime API handlers, the long-running worker process loop, Redis queue
+command mapping, production event store fan-out, governance decision logic, and
+full Console product screens are still planned work. Current API route stubs may
+still return `501` until phase `05` connects the runtime core to published API
+surfaces.
 
 ## LangChain Ecosystem Version Policy
 

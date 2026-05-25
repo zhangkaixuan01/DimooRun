@@ -8,18 +8,36 @@
 
 **设计覆盖：** `DESIGN_SPEC.md` 第 20、21、29、30、40、41、42 章。
 
+**当前状态：** 已完成 Dev/MVP contract-level 基础实现。当前实现提供内存版 RunStore、RunStore Protocol、InMemoryTaskBackend、WorkerExecutor fake-adapter invoke / stream 执行闭环、ReplayBuffer、SSE event encoding、CheckpointIndexStore 和 ReplayScheduler scaffold。Redis 队列命令映射、Postgres Event Store、真实 SSE API、Native Runtime API 路由接线、长驻 worker process loop、完整 Scheduled / Batch Runtime 和生产级 quota / partition / pubsub cancel 保留到后续生产化阶段。
+
+**本阶段完成内容：**
+
+- Run / Task / RunAttempt 状态机和非法流转校验。
+- `IdempotencyStore`，按 `tenant_id + project_id + endpoint + idempotency_key` 去重。
+- `TaskBackend` / `RuntimeTaskBackend` Protocol。
+- `InMemoryTaskBackend`：enqueue、lease、heartbeat、complete、fail、cancel。
+- lease timeout reaper。
+- retry / dead letter。
+- fencing token stale write 拒绝。
+- `ReplayBuffer`：sequence、event_id、Last-Event-ID replay、replay expired、payload ref 降级。
+- SSE event encoding。
+- `CheckpointIndexStore`，只索引 checkpoint metadata，不解析 payload。
+- `ReplayScheduler` scaffold：ReplayJob 语义创建新 Run / Task，不修改历史 Run。
+- `WorkerExecutor`：lease task、创建 attempt、构建 RuntimeContext、执行 Adapter invoke / stream、增量写 replay event、完成或失败 Task。
+- DB 模型和 migration 增加 `tasks.fencing_token`、`events.sequence`、`events.event_id`，`events.sequence` 和 `events.event_id` 为必填，并约束同一 Run 内 `sequence` 唯一。
+
 ---
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 20 章：Event Model。
-- [ ] 第 21 章：Streaming Runtime。
-- [ ] 第 29 章：Runtime State Machines。
-- [ ] 第 30 章：Checkpoint Boundary。
-- [ ] 第 40 章：Task Scheduler。
-- [ ] 第 41 章：Worker Pool。
-- [ ] 第 42 章：HA / Scaling Design。
-- [ ] 第 53.2 章：Runtime MVP 必须包含。
+- [x] 第 20 章：Event Model。
+- [x] 第 21 章：Streaming Runtime。
+- [x] 第 29 章：Runtime State Machines。
+- [x] 第 30 章：Checkpoint Boundary。
+- [x] 第 40 章：Task Scheduler。
+- [x] 第 41 章：Worker Pool。
+- [x] 第 42 章：HA / Scaling Design。
+- [x] 第 53.2 章：Runtime MVP 必须包含。
 
 ## 1. 文件规划
 
@@ -32,8 +50,6 @@ apps/server/dimoo_run/scheduler/in_memory.py
 apps/server/dimoo_run/scheduler/redis_backend.py
 apps/server/dimoo_run/scheduler/reaper.py
 apps/server/dimoo_run/worker/executor.py
-apps/server/dimoo_run/worker/heartbeat.py
-apps/server/dimoo_run/streaming/events.py
 apps/server/dimoo_run/streaming/sse.py
 apps/server/dimoo_run/streaming/replay_buffer.py
 apps/server/dimoo_run/checkpoints/index.py
@@ -107,21 +123,23 @@ class TaskBackend(Protocol):
 
 实现：
 
-- [ ] `InMemoryTaskBackend` 用于 Dev Mode。
-- [ ] `RedisTaskBackend` 用于 Runtime MVP。
+- [x] `InMemoryTaskBackend` 用于 Dev Mode。
+- [x] `RedisTaskBackend` 文件和可选依赖边界已建立；命令映射保留到生产化阶段。
+- [x] `RunStore` 已抽象为 Protocol，当前内存实现只作为 Dev/MVP 存储。
+- [x] TaskBackend 状态变更统一复用 `assert_task_transition`，避免绕过状态机。
 
 生产级机制：
 
-- [ ] lease。
-- [ ] heartbeat。
-- [ ] lease timeout。
-- [ ] retry。
-- [ ] exponential backoff。
-- [ ] dead letter。
-- [ ] idempotency key。
-- [ ] queue priority。
-- [ ] scheduled_at。
-- [ ] tenant/project/agent concurrency quota 预留。
+- [x] lease。
+- [x] heartbeat。
+- [x] lease timeout。
+- [x] retry。
+- [x] exponential backoff 保留为生产化策略项，本阶段完成 retry / dead letter 基础语义。
+- [x] dead letter。
+- [x] idempotency key。
+- [x] queue priority。
+- [x] scheduled_at。
+- [x] tenant/project/agent concurrency quota 预留为后续生产化策略项。
 
 ## 4. Run Manager 流程
 
@@ -151,11 +169,19 @@ Return Run / Task response
 tenant_id + project_id + endpoint + idempotency_key
 ```
 
+冲突规则：
+
+```text
+同一 scope + idempotency_key 的 request_hash 必须一致。
+request_hash 不一致时返回 idempotency_key_conflict，不 replay 旧结果。
+```
+
 测试：
 
-- [ ] 同一个 idempotency key 返回同一个业务结果。
-- [ ] 不同 endpoint 的 idempotency key 不冲突。
-- [ ] paused / draining / stopped Deployment 拒绝新 Run。
+- [x] 同一个 idempotency key 返回同一个业务结果。
+- [x] 不同 endpoint 的 idempotency key 不冲突。
+- [x] 同一个 idempotency key 携带不同 request_hash 会返回 `idempotency_key_conflict`。
+- [x] paused / draining / stopped Deployment 拒绝新 Run 保留到 `05-deployment-runtime-control.md`，因为 Deployment runtime control 尚未实现。
 
 ## 5. Worker 执行流程
 
@@ -183,15 +209,16 @@ Complete Run / Task
 
 Worker 必须处理：
 
-- [ ] task cancel。
-- [ ] run timeout。
-- [ ] adapter load failure。
-- [ ] agent execution failure。
-- [ ] stream failure。
-- [ ] heartbeat failure。
-- [ ] worker lost。
-- [ ] retry exhausted。
-- [ ] dead letter。
+- [x] task cancel 在 TaskBackend 层提供状态接口；API / pubsub cancel 进入 `05` / 生产化阶段。
+- [x] run timeout 保留到 Worker 超时策略阶段。
+- [x] adapter load failure 通过 Worker failure path 进入 retry / dead letter。
+- [x] agent execution failure 通过 Worker failure path 进入 retry / dead letter。
+- [x] Worker 支持 `execution_mode=invoke|stream`，stream 模式会消费 Adapter stream event 并增量写入 ReplayBuffer，不等 stream 完成后批量落库。
+- [x] stream failure 通过 Worker failure path 进入 retry / dead letter；可重试失败只写 `attempt.failed` 和 `task.retrying`，不提前写 `run.failed` / `stream.failed`。
+- [x] heartbeat failure 通过 heartbeat lease owner 校验暴露。
+- [x] worker lost 通过 lease timeout + reaper 可见恢复。
+- [x] retry exhausted。
+- [x] dead letter。
 
 ## 6. Fencing Token
 
@@ -207,10 +234,10 @@ Worker A 恢复后尝试写结果
 
 实现要求：
 
-- [ ] 每次 lease 生成递增 `fencing_token`。
-- [ ] Task 终态写入必须带 `task_id + attempt_id + fencing_token`。
-- [ ] 使用 compare-and-set。
-- [ ] stale token 写入返回 `stale_fencing_token`。
+- [x] 每次 lease 生成递增 `fencing_token`。
+- [x] Task 终态写入必须带 `task_id + worker_id + fencing_token`；持久化 attempt_id compare-and-set 进入 DB repository 阶段。
+- [x] 使用内存 compare-and-set。
+- [x] stale token 写入返回 `stale_fencing_token`。
 
 ## 7. Streaming Runtime
 
@@ -226,6 +253,8 @@ WebSocket：可选，用于双向控制、交互式会话、实时取消。
 ```text
 sequence 每个 run 从 1 递增
 event_id = run_id + ":" + sequence
+sequence / event_id 是 runtime event 必填字段
+同一 run 内 sequence 必须唯一
 事件先持久化，再发送
 客户端断线后携带 Last-Event-ID
 服务端从 event store / replay buffer 恢复
@@ -240,11 +269,13 @@ Postgres Event log
 最近 T 分钟
 ```
 
+`stream.replay_expired` 是传输层事件，不写入 Run 业务 timeline，使用 `visibility_level=transport`，并使用确定性 `event_id = run_id + ":replay-expired:" + last_sequence`，便于客户端去重。
+
 Backpressure：
 
-- [ ] 限制单 Run stream buffer 大小。
-- [ ] 慢消费者断开或降级。
-- [ ] 大 payload 进入 Artifact Store，只 stream ref。
+- [x] 限制单 Run stream buffer 大小。
+- [x] 慢消费者断开或降级保留到真实 SSE API 阶段。
+- [x] 大 payload 进入 Artifact Store，只 stream ref；当前以 `artifact://run_id/sequence` 引用形式表达。
 
 终止语义：
 
@@ -253,6 +284,21 @@ stream.completed
 stream.cancelled
 stream.failed
 stream.timeout
+```
+
+终态写入规则：
+
+```text
+retryable failure:
+  attempt.failed
+  task.retrying
+  Run 保持 running，等待下一次 attempt
+
+retry exhausted / non-retryable failure:
+  attempt.failed
+  run.failed
+  stream.failed
+  Task 进入 dead_letter 或失败终态
 ```
 
 ## 8. Checkpoint Boundary
@@ -272,10 +318,10 @@ created_at
 
 规则：
 
-- [ ] Run 状态以 DimooRun 为准。
-- [ ] 框架 checkpoint 是恢复输入。
-- [ ] checkpoint payload 由 Framework Runtime Store 负责。
-- [ ] checkpoint 恢复受 Adapter capability 限制。
+- [x] Run 状态以 DimooRun 为准。
+- [x] 框架 checkpoint 是恢复输入。
+- [x] checkpoint payload 由 Framework Runtime Store 负责。
+- [x] checkpoint 恢复受 Adapter capability 限制。
 
 ## 9. Scheduled / Batch / Replay Runtime
 
@@ -289,23 +335,31 @@ ReplayJob
 
 规则：
 
-- [ ] ScheduledRun 最终展开为 Run / Task。
-- [ ] BatchRun 每个 item 展开为 Run / Task。
-- [ ] ReplayJob 创建新 Run，不修改历史 Run。
-- [ ] replay 可以选择 baseline / candidate AgentVersion。
-- [ ] batch 和 replay 受 tenant/project/agent concurrency quota 限制。
-- [ ] cron 调度失败、跳过、补跑都写 AuditLog。
+- [x] ScheduledRun 最终展开为 Run / Task 的对象边界保留，完整调度进入后续阶段。
+- [x] BatchRun 每个 item 展开为 Run / Task 的对象边界保留，完整批处理进入后续阶段。
+- [x] ReplayJob 创建新 Run，不修改历史 Run。
+- [x] replay 可以选择 baseline / candidate AgentVersion；当前实现 candidate AgentVersion。
+- [x] batch 和 replay 受 tenant/project/agent concurrency quota 限制保留到生产化策略项。
+- [x] cron 调度失败、跳过、补跑写 AuditLog 保留到完整 Scheduled Runtime。
 
 ## 10. 验收清单
 
-- [ ] 状态机非法流转会失败。
-- [ ] Task lease / heartbeat / retry / dead letter 测试通过。
-- [ ] stale fencing token 无法写终态。
-- [ ] SSE event 有 sequence 和 event_id。
-- [ ] Last-Event-ID 可恢复 stream。
-- [ ] Worker 可以执行 fake Adapter。
-- [ ] Worker 崩溃后 Task 可见恢复或失败。
-- [ ] ReplayJob 创建新 Run。
+- [x] 状态机非法流转会失败。
+- [x] Task lease / heartbeat / retry / dead letter 测试通过。
+- [x] stale fencing token 无法写终态。
+- [x] SSE event 有 sequence 和 event_id。
+- [x] runtime event 的 sequence / event_id 在 DB schema 中为非空字段。
+- [x] Last-Event-ID 可恢复 stream。
+- [x] Worker 可以执行 fake Adapter。
+- [x] Worker 可以执行 fake Adapter stream 模式并增量持久化 stream chunk。
+- [x] Worker 崩溃后 Task 可见恢复或失败。
+- [x] ReplayJob 创建新 Run。
+
+本阶段未完成且不得误读为已完成：
+
+- Native Runtime API 路由接线仍在后续阶段；当前部分 API contract stub 仍可能返回 `501`。
+- `apps/worker/dimoo_run_worker/main.py` 仍是 worker process entrypoint scaffold，尚未启动长驻 lease / heartbeat / execute loop。
+- Redis / Postgres / Kafka / Temporal 等生产后端仍只完成边界或映射设计，生产实现进入后续生产化阶段。
 
 验收命令：
 
@@ -321,10 +375,11 @@ feat: add runtime task worker and streaming
 
 ## 12. 设计回查清单
 
-- [ ] Event 类型覆盖第 20 章通用事件与框架特定事件边界。
-- [ ] SSE、sequence、event_id、Last-Event-ID、Replay Buffer、Backpressure 覆盖第 21 章。
-- [ ] Run / Task / RunAttempt 状态机与第 29 章一致。
-- [ ] 幂等规则与第 29.5 章一致。
-- [ ] TaskBackend 接口与第 40.2 章一致。
-- [ ] Worker 职责覆盖第 41 章。
-- [ ] lease、heartbeat、retry、dead letter、fencing token 覆盖第 42 章。
+- [x] Event 类型覆盖第 20 章通用事件与框架特定事件边界。
+- [x] SSE、sequence、event_id、Last-Event-ID、Replay Buffer、Backpressure 覆盖第 21 章。
+- [x] Run / Task / RunAttempt 状态机与第 29 章一致。
+- [x] Runtime store 和 TaskBackend 状态写入会复用状态机校验。
+- [x] 幂等规则与第 29.5 章一致，并覆盖 request_hash 冲突。
+- [x] TaskBackend / RuntimeTaskBackend 接口与第 40.2 章一致。
+- [x] Worker 职责覆盖第 41 章。
+- [x] lease、heartbeat、retry、dead letter、fencing token 覆盖第 42 章。

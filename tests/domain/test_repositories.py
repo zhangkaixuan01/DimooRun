@@ -104,6 +104,8 @@ def test_repository_capabilities_match_model_shape() -> None:
                 tenant_id="tenant_1",
                 project_id="project_1",
                 type="run.started",
+                sequence=1,
+                event_id="run_1:1",
             )
         )
         assert event_repository.list_by_project("tenant_1", "project_1") == [event]

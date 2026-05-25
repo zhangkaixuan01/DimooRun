@@ -99,6 +99,7 @@ def upgrade() -> None:
         Column("leased_until", DateTime(timezone=True)),
         Column("worker_id", String(128)),
         Column("heartbeat_at", DateTime(timezone=True)),
+        Column("fencing_token", Integer, nullable=False, server_default="0"),
         Column("dedupe_key", String(255)),
         Column("idempotency_key", String(255)),
         Column("error", Text),
@@ -127,12 +128,16 @@ def upgrade() -> None:
         Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
         Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
         Column("type", String(128), nullable=False),
+        Column("sequence", Integer, nullable=False),
+        Column("event_id", String(512), nullable=False),
         Column("framework", String(128)),
         Column("payload_ref", String(1024)),
         Column("payload_json", JSON),
         Column("visibility_level", String(64), nullable=False, server_default="internal"),
         *audit_columns(),
+        UniqueConstraint("run_id", "sequence", name="uq_events_run_sequence"),
     )
+    op.create_index("ix_events_event_id", "events", ["event_id"])
     op.create_table(
         "checkpoint_indexes",
         id_column(),
