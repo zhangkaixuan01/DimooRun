@@ -6,7 +6,7 @@ Create Date: 2026-05-24
 """
 
 from alembic import op
-from sqlalchemy import JSON, Boolean, Column, ForeignKey, String, text
+from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, String, text
 
 from migrations.table_helpers import (
     audit_columns,
@@ -176,7 +176,68 @@ def upgrade() -> None:
         sqlite_where=text("is_deleted = 0"),
         postgresql_where=text("is_deleted = false"),
     )
-    for table_name in TABLE_NAMES[6:]:
+    op.create_table(
+        "replay_jobs",
+        id_column(),
+        *tenant_project_columns(),
+        Column("source_run_id", String(64), ForeignKey("runs.id"), nullable=False),
+        Column("source_agent_version_id", String(64), ForeignKey("agent_versions.id")),
+        Column(
+            "candidate_agent_version_id",
+            String(64),
+            ForeignKey("agent_versions.id"),
+            nullable=False,
+        ),
+        Column("replay_run_id", String(64), ForeignKey("runs.id")),
+        Column("replay_task_id", String(64), ForeignKey("tasks.id")),
+        Column("status", String(64), nullable=False, server_default="created"),
+        Column("requested_by", String(64)),
+        Column("override_config_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    op.create_table(
+        "notification_channels",
+        id_column(),
+        *tenant_project_columns(),
+        Column("type", String(64), nullable=False),
+        Column("target_ref", String(512), nullable=False),
+        Column("status", String(64), nullable=False, server_default="active"),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    op.create_table(
+        "alert_rules",
+        id_column(),
+        *tenant_project_columns(),
+        Column("name", String(255), nullable=False),
+        Column("signal", String(128), nullable=False),
+        Column("threshold", Float, nullable=False),
+        Column("channel_id", String(64), ForeignKey("notification_channels.id"), nullable=False),
+        Column("status", String(64), nullable=False, server_default="active"),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    op.create_table(
+        "incident_events",
+        id_column(),
+        *tenant_project_columns(),
+        Column("signal", String(128), nullable=False),
+        Column("severity", String(64), nullable=False),
+        Column("status", String(64), nullable=False, server_default="open"),
+        Column("source_ref", String(1024), nullable=False),
+        Column("value", Float, nullable=False),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    for table_name in [
+        "scheduled_runs",
+        "batch_runs",
+        "webhook_subscriptions",
+        "extensions",
+        "backup_plans",
+        "restore_jobs",
+    ]:
         create_placeholder_table(table_name)
 
 

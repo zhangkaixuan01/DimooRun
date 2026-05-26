@@ -112,8 +112,7 @@ class InMemoryTaskBackend:
 
     async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
         task = self.tasks[task_id]
-        self._assert_fencing_token(task, fencing_token)
-        self._assert_owner(task, worker_id)
+        self.assert_can_complete(task_id, worker_id, fencing_token)
         self._transition(task, "succeeded")
         task.status = "succeeded"
 
@@ -157,6 +156,11 @@ class InMemoryTaskBackend:
         self._assert_fencing_token(task, fencing_token)
         self._transition(task, "running")
         task.status = "running"
+
+    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+        task = self.tasks[task_id]
+        self._assert_fencing_token(task, fencing_token)
+        self._assert_owner(task, worker_id)
 
     def will_retry(self, task_id: str) -> bool:
         task = self.tasks[task_id]

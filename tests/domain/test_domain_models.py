@@ -364,6 +364,91 @@ def test_governance_active_uniqueness_indexes_are_present() -> None:
         assert indexes[index_name].unique is True
 
 
+def test_observability_replay_and_quality_tables_are_hardened() -> None:
+    hardened_columns = {
+        "artifacts": {
+            "run_id",
+            "attempt_id",
+            "event_id",
+            "artifact_type",
+            "mime_type",
+            "size_bytes",
+            "storage_uri",
+            "checksum",
+            "visibility_level",
+            "retention_policy_id",
+            "expires_at",
+            "metadata_json",
+        },
+        "run_graph_nodes": {
+            "run_id",
+            "attempt_id",
+            "node_key",
+            "node_type",
+            "framework_node_id",
+            "name",
+            "status",
+            "latency_ms",
+            "input_ref",
+            "output_ref",
+        },
+        "run_graph_edges": {"run_id", "source_node_id", "target_node_id", "edge_type"},
+        "datasets": {"name", "description", "source", "schema_json", "visibility_level"},
+        "dataset_items": {
+            "dataset_id",
+            "source_run_id",
+            "input_ref",
+            "output_ref",
+            "expected_ref",
+        },
+        "experiments": {
+            "name",
+            "agent_id",
+            "baseline_agent_version_id",
+            "candidate_agent_version_id",
+            "dataset_id",
+            "evaluator_config_json",
+            "status",
+        },
+        "experiment_runs": {"experiment_id", "status", "started_at", "finished_at"},
+        "evaluation_results": {
+            "experiment_run_id",
+            "evaluator_name",
+            "score",
+            "passed",
+            "metadata_json",
+        },
+        "feedback": {"run_id", "source", "rating", "comment", "metadata_json"},
+        "memory_blocks": {"agent_id", "memory_type", "content_ref", "metadata_json"},
+        "semantic_store_providers": {
+            "name",
+            "embedding_model",
+            "embedding_gateway_id",
+            "connection_ref",
+            "retention_policy_id",
+            "status",
+        },
+        "notification_channels": {"type", "target_ref", "status", "metadata_json"},
+        "alert_rules": {"name", "signal", "threshold", "channel_id", "status"},
+        "incident_events": {"signal", "severity", "status", "source_ref", "value", "metadata_json"},
+        "replay_jobs": {
+            "source_run_id",
+            "source_agent_version_id",
+            "candidate_agent_version_id",
+            "replay_run_id",
+            "replay_task_id",
+            "status",
+            "requested_by",
+            "override_config_json",
+        },
+    }
+
+    for table_name, columns in hardened_columns.items():
+        table = Base.metadata.tables[table_name]
+        assert table.info.get("placeholder") is not True, table_name
+        assert columns <= set(table.columns.keys()), table_name
+
+
 def test_metadata_tables_can_be_created_in_sqlite() -> None:
     from sqlalchemy import create_engine
 
@@ -388,23 +473,8 @@ def test_datetime_columns_are_timezone_aware() -> None:
 
 def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> None:
     placeholder_tables = {
-        "run_graph_nodes",
-        "run_graph_edges",
-        "datasets",
-        "dataset_items",
-        "experiments",
-        "experiment_runs",
-        "evaluation_results",
-        "feedback",
         "scheduled_runs",
         "batch_runs",
-        "replay_jobs",
-        "memory_blocks",
-        "semantic_store_providers",
-        "artifacts",
-        "notification_channels",
-        "alert_rules",
-        "incident_events",
         "webhook_subscriptions",
         "extensions",
         "backup_plans",

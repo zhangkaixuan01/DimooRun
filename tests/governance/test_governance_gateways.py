@@ -258,7 +258,7 @@ def test_model_gateway_does_not_treat_approval_or_fallback_as_allow() -> None:
                 StaticPolicyRule(
                     policy_id="approve-model",
                     resource_type="model_gateway",
-                    action="create",
+                    action="use",
                     decision=Decision.require_approval,
                     reason="approval_required",
                 )
@@ -296,6 +296,54 @@ def test_model_gateway_does_not_treat_approval_or_fallback_as_allow() -> None:
         )
 
     assert exc_info.value.decision == Decision.require_approval
+
+
+def test_model_gateway_runtime_policy_uses_use_action_not_create() -> None:
+    audit_sink = InMemoryAuditSink()
+    provider = InMemoryModelGatewayProvider(
+        policy_engine=PolicyEngine(
+            rules=[
+                StaticPolicyRule(
+                    policy_id="deny-model-use",
+                    resource_type="model_gateway",
+                    action="use",
+                    decision=Decision.deny,
+                    reason="model_gateway_use_denied",
+                )
+            ],
+            audit_sink=audit_sink,
+        )
+    )
+    provider.register_gateway(
+        ModelGatewayConfig(
+            id="gateway_1",
+            tenant_id="tenant_1",
+            project_id="project_1",
+            provider_type="newapi",
+            base_url="https://newapi.example/v1",
+            credential_ref="secret:newapi",
+        )
+    )
+    provider.set_policy(
+        ModelPolicyConfig(
+            id="policy_1",
+            tenant_id="tenant_1",
+            project_id="project_1",
+            gateway_id="gateway_1",
+            default_model="gpt-4.1-mini",
+            allowed_models={"gpt-4.1-mini"},
+        )
+    )
+
+    with pytest.raises(PermissionError, match="model_gateway_use_denied"):
+        provider.prepare_chat_request(
+            context=context(),
+            requested_model=None,
+            estimated_cost=0.05,
+        )
+
+    assert audit_sink.records[0].resource_type == "model_gateway"
+    assert audit_sink.records[0].action == "use"
 
 
 def test_model_gateway_budget_require_approval_and_fallback_do_not_silently_allow() -> None:

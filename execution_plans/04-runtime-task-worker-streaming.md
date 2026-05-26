@@ -23,7 +23,7 @@
 - SSE event encoding。
 - `CheckpointIndexStore`，只索引 checkpoint metadata，不解析 payload。
 - `ReplayScheduler` scaffold：ReplayJob 语义创建新 Run / Task，不修改历史 Run。
-- `WorkerExecutor`：lease task、创建 attempt、构建 RuntimeContext、执行 Adapter invoke / stream、增量写 replay event、完成或失败 Task。
+- `WorkerExecutor`：lease task、创建 attempt、构建 RuntimeContext、执行 Adapter invoke / stream、增量写 replay event、应用 task override_config 到 Adapter runtime_config、完成或失败 Task。
 - DB 模型和 migration 增加 `tasks.fencing_token`、`events.sequence`、`events.event_id`，`events.sequence` 和 `events.event_id` 为必填，并约束同一 Run 内 `sequence` 唯一。
 
 ---
@@ -214,6 +214,7 @@ Worker 必须处理：
 - [x] adapter load failure 通过 Worker failure path 进入 retry / dead letter。
 - [x] agent execution failure 通过 Worker failure path 进入 retry / dead letter。
 - [x] Worker 支持 `execution_mode=invoke|stream`，stream 模式会消费 Adapter stream event 并增量写入 ReplayBuffer，不等 stream 完成后批量落库。
+- [x] Worker 成功路径先校验 task ownership / fencing，再写 Run / Attempt 成功和终态事件，最后完成 Task，避免 Run 持久化失败后 Task 先进入 succeeded。
 - [x] stream failure 通过 Worker failure path 进入 retry / dead letter；可重试失败只写 `attempt.failed` 和 `task.retrying`，不提前写 `run.failed` / `stream.failed`。
 - [x] heartbeat failure 通过 heartbeat lease owner 校验暴露。
 - [x] worker lost 通过 lease timeout + reaper 可见恢复。
@@ -353,7 +354,7 @@ ReplayJob
 - [x] Worker 可以执行 fake Adapter。
 - [x] Worker 可以执行 fake Adapter stream 模式并增量持久化 stream chunk。
 - [x] Worker 崩溃后 Task 可见恢复或失败。
-- [x] ReplayJob 创建新 Run。
+- [x] ReplayJob 创建新 Run，并将 override_config 传递到 task payload / Adapter runtime_config。
 
 本阶段未完成且不得误读为已完成：
 

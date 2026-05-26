@@ -98,10 +98,34 @@ class FailingStreamAdapter(FakeAdapter):
         raise RuntimeError("stream broke")
 
 
+class RuntimeConfigCapturingAdapter(FakeAdapter):
+    def __init__(self) -> None:
+        self.loaded_runtime_config: dict[str, Any] | None = None
+
+    async def load(
+        self,
+        package_uri: str,
+        manifest: dict[str, Any],
+        runtime_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        self.loaded_runtime_config = runtime_config
+        return await super().load(package_uri, manifest, runtime_config)
+
+
 class StaleCompleteBackend(InMemoryTaskBackend):
+    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+        _ = task_id, worker_id, fencing_token
+        raise StaleFencingTokenError("stale")
+
     async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
         _ = task_id, worker_id, fencing_token
         raise StaleFencingTokenError("stale")
+
+
+class FailingCompleteRunStore(InMemoryRunStore):
+    def complete_run(self, run_id: str, output: dict[str, Any]) -> None:
+        _ = run_id, output
+        raise RuntimeError("run store unavailable")
 
 
 async def create_task(
@@ -233,6 +257,48 @@ async def test_worker_executor_runs_adapter_and_persists_events() -> None:
 
 
 @pytest.mark.asyncio
+async def test_worker_executor_applies_task_override_config_to_adapter_runtime_config() -> None:
+    run_store = InMemoryRunStore()
+    task_backend = InMemoryTaskBackend()
+    replay_buffer = ReplayBuffer()
+    manager = RunManager(run_store=run_store, task_backend=task_backend)
+    _run, task_id = await manager.create_run_task(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        agent_id="agent_1",
+        agent_version_id="version_1",
+        deployment_id="deployment_1",
+        input_data={"message": "hello"},
+        override_config={"temperature": 0, "model": "candidate"},
+    )
+    adapter = RuntimeConfigCapturingAdapter()
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=replay_buffer,
+        adapters={"fake": adapter},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={"temperature": 1, "timeout": 30},
+            )
+        },
+    )
+
+    await executor.execute_once(queue="default")
+
+    assert task_backend.tasks[task_id].status == "succeeded"
+    assert adapter.loaded_runtime_config == {
+        "temperature": 0,
+        "timeout": 30,
+        "model": "candidate",
+    }
+
+
+@pytest.mark.asyncio
 async def test_worker_executor_does_not_mark_run_failed_on_stale_complete() -> None:
     run_store = InMemoryRunStore()
     task_backend = StaleCompleteBackend()
@@ -261,6 +327,34 @@ async def test_worker_executor_does_not_mark_run_failed_on_stale_complete() -> N
     assert run_store.runs[run_id].status == "running"
     assert list(run_store.attempts.values())[0].status == "running"
     assert "run.failed" not in [event.type for event in replay_buffer.replay(run_id)]
+
+
+@pytest.mark.asyncio
+async def test_worker_executor_does_not_complete_task_before_run_success_is_persisted() -> None:
+    run_store = FailingCompleteRunStore()
+    task_backend = InMemoryTaskBackend()
+    replay_buffer = ReplayBuffer()
+    task_id = await create_task(run_store, task_backend)
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=replay_buffer,
+        adapters={"fake": FakeAdapter()},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={},
+            )
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="run store unavailable"):
+        await executor.execute_once(queue="default")
+
+    assert task_backend.tasks[task_id].status == "running"
 
 
 @pytest.mark.asyncio

@@ -72,6 +72,10 @@ class WorkerExecutor:
         run = self.run_store.runs[run_id]
         spec = self.agent_specs[run.agent_version_id]
         adapter = self.adapters[spec.adapter]
+        runtime_config = {
+            **spec.runtime_config,
+            **leased.get("override_config", {}),
+        }
         context = RuntimeContext(
             tenant_id=run.tenant_id,
             project_id=run.project_id,
@@ -86,7 +90,7 @@ class WorkerExecutor:
         )
 
         try:
-            agent = await adapter.load(spec.package_uri, spec.manifest, spec.runtime_config)
+            agent = await adapter.load(spec.package_uri, spec.manifest, runtime_config)
             result = await self._execute_agent(adapter, agent, leased, context, attempt.attempt_id)
         except Exception as exc:
             error = {"message": str(exc), "type": exc.__class__.__name__}
@@ -123,7 +127,7 @@ class WorkerExecutor:
                 status="failed",
             )
 
-        await self.task_backend.complete(task_id, self.worker_id, fencing_token)
+        self.task_backend.assert_can_complete(task_id, self.worker_id, fencing_token)
         self.run_store.complete_run(run_id, result.output)
         self.run_store.complete_attempt(attempt.attempt_id)
         self._append(
@@ -136,6 +140,7 @@ class WorkerExecutor:
             attempt.attempt_id,
             AgentEvent(type="stream.completed", payload={}),
         )
+        await self.task_backend.complete(task_id, self.worker_id, fencing_token)
         return WorkerExecutionResult(
             task_id=task_id,
             run_id=run_id,

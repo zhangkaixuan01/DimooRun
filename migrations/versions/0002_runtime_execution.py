@@ -20,7 +20,6 @@ from sqlalchemy import (
 
 from migrations.table_helpers import (
     audit_columns,
-    create_runtime_stub_table,
     drop_tables,
     id_column,
 )
@@ -148,7 +147,25 @@ def upgrade() -> None:
         Column("payload_uri", String(1024), nullable=False),
         *audit_columns(),
     )
-    create_runtime_stub_table("artifacts")
+    op.create_table(
+        "artifacts",
+        id_column(),
+        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", String(64), ForeignKey("projects.id")),
+        Column("run_id", String(64), ForeignKey("runs.id")),
+        Column("attempt_id", String(64), ForeignKey("run_attempts.id")),
+        Column("event_id", String(512)),
+        Column("artifact_type", String(128), nullable=False),
+        Column("mime_type", String(128), nullable=False),
+        Column("size_bytes", Integer, nullable=False),
+        Column("storage_uri", String(1024), nullable=False),
+        Column("checksum", String(255), nullable=False),
+        Column("visibility_level", String(64), nullable=False, server_default="internal"),
+        Column("retention_policy_id", String(64)),
+        Column("expires_at", DateTime(timezone=True)),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
     op.create_table(
         "audit_logs",
         id_column(),

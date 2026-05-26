@@ -60,6 +60,7 @@ RESOURCE_ACTIONS: frozenset[str] = frozenset(
         "model_gateway:create",
         "model_gateway:update",
         "model_gateway:delete",
+        "model_gateway:use",
         "published_surface:read",
         "published_surface:create",
         "published_surface:update",

@@ -64,7 +64,7 @@ replay:create
 memory:read/create/update/delete
 catalog:read/create/update/delete
 prompt:read/create/update/delete
-model_gateway:read/create/update/delete
+model_gateway:read/create/update/delete/use
 published_surface:read/create/update/delete
 extension:read/create/update/delete
 alert:read/create/update/delete
@@ -282,6 +282,7 @@ created_at
 - [x] Agent Package 不暴露底层模型供应商 Key。
 - [x] Worker 注入 Model Gateway endpoint 和受控 credential 引用。
 - [x] ModelGateway / ModelPolicy 与 RuntimeContext tenant/project scope 必须一致。
+- [x] Runtime 模型调用使用 `model_gateway:use` / Policy Engine action，不与 `model_gateway:create` 管理动作混用。
 - [x] usage / cost 从 callback、网关响应或观测事件提取。
 - [ ] Agent 绕过 Model Gateway 直连供应商时标记 `policy_violation` 或 `unsupported_usage_accounting`。
 

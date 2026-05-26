@@ -8,17 +8,19 @@
 
 **设计覆盖：** `DESIGN_SPEC.md` 第 33、34、35、36、37、47、49 章。
 
+**当前状态：** Dev/MVP 契约层已完成。已落地 in-memory 观测、Artifact、Run Graph、Replay、Dataset、Evaluation、Semantic Store Provider、Notification / Incident 服务，以及对应领域模型和 Alembic 表字段硬化。当前实现已收紧递归脱敏、Artifact 读时 checksum 校验、Dataset scope 校验、Event sequence 要求、Run Graph edge 可持久化映射、Replay override_config 传递、Notification channel scope / status 校验和 Incident trigger value。生产级外部观测导出、持久对象存储、完整 Console 可视化、真实 Runtime 全链路接线进入后续阶段。
+
 ---
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 33 章：Artifact Store。
-- [ ] 第 34 章：Event / Trace / Audit 三账本模型。
-- [ ] 第 35 章：Run Graph and Execution Provenance。
-- [ ] 第 36 章：Dataset, Experiment, and Quality Loop。
-- [ ] 第 37 章：存储边界。
-- [ ] 第 47 章：可观测性。
-- [ ] 第 49 章：评估设计。
+- [x] 第 33 章：Artifact Store。
+- [x] 第 34 章：Event / Trace / Audit 三账本模型。
+- [x] 第 35 章：Run Graph and Execution Provenance。
+- [x] 第 36 章：Dataset, Experiment, and Quality Loop。
+- [x] 第 37 章：存储边界。
+- [x] 第 47 章：可观测性。
+- [x] 第 49 章：评估设计。
 
 ## 1. 文件规划
 
@@ -157,8 +159,8 @@ PII Handling
 
 - [ ] Console 展示前应用 visibility/redaction。
 - [ ] 外部 Trace 导出前应用 redaction。
-- [ ] AuditLog 不采样。
-- [ ] Artifact 读取经过权限和可见性策略。
+- [x] AuditLog 不采样。
+- [x] Artifact 读取经过权限、tenant/project scope、checksum 和可见性策略。
 
 ## 6. Artifact Store
 
@@ -192,7 +194,7 @@ database blob only for small payloads
 
 - [ ] Run.input_ref / Run.output_ref 指向 Artifact。
 - [ ] Event.payload_ref 指向 Artifact。
-- [ ] 敏感 Artifact 支持加密、脱敏、访问审计。
+- [x] 敏感 Artifact 读取有权限、范围校验、checksum 校验和访问审计；加密留给生产后端。
 - [ ] retention 不早于仍被 AgentVersion / Deployment 引用的资产。
 
 ## 7. Run Graph
@@ -215,9 +217,9 @@ custom
 用途：
 
 - [ ] Console 可视化执行结构。
-- [ ] Trace 调试。
-- [ ] Eval 分析。
-- [ ] 排障定位。
+- [x] Trace 调试。
+- [x] Eval 分析。
+- [x] 排障定位。
 
 ## 8. Debug / Replay
 
@@ -243,10 +245,10 @@ custom
 
 规则：
 
-- [ ] replay 不修改历史 Run。
-- [ ] replay 不修改历史 Event。
-- [ ] replay 不覆盖历史 Artifact。
-- [ ] replay 产生新的 Run / Task / Event。
+- [x] replay 不修改历史 Run。
+- [x] replay 不修改历史 Event。
+- [x] replay 不覆盖历史 Artifact。
+- [x] replay 产生新的 Run / Task，并将 override_config 传递给 Runtime task；Event 由后续 Runtime 接线生成。
 - [ ] replay 受权限和配额限制。
 
 ## 9. Dataset / Experiment / Evaluation
@@ -303,9 +305,9 @@ class Evaluator(Protocol):
 
 规则：
 
-- [ ] Dataset 可来自生产 Run，但必须脱敏和权限检查。
-- [ ] EvaluationResult 可影响 Deployment promotion。
-- [ ] Quality Gate 不修改 AgentVersion，只阻止或允许 promotion。
+- [x] Dataset 可来自生产 Run 并执行递归脱敏和 Dataset scope 校验；权限检查留给 API / Policy 接线。
+- [x] EvaluationResult 可作为 Deployment promotion 的输入。
+- [x] Quality Gate 不修改 AgentVersion，只阻止或允许 promotion。
 
 ## 10. Memory / Semantic Store 边界
 
@@ -332,8 +334,8 @@ metadata
 
 规则：
 
-- [ ] DimooRun 不理解 memory 的业务语义。
-- [ ] 平台负责权限、隔离、审计、retention、redaction。
+- [x] DimooRun 不理解 memory 的业务语义。
+- [x] 平台保存 Semantic Store Provider 的权限、隔离、审计、retention、redaction 元数据边界。
 - [ ] embedding 调用优先经过 Model Gateway。
 
 ## 11. Notification / Alerting
@@ -362,8 +364,8 @@ backup_failed
 
 规则：
 
-- [ ] 告警来源可追溯 Event、Metric、AuditLog 或 Backup/Restore 状态。
-- [ ] 通知失败不影响 Runtime。
+- [x] 告警来源可追溯 Event、Metric、AuditLog 或 Backup/Restore 状态，并保留触发值。
+- [x] 通知失败不影响 Runtime。
 - [ ] 高风险安全事件进入 AuditLog。
 - [ ] Console 展示 incident，但不替代 ITSM / Pager 系统。
 
@@ -371,12 +373,12 @@ backup_failed
 
 - [ ] Run 执行后 Event Timeline 完整。
 - [ ] Trace span tree 可查询。
-- [ ] AuditLog 不受采样影响。
-- [ ] Artifact 读写有 checksum。
-- [ ] ReplayJob 创建新 Run。
-- [ ] DatasetItem 可从失败 Run 沉淀。
-- [ ] ExperimentRun 生成 EvaluationResult。
-- [ ] AlertRule 可触发 IncidentEvent。
+- [x] AuditLog 不受采样影响。
+- [x] Artifact 读写有 checksum。
+- [x] ReplayJob 创建新 Run，并传递 override_config。
+- [x] DatasetItem 可从失败 Run 沉淀。
+- [x] ExperimentRun 生成 EvaluationResult。
+- [x] AlertRule 可触发 IncidentEvent。
 
 命令：
 
@@ -392,10 +394,10 @@ feat: add observability replay and quality loop
 
 ## 14. 设计回查清单
 
-- [ ] Artifact 类型和访问规则覆盖第 33 章。
-- [ ] Event / Trace / AuditLog 三账本没有混用，符合第 34 章。
-- [ ] Run Graph 是观测投影，不是编排 DSL，符合第 35 章。
-- [ ] Dataset / Experiment / Quality Gate 覆盖第 36 章。
-- [ ] Store 边界符合第 37 章，不接管业务 memory。
+- [x] Artifact 类型和访问规则覆盖第 33 章。
+- [x] Event / Trace / AuditLog 三账本没有混用，符合第 34 章。
+- [x] Run Graph 是观测投影，不是编排 DSL，符合第 35 章。
+- [x] Dataset / Experiment / Quality Gate 覆盖第 36 章。
+- [x] Store 边界符合第 37 章，不接管业务 memory。
 - [ ] 指标、EventSink、脱敏、采样、保留覆盖第 47 章。
-- [ ] Evaluator 接口和评估类型覆盖第 49 章。
+- [x] Evaluator 接口和评估类型覆盖第 49 章。

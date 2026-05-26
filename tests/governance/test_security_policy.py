@@ -23,6 +23,7 @@ def test_rbac_roles_are_resource_action_based() -> None:
 
     assert "agent:deploy" in RESOURCE_ACTIONS
     assert "model_gateway:create" in RESOURCE_ACTIONS
+    assert "model_gateway:use" in RESOURCE_ACTIONS
     assert rbac.has_permission(role="owner", permission="secret:delete")
     assert rbac.has_permission(role="viewer", permission="agent:read")
     assert not rbac.has_permission(role="viewer", permission="agent:create")

@@ -19,6 +19,7 @@ class RuntimeRun:
     agent_version_id: str
     deployment_id: str | None
     input_data: dict[str, Any]
+    override_config: dict[str, Any] = field(default_factory=dict)
     status: str = "pending"
     thread_id: str | None = None
     output: dict[str, Any] | None = None
@@ -52,6 +53,7 @@ class RuntimeRunStore(Protocol):
         agent_version_id: str,
         deployment_id: str | None,
         input_data: dict[str, Any],
+        override_config: dict[str, Any] | None = None,
         thread_id: str | None = None,
     ) -> RuntimeRun: ...
 
@@ -98,6 +100,7 @@ class InMemoryRunStore:
         agent_version_id: str,
         deployment_id: str | None,
         input_data: dict[str, Any],
+        override_config: dict[str, Any] | None = None,
         thread_id: str | None = None,
     ) -> RuntimeRun:
         run = RuntimeRun(
@@ -108,6 +111,7 @@ class InMemoryRunStore:
             agent_version_id=agent_version_id,
             deployment_id=deployment_id,
             input_data=input_data,
+            override_config=dict(override_config or {}),
             thread_id=thread_id,
         )
         self.runs[run.run_id] = run
@@ -183,6 +187,7 @@ class RunManager:
         agent_version_id: str,
         deployment_id: str | None,
         input_data: dict[str, Any],
+        override_config: dict[str, Any] | None = None,
         queue: str = "default",
     ) -> tuple[RuntimeRun, str]:
         if deployment_id is not None and self.deployment_gate is not None:
@@ -200,6 +205,7 @@ class RunManager:
             agent_version_id=agent_version_id,
             deployment_id=deployment_id,
             input_data=input_data,
+            override_config=override_config,
         )
         task_id = await self.task_backend.enqueue(
             {
@@ -210,6 +216,7 @@ class RunManager:
                 "agent_version_id": agent_version_id,
                 "deployment_id": deployment_id,
                 "input_data": input_data,
+                "override_config": dict(override_config or {}),
                 "queue": queue,
             }
         )

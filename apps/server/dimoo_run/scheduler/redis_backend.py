@@ -55,6 +55,11 @@ class RedisTaskBackend:
         self._require_client()
         self._not_implemented()
 
+    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+        _ = task_id, worker_id, fencing_token
+        self._require_client()
+        self._not_implemented()
+
     def _require_client(self) -> None:
         if self.redis_client is None:
             raise RedisUnavailableError("Redis client is not configured.")

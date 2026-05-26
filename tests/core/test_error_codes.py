@@ -12,3 +12,12 @@ def test_error_codes_include_runtime_and_governance_codes() -> None:
         "secret_scope_mismatch",
         "stale_fencing_token",
     } <= ERROR_CODES
+
+
+def test_error_codes_include_api_and_observability_codes() -> None:
+    assert {
+        "not_implemented",
+        "artifact_checksum_mismatch",
+        "dataset_scope_mismatch",
+        "notification_configuration_invalid",
+    } <= ERROR_CODES

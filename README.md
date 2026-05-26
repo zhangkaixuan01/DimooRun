@@ -57,6 +57,8 @@ Completed implementation phases:
   `stream.failed`. Event `sequence` and `event_id` are required fields with a
   per-run sequence uniqueness constraint. The in-memory lease reaper requeues
   expired leased and running tasks so worker loss does not leave tasks stuck.
+  Worker success first validates task ownership/fencing, then persists Run /
+  Attempt success and terminal events, and only then completes the Task.
 - `05-deployment-runtime-control`: Deployment desired-status control,
   AgentInstance cache semantics, runtime-status aggregation, Deployment API
   control routes, RunManager deployment gating, and governed PublishedSurface /
@@ -65,19 +67,27 @@ Completed implementation phases:
   ServiceAccounts, API Key authentication, Policy Engine decisions and audit
   records, Deployment API Bearer API Key scope checks, Tool Gateway approval
   boundaries, SecretProvider policy checks, Model Gateway / New API
-  configuration boundaries with tenant/project scope validation, HITL tasks, Catalog,
-  Prompt/Config/Template assets, Sandbox Policy, and hardened governance tables.
+  configuration and runtime-use boundaries with tenant/project scope validation,
+  HITL tasks, Catalog, Prompt/Config/Template assets, Sandbox Policy, and
+  hardened governance tables.
+- `07-observability-replay-and-quality`: Event / Trace / Audit separation,
+  redaction and sampling policies, in-memory Artifact Store with checksum,
+  read-time checksum verification, permission and tenant/project checks,
+  Run Graph projection with persistable node edges, ReplayJob service with
+  runtime override propagation, Dataset scope checks, Experiment / Evaluation /
+  Quality Gate contracts, Semantic Store provider metadata, Notification /
+  Alert incident flow, and hardened observability / quality tables.
 
 Next implementation phase:
 
-- `07-observability-replay-and-quality`: trace, run graph, artifacts, datasets,
-  experiments, evaluation, feedback, replay quality loops, and observability
-  provider boundaries.
+- `08-console-product-plan`: product-grade Runtime Control Plane Console for
+  agents, deployments, runs, events, governance, observability, replay, and
+  quality workflows.
 
 The long-running worker process loop, Redis queue command mapping, production
 event store fan-out, production Policy Engine, durable deployment repositories,
-Agent Gateway request forwarding, and full Console product screens are still
-planned work.
+Agent Gateway request forwarding, external observability exporters, production
+Artifact Store backend, and full Console product screens are still planned work.
 
 ## LangChain Ecosystem Version Policy
 

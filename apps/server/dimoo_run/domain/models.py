@@ -3,6 +3,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -637,6 +638,200 @@ class Template(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
+class Artifact(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "artifacts"
+
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
+    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    event_id: Mapped[str | None] = mapped_column(String(512))
+    artifact_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    checksum: Mapped[str] = mapped_column(String(255), nullable=False)
+    visibility_level: Mapped[str] = mapped_column(String(64), default="internal", nullable=False)
+    retention_policy_id: Mapped[str | None] = mapped_column(String(64))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class RunGraphNode(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "run_graph_nodes"
+    __table_args__ = (
+        UniqueConstraint("run_id", "node_key", name="uq_run_graph_nodes_run_node_key"),
+    )
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    node_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    framework_node_id: Mapped[str | None] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    input_ref: Mapped[str | None] = mapped_column(String(1024))
+    output_ref: Mapped[str | None] = mapped_column(String(1024))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class RunGraphEdge(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "run_graph_edges"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    source_node_id: Mapped[str] = mapped_column(ForeignKey("run_graph_nodes.id"), nullable=False)
+    target_node_id: Mapped[str] = mapped_column(ForeignKey("run_graph_nodes.id"), nullable=False)
+    edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class Dataset(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "datasets"
+    __table_args__ = (
+        Index(
+            "uq_datasets_scope_name_active",
+            "tenant_id",
+            "project_id",
+            "name",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    visibility_level: Mapped[str] = mapped_column(String(64), default="internal", nullable=False)
+
+
+class DatasetItem(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "dataset_items"
+
+    dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), nullable=False)
+    source_run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
+    input_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    output_ref: Mapped[str | None] = mapped_column(String(1024))
+    expected_ref: Mapped[str | None] = mapped_column(String(1024))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class Experiment(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "experiments"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    baseline_agent_version_id: Mapped[str | None] = mapped_column(ForeignKey("agent_versions.id"))
+    candidate_agent_version_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_versions.id"), nullable=False
+    )
+    dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), nullable=False)
+    evaluator_config_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(64), default="draft", nullable=False)
+
+
+class ExperimentRun(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "experiment_runs"
+
+    experiment_id: Mapped[str] = mapped_column(ForeignKey("experiments.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="running", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class EvaluationResult(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "evaluation_results"
+
+    experiment_run_id: Mapped[str] = mapped_column(ForeignKey("experiment_runs.id"), nullable=False)
+    evaluator_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class Feedback(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "feedback"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    rating: Mapped[str | None] = mapped_column(String(64))
+    comment: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class MemoryBlock(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "memory_blocks"
+
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"))
+    memory_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class SemanticStoreProvider(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "semantic_store_providers"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    embedding_model: Mapped[str] = mapped_column(String(255), nullable=False)
+    embedding_gateway_id: Mapped[str | None] = mapped_column(ForeignKey("model_gateways.id"))
+    connection_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+    retention_policy_id: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class NotificationChannel(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "notification_channels"
+
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class AlertRule(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "alert_rules"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    signal: Mapped[str] = mapped_column(String(128), nullable=False)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    channel_id: Mapped[str] = mapped_column(ForeignKey("notification_channels.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class IncidentEvent(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "incident_events"
+
+    signal: Mapped[str] = mapped_column(String(128), nullable=False)
+    severity: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="open", nullable=False)
+    source_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ReplayJob(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "replay_jobs"
+
+    source_run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    source_agent_version_id: Mapped[str] = mapped_column(ForeignKey("agent_versions.id"))
+    candidate_agent_version_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_versions.id"), nullable=False
+    )
+    replay_run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
+    replay_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    status: Mapped[str] = mapped_column(String(64), default="created", nullable=False)
+    requested_by: Mapped[str | None] = mapped_column(String(64))
+    override_config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class AuditLog(IdMixin, AuditMixin, Base):
     __tablename__ = "audit_logs"
     __table_args__ = {"info": {"immutable": True}}
@@ -693,23 +888,8 @@ def create_metadata_model(table_name: str) -> type[Base]:
 
 
 for _table_name in [
-    "run_graph_nodes",
-    "run_graph_edges",
-    "datasets",
-    "dataset_items",
-    "experiments",
-    "experiment_runs",
-    "evaluation_results",
-    "feedback",
     "scheduled_runs",
     "batch_runs",
-    "replay_jobs",
-    "memory_blocks",
-    "semantic_store_providers",
-    "artifacts",
-    "notification_channels",
-    "alert_rules",
-    "incident_events",
     "webhook_subscriptions",
     "extensions",
     "backup_plans",
