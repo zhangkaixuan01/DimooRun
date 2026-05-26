@@ -15,4 +15,5 @@ def test_worker_entrypoint_prints_ready_message() -> None:
     )
 
     assert result.returncode == 0
-    assert result.stdout.strip() == "DimooRun worker process ready"
+    assert result.stdout.strip().startswith("DimooRun worker process ready")
+    assert "idle" in result.stdout

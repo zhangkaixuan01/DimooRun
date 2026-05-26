@@ -4,10 +4,13 @@ import argparse
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from dimoo_run.cli.compose import run_compose
+from dimoo_run.cli.dev import run_dev
 from dimoo_run.config.project import validate_project_workspace, write_default_workspace
 from dimoo_run.migration.aegra import migrate_aegra_project
 from dimoo_run.migration.langgraph import migrate_langgraph_project
 from dimoo_run.migration.langgraph_platform import migrate_langgraph_platform_project
+from dimoo_run.worker.loop import WorkerLoop
 
 LANGCHAIN_VERSION_MATRIX = {
     "langchain": "1.3.1",
@@ -16,9 +19,6 @@ LANGCHAIN_VERSION_MATRIX = {
     "deepagents": "0.6.3",
     "langsmith": "0.8.5",
 }
-
-PRODUCTION_PHASE_COMMANDS = {"dev", "worker", "up", "down"}
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dimoorun")
@@ -32,10 +32,13 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("--path", default=".")
 
     subparsers.add_parser("doctor")
-    subparsers.add_parser("dev")
-    subparsers.add_parser("worker")
-    subparsers.add_parser("up")
-    subparsers.add_parser("down")
+    dev_parser = subparsers.add_parser("dev")
+    dev_parser.add_argument("--dry-run", action="store_true")
+    worker_parser = subparsers.add_parser("worker")
+    worker_parser.add_argument("--once", action="store_true")
+    for command_name in ("up", "down", "logs"):
+        compose_parser = subparsers.add_parser(command_name)
+        compose_parser.add_argument("--dry-run", action="store_true")
     migrate_parser = subparsers.add_parser("migrate")
     migrate_subparsers = migrate_parser.add_subparsers(dest="migration_source", required=True)
     for source_name in ("langgraph", "aegra", "langgraph-platform"):
@@ -72,6 +75,18 @@ def run_cli(argv: list[str] | None = None) -> int:
         for package_name, expected in LANGCHAIN_VERSION_MATRIX.items():
             print(f"{package_name}=={expected} installed={_installed_version(package_name)}")
         return 0
+    if args.command == "dev":
+        return run_dev(dry_run=args.dry_run)
+    if args.command in {"up", "down", "logs"}:
+        return run_compose(args.command, dry_run=args.dry_run).return_code
+    if args.command == "worker":
+        loop = WorkerLoop()
+        if args.once:
+            heartbeat = loop.run_once()
+            print(f"{heartbeat.worker_id} {heartbeat.status}")
+            return 0
+        loop.run_forever()
+        return 0
     if args.command == "migrate":
         migrations = {
             "langgraph": migrate_langgraph_project,
@@ -85,13 +100,6 @@ def run_cli(argv: list[str] | None = None) -> int:
         )
         print(f"Migration report written to {report.report_path}")
         return 0
-
-    if args.command in PRODUCTION_PHASE_COMMANDS:
-        print(
-            f"{args.command} is reserved for production foundation phase 10 "
-            "and is not implemented yet."
-        )
-        return 2
 
     print(f"{args.command} is registered but not implemented yet")
     return 2

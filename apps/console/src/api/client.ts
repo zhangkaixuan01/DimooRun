@@ -1,31 +1,15 @@
 import { agents, deployments, events, humanTasks, runs, tasks } from "./mockData";
 import type { Agent, Deployment, Run } from "./types";
+import {
+  createDimooRunClient,
+  type NativeAgentRead,
+  type NativeDeploymentRead,
+  type NativeRunRead,
+} from "./generated/dimoorun";
 
 export type CursorPage<T> = {
   items: T[];
   nextCursor: string | null;
-};
-
-type NativeAgentRead = {
-  id: string;
-  name: string;
-  status: string;
-};
-
-type NativeRunRead = {
-  id: string;
-  agent_id: string;
-  agent_version_id: string;
-  deployment_id: string | null;
-  status: string;
-  thread_id: string | null;
-};
-
-type NativeTaskCreateResponse = {
-  run_id: string;
-  task_id: string;
-  status: string;
-  replayed: boolean;
 };
 
 function page<T>(items: T[]): CursorPage<T> {
@@ -49,18 +33,13 @@ function nativeHeaders(idempotencyKey?: string): HeadersInit {
   return headers;
 }
 
-async function nativeFetch<T>(path: string, init?: RequestInit): Promise<T> {
+function nativeClient(idempotencyKey?: string) {
   const baseUrl = nativeBaseUrl();
   if (!baseUrl) throw new Error("DimooRun API base URL is not configured.");
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
-    ...init,
-    headers: init?.headers,
+  return createDimooRunClient({
+    baseUrl,
+    headers: nativeHeaders(idempotencyKey),
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload?.message || `DimooRun API request failed: ${response.status}`);
-  }
-  return payload as T;
 }
 
 function mapNativeAgent(agent: NativeAgentRead): Agent {
@@ -95,6 +74,36 @@ function mapNativeRun(run: NativeRunRead): Run {
   };
 }
 
+function mapNativeDeployment(deployment: NativeDeploymentRead): Deployment {
+  const runtimeStatus =
+    deployment.runtime_status === "failed" || deployment.runtime_status === "stopped"
+      ? "degraded"
+      : deployment.runtime_status === "not_loaded"
+        ? "warming_up"
+        : (deployment.runtime_status as Deployment["runtimeStatus"]);
+  const desiredStatus =
+    deployment.desired_status === "draft"
+      ? "paused"
+      : deployment.desired_status === "archived"
+        ? "stopped"
+        : (deployment.desired_status as Deployment["desiredStatus"]);
+  return {
+    id: deployment.id,
+    agent: deployment.agent_id,
+    environment: deployment.environment,
+    version: deployment.agent_version_id,
+    desiredStatus,
+    runtimeStatus,
+    instances: deployment.replicas,
+    runningRuns: 0,
+    queueBacklog: 0,
+    worker: "native-worker",
+    heartbeatAt: new Date().toISOString(),
+    executionProfile: "default",
+    modelGateway: "default",
+  };
+}
+
 export const consoleClient = {
   getDashboardSummary() {
     return {
@@ -122,28 +131,19 @@ export const consoleClient = {
 
 export const nativeConsoleClient = {
   async listAgents(): Promise<CursorPage<Agent>> {
-    const payload = await nativeFetch<NativeAgentRead[]>("/v1/agents", {
-      headers: nativeHeaders(),
-    });
+    const payload = await nativeClient().listAgents();
     return page(payload.map(mapNativeAgent));
   },
   async listDeployments(): Promise<CursorPage<Deployment>> {
-    const payload = await nativeFetch<Deployment[]>("/v1/deployments", {
-      headers: nativeHeaders(),
-    });
-    return page(payload);
+    const payload = await nativeClient().listDeployments();
+    return page(payload.map(mapNativeDeployment));
   },
   async getRun(runId: string): Promise<Run> {
-    const payload = await nativeFetch<NativeRunRead>(`/v1/runs/${runId}`, {
-      headers: nativeHeaders(),
-    });
+    const payload = await nativeClient().getRun(runId);
     return mapNativeRun(payload);
   },
   async createRun(agentId: string, input: Record<string, unknown>) {
-    return nativeFetch<NativeTaskCreateResponse>(`/v1/agents/${agentId}/tasks`, {
-      method: "POST",
-      headers: nativeHeaders(crypto.randomUUID()),
-      body: JSON.stringify({ input }),
-    });
+    const idempotencyKey = crypto.randomUUID();
+    return nativeClient(idempotencyKey).createTask(agentId, input, idempotencyKey);
   },
 };

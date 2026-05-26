@@ -26,11 +26,11 @@ Runtime behavior is a white box.
 
 ## Current Status
 
-This repository is in the early implementation stage. Phases `01` through `09`
+This repository is in the early implementation stage. Phases `01` through `10`
 are MVP-complete and test-green, but they should not be read as production
 complete. Several runtime services deliberately remain in-process or in-memory
-until the production foundation phases wire durable storage, queues, generated
-SDKs, and process orchestration.
+until the later hardening phases wire HA queues, distributed leasing, external
+artifact storage, and cloud-native operations.
 
 The primary artifact is [DESIGN_SPEC.md](DESIGN_SPEC.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
@@ -100,6 +100,16 @@ Implemented MVP phase slices:
   an in-process runtime store, Python SDK error-code and idempotency-key
   handling with a real Native API integration test, and TypeScript SDK
   placeholder boundary.
+- `10-production-foundation-and-console-wiring`: `.env.example`, Docker Compose
+  and Dockerfile assets for server / worker / console / Postgres / Redis /
+  MinIO, env-driven server CORS and SQLAlchemy Native runtime selection,
+  CLI wrappers for `dev` / `up` / `down` / `logs` / `worker`, a minimal worker
+  loop entrypoint, durable repository methods for AgentVersion / Deployment /
+  Run / Task / Event / AuditLog, SQLAlchemy-backed Native Agents / Versions /
+  Runs / Tasks API tests, durable `POST /v1/deployments`, OpenAPI diff checking,
+  and a typed Console Native API client boundary.
+  The local Compose stack uses `postgres:16-alpine`, `redis:8-alpine`, and
+  `minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1`.
 
 Current verification baseline:
 
@@ -109,17 +119,13 @@ uv run ruff check apps tests packages\sdk-python
 cd apps/console && npm run test
 cd apps/console && npm run build
 uv run python scripts\export_openapi.py
+uv run python scripts\check_openapi_diff.py
 ```
 
 As of the current workspace state, those checks pass.
 
 Next implementation phases:
 
-- `10-production-foundation-and-console-wiring`: production foundation,
-  Docker Compose, Postgres / Redis / MinIO wiring, durable repositories,
-  durable Native write APIs, worker loop, generated Console SDK wiring,
-  OpenAPI diff, and making real Console-to-backend integration the primary
-  frontend path.
 - `11-runtime-production-hardening`: production Runtime reliability, Redis
   queue semantics, lease reaper, fencing-token protection, pub/sub cancel,
   quota, queue partitioning, streaming replay/fan-out/backpressure, crash
@@ -129,7 +135,7 @@ Next implementation phases:
   subscriptions, alerting/incidents, Helm/K8s, and sandbox/container-pool
   boundaries.
 
-The next concrete implementation step is phase 10. Kafka, Temporal,
+The next concrete implementation step is phase 11. Kafka, Temporal,
 multi-region deployment, leaderless reapers, and open-ended custom backend
 routes remain later optional work, not part of the immediate production
 foundation.
@@ -234,6 +240,19 @@ Run the 09 CLI / Compatibility / Migration checks:
 ```bash
 uv run pytest tests/cli tests/compat tests/migration tests/sdk -q
 ```
+
+Run the first phase 10 production-foundation checks:
+
+```bash
+uv run pytest tests/production_foundation tests/server tests/cli -q
+uv run python scripts/check_openapi_diff.py
+dimoorun up --dry-run
+dimoorun dev --dry-run
+```
+
+The Compose assets are present and covered by local tests. A real Docker
+Compose smoke run should still be executed in an environment with Docker,
+Postgres, Redis, and MinIO available before treating the stack as deployable.
 
 ## Design Principle
 

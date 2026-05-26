@@ -28,6 +28,7 @@ class DeploymentRecord:
     desired_status: DeploymentDesiredStatus = DeploymentDesiredStatus.draft
     runtime_status: DeploymentRuntimeStatus = DeploymentRuntimeStatus.not_loaded
     replicas: int = 1
+    config_json: dict[str, object] = field(default_factory=dict)
     last_runtime_error: str | None = None
 
 
@@ -127,6 +128,10 @@ class InMemoryDeploymentStore:
                 deployment for deployment in deployments if deployment.project_id == project_id
             ]
         return deployments
+
+    def save(self, deployment: DeploymentRecord) -> DeploymentRecord:
+        self.deployments[deployment.id] = deployment
+        return deployment
 
 
 class DeploymentRuntimeControlService:
@@ -374,6 +379,8 @@ class DeploymentRuntimeControlService:
                 running_runs=0,
                 queue_backlog=0,
             ).runtime_status
+        if hasattr(self.deployments, "save"):
+            self.deployments.save(deployment)
         self._write_audit(
             action=f"deployment.{action}",
             deployment=deployment,

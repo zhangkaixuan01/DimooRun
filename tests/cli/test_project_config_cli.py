@@ -62,12 +62,30 @@ def test_doctor_reports_fixed_langchain_ecosystem_matrix(capsys: Any) -> None:
     assert "langsmith==0.8.5" in captured.out
 
 
-def test_production_phase_commands_fail_until_phase_10_is_implemented(capsys: Any) -> None:
-    exit_code = run_cli(["up"])
+def test_compose_commands_support_dry_run(capsys: Any) -> None:
+    exit_code = run_cli(["up", "--dry-run"])
 
     captured = capsys.readouterr()
-    assert exit_code == 2
-    assert "production foundation phase 10" in captured.out
+    assert exit_code == 0
+    assert "docker compose up -d" in captured.out
+
+
+def test_dev_command_supports_dry_run(capsys: Any) -> None:
+    exit_code = run_cli(["dev", "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "server: uv run uvicorn dimoo_run.server:app" in captured.out
+    assert "worker: uv run dimoorun worker" in captured.out
+    assert "console: npm run dev" in captured.out
+
+
+def test_worker_command_can_run_once(capsys: Any) -> None:
+    exit_code = run_cli(["worker", "--once"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "idle" in captured.out
 
 
 def test_cli_migrate_langgraph_generates_report(tmp_path: Path) -> None:

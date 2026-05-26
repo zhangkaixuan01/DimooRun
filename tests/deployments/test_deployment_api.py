@@ -84,6 +84,99 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
     assert service.audit_sink.entries[0].actor_id == service_account.id
 
 
+def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
+    plain_key, service_account = create_api_key(
+        scopes={"agent:read", "agent:write", "agent:deploy"}
+    )
+    client = TestClient(create_app())
+    agent = client.post(
+        "/v1/agents",
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+        json={"name": "support-agent"},
+    ).json()
+    version = client.post(
+        f"/v1/agents/{agent['id']}/versions",
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+        json={"version": "0.1.0"},
+    ).json()
+
+    response = client.post(
+        "/v1/deployments",
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Request-Id": "req_create",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+        json={
+            "agent_id": agent["id"],
+            "agent_version_id": version["id"],
+            "environment": "dev",
+            "replicas": 2,
+        },
+    )
+    duplicate = client.post(
+        "/v1/deployments",
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Request-Id": "req_duplicate",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+        json={
+            "agent_id": agent["id"],
+            "agent_version_id": version["id"],
+            "environment": "dev",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["agent_id"] == agent["id"]
+    assert response.json()["runtime_status"] == "not_loaded"
+    assert default_deployment_control().audit_sink.entries[0].actor_id == service_account.id
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error_code"] == "deployment_already_exists"
+
+
+def test_deployment_api_rejects_missing_agent_version_binding() -> None:
+    plain_key, _ = create_api_key(scopes={"agent:read", "agent:write", "agent:deploy"})
+    client = TestClient(create_app())
+    agent = client.post(
+        "/v1/agents",
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+        json={"name": "support-agent"},
+    ).json()
+
+    response = client.post(
+        "/v1/deployments",
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+        json={
+            "agent_id": agent["id"],
+            "agent_version_id": "missing_version",
+            "environment": "dev",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "agent_version_not_found"
+
+
 def test_deployment_control_api_returns_stable_error_response() -> None:
     plain_key, _ = create_api_key(scopes={"agent:deploy"})
     client = TestClient(create_app())

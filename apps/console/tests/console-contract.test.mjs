@@ -107,3 +107,16 @@ test("renders high-risk operation confirmation with audit impact", () => {
     assert.match(dialog, /writesAuditLog/);
     assert.match(dialog, /rollbackable/);
 });
+
+test("uses a typed Native API client as the console backend boundary", () => {
+    const generatedClientPath = "src/api/generated/dimoorun.ts";
+    assert.equal(existsSync(join(root, generatedClientPath)), true);
+    const generatedClient = read(generatedClientPath);
+    const consoleClient = read("src/api/client.ts");
+
+    assert.match(generatedClient, /createDimooRunClient/);
+    assert.match(generatedClient, /NativeDeploymentRead/);
+    assert.match(generatedClient, /\/v1\/deployments/);
+    assert.match(consoleClient, /createDimooRunClient/);
+    assert.match(consoleClient, /mapNativeDeployment/);
+});

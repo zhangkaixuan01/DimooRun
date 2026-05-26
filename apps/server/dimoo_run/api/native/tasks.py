@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -9,9 +11,18 @@ from dimoo_run.api.dependencies import (
     authenticate_api_key,
     error_response,
 )
-from dimoo_run.api.native.runtime import NativeTask, default_native_runtime
+from dimoo_run.api.native.dependencies import get_native_runtime
+from dimoo_run.api.native.runtime import (
+    NativeRuntimeStore,
+    NativeTask,
+    SQLAlchemyNativeRuntimeStore,
+)
 
 router = APIRouter(tags=["native-tasks"])
+NativeRuntimeDep = Annotated[
+    NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
+    Depends(get_native_runtime),
+]
 
 
 class TaskRead(BaseModel):
@@ -36,6 +47,7 @@ def _task_to_read(task: NativeTask) -> TaskRead:
 def _find_task(
     task_id: str,
     *,
+    runtime: NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     authorization: str | None,
     tenant_id: str | None,
     project_id: str | None,
@@ -59,7 +71,7 @@ def _find_task(
     )
     if isinstance(actor, JSONResponse):
         return actor
-    task = default_native_runtime().get_task(task_id, tenant_id=tenant_id, project_id=project_id)
+    task = runtime.get_task(task_id, tenant_id=tenant_id, project_id=project_id)
     if task is None:
         return error_response(
             status_code=404,
@@ -74,6 +86,7 @@ def _find_task(
 @router.get("/tasks/{task_id}", response_model=TaskRead)
 def get_task(
     task_id: str,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -81,6 +94,7 @@ def get_task(
 ) -> TaskRead | JSONResponse:
     task = _find_task(
         task_id,
+        runtime=runtime,
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -94,6 +108,7 @@ def get_task(
 @router.post("/tasks/{task_id}/cancel", response_model=TaskRead)
 def cancel_task(
     task_id: str,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -101,6 +116,7 @@ def cancel_task(
 ) -> TaskRead | JSONResponse:
     task = _find_task(
         task_id,
+        runtime=runtime,
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -109,5 +125,5 @@ def cancel_task(
     )
     if isinstance(task, JSONResponse):
         return task
-    default_native_runtime().cancel_task(task)
-    return _task_to_read(task)
+    cancelled = runtime.cancel_task(task)
+    return _task_to_read(cancelled)

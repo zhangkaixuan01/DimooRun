@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -12,10 +12,20 @@ from dimoo_run.api.dependencies import (
     authenticate_api_key,
     error_response,
 )
-from dimoo_run.api.native.runtime import NativeAgent, NativeAgentVersion, default_native_runtime
+from dimoo_run.api.native.dependencies import get_native_runtime
+from dimoo_run.api.native.runtime import (
+    NativeAgent,
+    NativeAgentVersion,
+    NativeRuntimeStore,
+    SQLAlchemyNativeRuntimeStore,
+)
 from dimoo_run.runtime.idempotency import IdempotencyConflictError
 
 router = APIRouter(tags=["native-agents"])
+NativeRuntimeDep = Annotated[
+    NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
+    Depends(get_native_runtime),
+]
 
 
 class AgentCreate(BaseModel):
@@ -107,6 +117,7 @@ def _version_to_read(version: NativeAgentVersion) -> AgentVersionRead:
 @router.post("/agents", status_code=201, response_model=AgentRead)
 def create_agent(
     payload: AgentCreate,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -122,7 +133,7 @@ def create_agent(
     if isinstance(auth, JSONResponse):
         return auth
     tenant_id, project_id = auth
-    agent = default_native_runtime().create_agent(
+    agent = runtime.create_agent(
         tenant_id=tenant_id,
         project_id=project_id,
         name=payload.name,
@@ -133,6 +144,7 @@ def create_agent(
 
 @router.get("/agents", response_model=list[AgentRead])
 def list_agents(
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -150,7 +162,7 @@ def list_agents(
     tenant_id, project_id = auth
     return [
         _agent_to_read(agent)
-        for agent in default_native_runtime().list_agents(
+        for agent in runtime.list_agents(
             tenant_id=tenant_id,
             project_id=project_id,
         )
@@ -160,6 +172,7 @@ def list_agents(
 @router.get("/agents/{agent_id}", response_model=AgentRead)
 def get_agent(
     agent_id: str,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -175,7 +188,7 @@ def get_agent(
     if isinstance(auth, JSONResponse):
         return auth
     tenant_id, project_id = auth
-    agent = default_native_runtime().get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
+    agent = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
     if agent is None:
         return error_response(
             status_code=404,
@@ -191,33 +204,64 @@ def get_agent(
 def update_agent(
     agent_id: str,
     payload: AgentCreate,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> AgentRead | JSONResponse:
-    result = get_agent(agent_id, authorization, x_tenant_id, x_project_id, x_request_id)
-    if isinstance(result, JSONResponse):
-        return result
-    agent = default_native_runtime().agents[agent_id]
-    agent.name = payload.name
-    agent.description = payload.description
+    auth = _auth(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:write",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    tenant_id, project_id = auth
+    existing = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
+    if existing is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_not_found",
+            message="Agent was not found.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id},
+        )
+    agent = runtime.update_agent(existing, name=payload.name, description=payload.description)
     return _agent_to_read(agent)
 
 
 @router.delete("/agents/{agent_id}", response_model=AgentRead)
 def delete_agent(
     agent_id: str,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> AgentRead | JSONResponse:
-    result = get_agent(agent_id, authorization, x_tenant_id, x_project_id, x_request_id)
-    if isinstance(result, JSONResponse):
-        return result
-    agent = default_native_runtime().agents[agent_id]
-    agent.status = "archived"
+    auth = _auth(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:write",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    tenant_id, project_id = auth
+    existing = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
+    if existing is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_not_found",
+            message="Agent was not found.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id},
+        )
+    agent = runtime.archive_agent(existing)
     return _agent_to_read(agent)
 
 
@@ -225,6 +269,7 @@ def delete_agent(
 def create_agent_version(
     agent_id: str,
     payload: AgentVersionCreate,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -240,7 +285,6 @@ def create_agent_version(
     if isinstance(auth, JSONResponse):
         return auth
     tenant_id, project_id = auth
-    runtime = default_native_runtime()
     agent = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
     if agent is None:
         return error_response(
@@ -257,17 +301,18 @@ def create_agent_version(
 @router.get("/agents/{agent_id}/versions", response_model=list[AgentVersionRead])
 def list_agent_versions(
     agent_id: str,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> list[AgentVersionRead] | JSONResponse:
-    agent = get_agent(agent_id, authorization, x_tenant_id, x_project_id, x_request_id)
+    agent = get_agent(agent_id, runtime, authorization, x_tenant_id, x_project_id, x_request_id)
     if isinstance(agent, JSONResponse):
         return agent
     return [
         _version_to_read(version)
-        for version in default_native_runtime().list_versions(agent_id)
+        for version in runtime.list_versions(agent_id)
     ]
 
 
@@ -275,15 +320,16 @@ def list_agent_versions(
 def get_agent_version(
     agent_id: str,
     version: str,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> AgentVersionRead | JSONResponse:
-    agent = get_agent(agent_id, authorization, x_tenant_id, x_project_id, x_request_id)
+    agent = get_agent(agent_id, runtime, authorization, x_tenant_id, x_project_id, x_request_id)
     if isinstance(agent, JSONResponse):
         return agent
-    agent_version = default_native_runtime().get_version(agent_id, version)
+    agent_version = runtime.get_version(agent_id, version)
     if agent_version is None:
         return error_response(
             status_code=404,
@@ -300,6 +346,7 @@ def invoke_agent(
     agent_id: str,
     payload: AgentTaskCreate,
     response: Response,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -310,6 +357,7 @@ def invoke_agent(
         agent_id,
         payload,
         response,
+        runtime,
         authorization,
         x_tenant_id,
         x_project_id,
@@ -323,6 +371,7 @@ def create_agent_task(
     agent_id: str,
     payload: AgentTaskCreate,
     response: Response,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -340,7 +389,6 @@ def create_agent_task(
     if isinstance(auth, JSONResponse):
         return auth
     tenant_id, project_id = auth
-    runtime = default_native_runtime()
     agent = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
     if agent is None:
         return error_response(
@@ -396,6 +444,7 @@ def stream_agent(
     agent_id: str,
     payload: AgentTaskCreate,
     response: Response,
+    runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -406,6 +455,7 @@ def stream_agent(
         agent_id,
         payload,
         response,
+        runtime,
         authorization,
         x_tenant_id,
         x_project_id,

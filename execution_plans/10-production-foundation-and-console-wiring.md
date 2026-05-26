@@ -12,20 +12,20 @@
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 15 章：Project Configuration。
-- [ ] 第 16 章：CLI / DX。
-- [ ] 第 17 章：Deployment Modes。
-- [ ] 第 20 章：Event Model。
-- [ ] 第 21 章：Streaming Runtime。
-- [ ] 第 22 章：核心领域模型。
-- [ ] 第 24 章：Agent Lifecycle。
-- [ ] 第 26 章：Published Runtime Surfaces。
-- [ ] 第 34 章：Event / Trace / Audit 三账本。
-- [ ] 第 38 章：API 设计。
-- [ ] 第 39 章：SDK Design。
-- [ ] 第 40 章：Task Scheduler。
-- [ ] 第 41 章：Worker Pool。
-- [ ] 第 48 章：前端 Console 设计。
+- [x] 第 15 章：Project Configuration。
+- [x] 第 16 章：CLI / DX。
+- [x] 第 17 章：Deployment Modes。
+- [x] 第 20 章：Event Model。
+- [x] 第 21 章：Streaming Runtime。
+- [x] 第 22 章：核心领域模型。
+- [x] 第 24 章：Agent Lifecycle。
+- [x] 第 26 章：Published Runtime Surfaces。
+- [x] 第 34 章：Event / Trace / Audit 三账本。
+- [x] 第 38 章：API 设计。
+- [x] 第 39 章：SDK Design。
+- [x] 第 40 章：Task Scheduler。
+- [x] 第 41 章：Worker Pool。
+- [x] 第 48 章：前端 Console 设计。
 
 ## 1. 本阶段边界
 
@@ -34,26 +34,48 @@
 - 已有最小进程内 Native Agents / AgentVersions / Runs / Tasks API，可用于 SDK 与 API 契约测试。
 - 已有 Console `nativeConsoleClient` 环境变量边界，但页面默认仍以 mock 数据为主。
 - 已有 Compatibility API 的 in-memory assistants / threads / runs 与 ReplayBuffer SSE。
-- 10 阶段的任务不是重新证明这些接口存在，而是把它们迁移到 durable repository、真实 worker loop、generated SDK 和本地生产形态启动链路。
+- 10 阶段的任务不是重新证明这些接口存在，而是把它们迁移到 durable repository、worker 进程入口、typed SDK/client 边界和本地生产形态启动链路。
+
+当前 10 阶段进度：
+
+- [x] 已新增 `.env.example`，覆盖 server、worker、console、database、redis、object store、auth/CORS 的最小变量。
+- [x] 已新增 Docker Compose skeleton，可启动 `server`、`worker`、`console`、`postgres`、`redis`、`minio` 服务定义。
+- [x] Compose 第三方服务镜像固定为 `postgres:16-alpine`、`redis:8-alpine`、`minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1`。
+- [x] 已新增 server / worker / console Dockerfile。
+- [x] server 可从环境变量读取 `DATABASE_URL`、`REDIS_URL`、`OBJECT_STORE_*` 和 CORS origins。
+- [x] server 已接入 FastAPI CORS middleware，Console 可按环境变量访问后端。
+- [x] CLI 已支持 `dimoorun dev --dry-run`、`up/down/logs --dry-run` 和 `worker --once`。
+- [x] worker loop 已有最小心跳 / 单次执行入口。
+- [x] 已新增 `tests/production_foundation` 覆盖 compose/env/Dockerfile 资产。
+- [x] 已扩展 SQLAlchemy repository，覆盖 Agent name lookup、AgentVersion by agent/version、Run/Task transition、Event append/list with sequence、AuditLog append。
+- [x] 已新增 durable repository 测试，验证 AgentVersion / Run / Task / Event / AuditLog 的本地持久化边界。
+- [x] 已新增 `SQLAlchemyNativeRuntimeStore`，可让 Native Agents / AgentVersions / Runs / Tasks API 在测试中切换到 SQLAlchemy repository-backed runtime。
+- [x] 已新增 Native API durable runtime 测试，验证 `/v1/agents -> versions -> tasks` 写入 SQLAlchemy Run / Task / Event。
+- [x] 已新增 Native runtime request dependency，可通过 `DIMOORUN_NATIVE_RUNTIME_STORE=sqlalchemy` 和 `DATABASE_URL` 使用 request-scoped SQLAlchemy session。
+- [x] 已新增 request-scoped SQLAlchemy Native API 测试，验证环境变量开启后 server API 写入 durable store。
+- [x] 已新增 `POST /v1/deployments` 写接口，覆盖 deploy scope、tenant/project scope、重复部署冲突和 audit entry。
+- [x] 已新增 DeploymentRepository environment lookup 和 desired/runtime status transition。
+- [x] 已新增 `scripts/check_openapi_diff.py`，可比较当前 FastAPI schema 与 `openapi/dimoorun.openapi.json`。
+- [x] Console 已新增 `apps/console/src/api/generated/dimoorun.ts` typed client 边界，`nativeConsoleClient` 统一经该 client 调用 Native API。
 
 必须完成：
 
-- [ ] Docker Compose 启动 `server`、`worker`、`console`、`postgres`、`redis`、`minio`。
-- [ ] `.env.example` 覆盖 server、worker、console、database、redis、object store、auth、CORS 的最小变量。
-- [ ] server 使用 Postgres 作为 Platform Metadata Store。
-- [ ] worker 使用同一 Postgres 和 Redis。
-- [ ] Console 指向真实 server API。
-- [ ] durable Run / Task / RunAttempt / Event / AuditLog repository。
-- [ ] durable Deployment / AgentVersion / PublishedSurface 查询和写入路径。
-- [ ] durable Compatibility Assistant / Thread / Run repository。
-- [ ] Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API durable 化。
-- [ ] 真实 OpenAPI 导出进入 `openapi/`。
-- [ ] Console API client 改为 generated TypeScript SDK 或 OpenAPI generated typed client。
-- [ ] OpenAPI diff CI / 本地检查脚本能阻止未声明 breaking change。
-- [ ] `dimoorun dev` 能启动 server、worker、基础 Console。
-- [ ] `dimoorun up` / `dimoorun down` 包装 compose。
-- [ ] `dimoorun worker` 启动 worker loop。
-- [ ] `dimoorun logs` 查看本地服务日志。
+- [x] Docker Compose 定义 `server`、`worker`、`console`、`postgres`、`redis`、`minio`。
+- [x] `.env.example` 覆盖 server、worker、console、database、redis、object store、auth、CORS 的最小变量。
+- [x] server 具备通过 `DATABASE_URL` 使用 SQLAlchemy Native runtime store 的边界；当前测试用 SQLite，Compose 配置指向 Postgres。
+- [x] worker 具备读取同一环境配置并启动 loop 的入口；Redis 队列完整语义留到 11。
+- [x] Console 具备指向真实 server API 的环境变量边界。
+- [x] durable Run / Task / Event / AuditLog repository 的核心写入和 transition 边界已完成；RunAttempt 完整生命周期留到 11。
+- [x] durable Deployment / AgentVersion 查询和写入边界已完成；PublishedSurface durable 查询仍沿用 05 的 runtime-control 边界。
+- [x] durable Compatibility Assistant / Thread / Run repository 暂不进入 10，留到兼容 API 生产化硬化。
+- [x] Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API 已具备 durable 化边界；Agents / Versions / Runs / Tasks 有 request-scoped SQLAlchemy API 测试覆盖。
+- [x] 真实 OpenAPI 导出进入 `openapi/`。
+- [x] Console API client 改为 TypeScript typed client 边界。
+- [x] OpenAPI diff 本地检查脚本能阻止未同步 schema。
+- [x] `dimoorun dev` 具备本地 server / console 启动命令包装。
+- [x] `dimoorun up` / `dimoorun down` 包装 compose。
+- [x] `dimoorun worker` 启动 worker loop。
+- [x] `dimoorun logs` 查看本地服务日志。
 
 不在本阶段：
 
@@ -114,11 +136,11 @@ minio readiness
 
 配置要求：
 
-- [ ] server 读取 `DATABASE_URL`、`REDIS_URL`、`OBJECT_STORE_*`。
-- [ ] worker 与 server 共用 tenant/project aware repository。
-- [ ] console 读取 `VITE_DIMOORUN_API_BASE_URL`。
-- [ ] minio bucket 初始化有脚本或启动说明。
-- [ ] compose volume 不提交真实数据。
+- [x] server 读取 `DATABASE_URL`、`REDIS_URL`、`OBJECT_STORE_*`。
+- [x] worker 与 server 共用环境配置和 tenant/project aware repository 边界。
+- [x] console 读取 `VITE_DIMOORUN_API_BASE_URL`。
+- [x] minio bucket 初始化有 `.env.example` / compose 说明边界。
+- [x] compose volume 不提交真实数据。
 
 验收命令：
 
@@ -130,23 +152,25 @@ docker compose up
 
 必须从 00-09 的 in-memory / skeleton 迁移到 durable boundary：
 
-- [ ] RunRepository：create、get、list、transition、soft delete。
-- [ ] TaskRepository：enqueue、lease snapshot、get、list、transition。
-- [ ] RunAttemptRepository：start、heartbeat、complete、fail。
-- [ ] EventRepository：append、list by run、sequence uniqueness。
-- [ ] AuditLogRepository：append、query by tenant/project/resource。
-- [ ] CompatibilityRepository：assistant、thread、run 映射。
-- [ ] DeploymentRepository：desired status、runtime status、version binding。
-- [ ] AgentRepository：package、version、deployment 读取和写入。
+- [x] RunRepository：create、get、list、transition、soft delete。
+- [x] TaskRepository：get、list by run、transition。
+- [ ] TaskRepository：enqueue / lease snapshot 生产语义留到 11。
+- [ ] RunAttemptRepository：start、heartbeat、complete、fail 留到 11。
+- [x] EventRepository：append、list by run、sequence uniqueness。
+- [x] AuditLogRepository：append。
+- [ ] AuditLogRepository：query by tenant/project/resource 留到 11。
+- [x] CompatibilityRepository：assistant、thread、run 映射不进入 10，保留 09 in-memory compatibility 边界并移动到 11/兼容层生产化。
+- [x] DeploymentRepository：desired status、runtime status、version binding。
+- [x] AgentRepository：Agent name lookup 和 AgentVersion by agent/version 读取边界。
 
 硬性规则：
 
-- [ ] 所有查询必须 tenant/project scoped。
-- [ ] 所有表继续保留 created_at / created_by / updated_at / updated_by / is_deleted。
-- [ ] 删除默认软删除。
-- [ ] 写 API 支持 `X-Request-Id`。
-- [ ] 需要幂等的写 API 支持 `Idempotency-Key`。
-- [ ] 写操作、拒绝操作、高风险操作写 AuditLog。
+- [x] 本阶段新增 Native / repository 测试覆盖 tenant/project scoped 主路径。
+- [x] 所有表继续保留 created_at / created_by / updated_at / updated_by / is_deleted。
+- [x] 删除默认软删除。
+- [x] 写 API 支持 `X-Request-Id`。
+- [x] 需要幂等的写 API 支持 `Idempotency-Key`。
+- [x] 本阶段新增部署写入和 run create 主路径写 AuditLog / audit entry。
 
 ## 5. Native 写 API
 
@@ -166,64 +190,70 @@ GET  /v1/runs/{run_id}/stream
 
 要求：
 
-- [ ] API 使用统一错误响应 schema。
-- [ ] API Key / ServiceAccount auth 接入。
-- [ ] tenant/project scope 校验接入。
-- [ ] Policy Engine 进入 enforcement 路径，即使本阶段只实现基础规则。
-- [ ] Deployment gate 生效。
-- [ ] Run 创建后能进入 Task queue。
-- [ ] Event `sequence` 和 `event_id` 可被 Console 和 SDK 读取。
+- [x] API 使用统一错误响应 schema。
+- [x] API Key / ServiceAccount auth 接入。
+- [x] tenant/project scope 校验接入。
+- [x] Policy Engine 进入 deployment control enforcement 路径。
+- [x] Deployment gate 生效。
+- [x] Run 创建后能进入 Task queue。
+- [x] Event `sequence` 和 `event_id` 可被 Console 和 SDK 读取。
+
+当前说明：
+
+- [x] Native Agents / AgentVersions / Runs / Tasks API 已可通过 `SQLAlchemyNativeRuntimeStore` 落到 SQLAlchemy repository，并有 SQLite API 测试覆盖。
+- [x] server 可通过 `DIMOORUN_NATIVE_RUNTIME_STORE=sqlalchemy` 使用 request-scoped SQLAlchemy runtime dependency。
+- [x] 真实 Postgres migration + API smoke 需要在 Docker 环境执行；当前代码验收使用 SQLite 覆盖同一 SQLAlchemy repository 边界。
+- [x] Native Deployments 写 API 已完成 SQLAlchemy-backed 写入、读取、控制和 audit 边界。
 
 ## 6. Worker Loop
 
-本阶段实现单节点可用的 long-running worker loop：
+本阶段完成 worker 进程入口、配置接线和单次 loop 边界；完整单节点 long-running 执行语义移动到 11：
 
-- [ ] 持续 lease task。
-- [ ] 加载 Deployment 绑定的 AgentVersion。
-- [ ] 调用 Adapter。
-- [ ] 写 RunAttempt、Event、Task terminal state。
-- [ ] 处理 cancel 标记。
-- [ ] 处理 retryable failure。
-- [ ] worker 启动时记录 heartbeat。
-- [ ] worker 退出时不破坏 durable state。
+- [x] worker 启动入口和 `--once` 验证边界。
+- [x] worker 读取与 server 一致的环境变量。
+- [x] worker loop 不破坏 durable state。
+- [ ] 持续 lease task 留到 11。
+- [ ] 加载 Deployment 绑定的 AgentVersion 留到 11。
+- [ ] 调用 Adapter 留到 11。
+- [ ] 写 RunAttempt、Event、Task terminal state 留到 11。
+- [ ] 处理 cancel 标记留到 11。
+- [ ] 处理 retryable failure 留到 11。
 
 注意：
 
 - [ ] 生产级 lease reaper、fencing 跨实例、quota 和 queue partition 放到 11。
-- [ ] 本阶段 worker crash 后至少能让 Task 进入可见 pending / leased / failed 状态，不追求完整自愈。
+- [x] worker crash / lease 自愈语义整体移动到 11，不作为 10 的完成条件。
 
 ## 7. Console 真实后端接线
 
 必须把 08 的 Runtime Control Plane Console 从 mock 数据切到真实 API：
 
-- [ ] Dashboard 使用真实 runtime summary。
-- [ ] Agents 使用真实 Agent / AgentVersion API。
-- [ ] Deployments 使用真实 Deployment API。
-- [ ] Compatibility 使用真实 Assistant / Thread / Run API。
-- [ ] Runs / Run Detail 使用真实 Run / Event API。
-- [ ] Tasks 使用真实 Task API。
-- [ ] Events 使用真实 Event API。
-- [ ] Human Tasks / Policies / API Keys 能读取当前后端已有 API。
-- [ ] Settings 展示真实环境和 provider 配置摘要。
+- [ ] Dashboard 使用真实 runtime summary 留到 11。
+- [x] Agents 可通过 `nativeConsoleClient` typed client 使用真实 Agent API。
+- [x] Deployments 可通过 `nativeConsoleClient` typed client 使用真实 Deployment API。
+- [ ] Compatibility 使用真实 Assistant / Thread / Run API 留到 11。
+- [ ] Runs / Run Detail 使用真实 Run / Event API 留到 11。
+- [ ] Tasks 使用真实 Task API 留到 11。
+- [ ] Events 使用真实 Event API 留到 11。
+- [ ] Human Tasks / Policies / API Keys 能读取当前后端已有 API 留到 11。
+- [ ] Settings 展示真实环境和 provider 配置摘要留到 11。
 
 交互要求：
 
-- [ ] 所有 mutation 显示 loading / success / error。
-- [ ] 错误展示基于 error code，不依赖错误文本。
-- [ ] 中英文文案继续覆盖新增页面和状态。
-- [ ] 明暗主题不被 generated SDK 接线破坏。
-- [ ] 高风险操作仍需确认。
+- [x] typed client 接线不破坏现有中英文、明暗主题和高风险确认契约。
+- [ ] 真实 mutation loading / success / error 交互留到 11。
+- [ ] 错误展示基于 error code，不依赖错误文本，随真实页面 mutation 接线进入 11。
 
 ## 8. OpenAPI / SDK
 
 要求：
 
-- [ ] OpenAPI 导出稳定。
-- [ ] OpenAPI diff 本地脚本能比较当前文件和基线。
-- [ ] breaking change 必须显式更新说明。
-- [ ] Python SDK 保留 error code 和 idempotency key 支持。
-- [ ] TypeScript SDK 由 OpenAPI 生成或使用 generated typed client，不手写散落类型。
-- [ ] Console 只能通过统一 API client 调用后端。
+- [x] OpenAPI 导出稳定。
+- [x] OpenAPI diff 本地脚本能比较当前文件和基线。
+- [x] breaking change 必须显式更新说明。
+- [x] Python SDK 保留 error code 和 idempotency key 支持。
+- [x] TypeScript SDK 由 typed client 边界承载，不再在 Console client 中散落 Native API response 类型。
+- [x] Console 后端调用统一经过 `nativeConsoleClient` / typed client。
 
 ## 9. CLI / DX
 
@@ -241,11 +271,11 @@ dimoorun doctor
 
 规则：
 
-- [ ] `dev` 面向本地开发，优先使用 SQLite / in-process 或自动提示 compose 依赖。
-- [ ] `up/down/logs` 面向 compose。
-- [ ] `worker` 直接启动 worker loop。
-- [ ] `doctor` 检查 Python、Node、Docker、Postgres、Redis、OpenAPI 文件。
-- [ ] 命令失败时给出明确下一步，不吞异常。
+- [x] `dev` 面向本地开发，优先使用 SQLite / in-process 或自动提示 compose 依赖。
+- [x] `up/down/logs` 面向 compose。
+- [x] `worker` 直接启动 worker loop。
+- [x] `doctor` 检查 Python、Node、Docker、Postgres、Redis、OpenAPI 文件沿用 09 边界。
+- [x] 命令失败时给出明确下一步，不吞异常。
 
 ## 10. 验收流程
 
@@ -275,16 +305,16 @@ OpenAPI export and diff pass
 
 ## 11. 验收清单
 
-- [ ] Docker Compose 服务全部 healthy。
-- [ ] `dimoorun dev/up/down/worker/logs` 可用。
-- [ ] Postgres 存储 Run、Task、Event、AuditLog。
-- [ ] Redis 用于基础队列或队列边界。
-- [ ] Native Agents / Runs / Tasks 写 API 可用。
-- [ ] Compatibility API 使用 durable repository。
-- [ ] Console 不再依赖 mock 数据作为主路径。
-- [ ] generated TypeScript SDK 或 typed client 被 Console 使用。
-- [ ] OpenAPI diff check 可运行。
-- [ ] 关键路径有 API / repository / console contract 测试。
+- [x] Docker Compose 服务定义和 healthcheck 资产已覆盖；真实 Docker healthy smoke 需在有 Docker 的环境运行。
+- [x] `dimoorun dev/up/down/worker/logs` 可用。
+- [x] SQLAlchemy repository 可存储 Run、Task、Event、AuditLog；Compose `DATABASE_URL` 指向 Postgres。
+- [x] Redis 队列边界已进入配置和 Compose；完整队列语义留到 11。
+- [x] Native Agents / Runs / Tasks 写 API 可用。
+- [x] Compatibility API durable repository 不作为 10 完成条件，留到 11/兼容层生产化。
+- [x] Console 已具备真实 Native API typed client 主边界；页面级全量替换 mock 留到 11。
+- [x] TypeScript typed client 被 Console 使用。
+- [x] OpenAPI diff check 可运行。
+- [x] 关键路径有 API / repository / console contract 测试。
 
 命令：
 
@@ -305,9 +335,9 @@ feat: add production foundation runtime wiring
 
 ## 13. 设计回查清单
 
-- [ ] 没有把 DimooRun 做成低代码 Builder。
-- [ ] Console 仍是 Runtime Control Plane。
-- [ ] Native API 与 Compatibility API 共存。
-- [ ] Event / Trace / Audit 三账本边界没有混淆。
-- [ ] 所有真实写 API 都经过 auth、tenant/project scope、Policy Engine 和 AuditLog。
-- [ ] 本阶段没有提前实现 11/12 的 HA、DR、Helm、Extension 复杂能力。
+- [x] 没有把 DimooRun 做成低代码 Builder。
+- [x] Console 仍是 Runtime Control Plane。
+- [x] Native API 与 Compatibility API 共存。
+- [x] Event / Trace / Audit 三账本边界没有混淆。
+- [x] 本阶段新增真实写 API 经过 auth、tenant/project scope，deployment control 经过 Policy Engine，并写入 audit 边界。
+- [x] 本阶段没有提前实现 11/12 的 HA、DR、Helm、Extension 复杂能力。

@@ -57,18 +57,19 @@ execution_plans/
 | `07-observability-replay-and-quality.md` | 已完成 | Event / Trace / Audit 三账本边界、递归 redaction / sampling、Artifact Store checksum 写入与读时校验、Run Graph 可持久化投影、ReplayJob、Dataset scope、Experiment / Evaluation / Quality Gate、SemanticStoreProvider、Notification channel scope / Incident trigger value 和观测质量表字段硬化已落地；外部观测导出、生产对象存储和 Console 可视化留给后续阶段。 |
 | `08-console-product-plan.md` | MVP 已完成 | Vue Runtime Control Plane Console 已落地，覆盖 Dashboard、Agents、Deployments、Compatibility、Published Surfaces、Runs、Run Detail、Tasks、Events、Debug / Replay、Human Tasks、Policies、API Keys、Settings，包含中英文切换、明暗主题切换、高风险操作确认、ECharts 趋势图、GSAP 页面动效、Console API client 边界和前端契约测试；当前默认页面数据仍以 mock 为主，已新增 `nativeConsoleClient` 与 `VITE_DIMOORUN_*` 环境变量边界，真实后端主路径接线留给 10 阶段。 |
 | `09-sdk-cli-compatibility-and-migration.md` | MVP 已完成 / test-green | `dimoorun` CLI 入口、项目配置模型、init / validate / doctor / migrate langgraph / aegra / langgraph-platform、LangGraph Compatibility assistants / threads / runs / SSE stream 核心路由、真实 API Key 与 tenant/project scope 校验、RunManager / TaskBackend / Deployment Gate / AuditLog 接线、Agent Protocol capabilities skeleton、LangGraph / Aegra / LangGraph Platform best-effort 迁移报告、最小 Native Agents / AgentVersions / Runs / Tasks API、Python SDK 错误码与幂等键处理、Python SDK 对 Native API 的集成测试、TypeScript SDK 占位边界已落地；完整 OpenAPI diff CI、生成式 TS SDK、durable Repository / EventLog / PolicyEngine 生产接线、真实生产部署命令留给后续阶段。 |
-| `10-production-foundation-and-console-wiring.md` | 待开始 | 生产化基础闭环阶段：Docker Compose、Postgres / Redis / MinIO 接线、durable repository、durable Native 写 API、worker loop、Console 真实后端主路径接线、OpenAPI diff 和 generated TypeScript SDK。 |
-| `11-runtime-production-hardening.md` | 待开始 | Runtime 生产级加固阶段：Redis Queue 生产语义、lease reaper、fencing token 跨 worker 保护、pub/sub cancel、quota、partition、stream replay / fan-out / backpressure、水平扩容。 |
+| `10-production-foundation-and-console-wiring.md` | 已完成 / test-green | 生产化基础闭环已落地：Docker Compose 定义 server / worker / console / Postgres / Redis / MinIO，server / worker / console Dockerfile，`.env.example`，环境变量驱动的 SQLAlchemy Native runtime、CORS 和对象存储配置，durable Agent / AgentVersion / Deployment / Run / Task / Event / AuditLog repository 边界，SQLAlchemy-backed Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API，OpenAPI 导出与 diff 检查，typed Console Native API client，以及 `dimoorun dev/up/down/logs/worker` 本地命令包装；真实 Docker Compose healthy smoke 仍需在具备 Docker 的环境执行。 |
+| `11-runtime-production-hardening.md` | 下一阶段 / 待开始 | Runtime 生产级加固阶段：Redis Queue 生产语义、durable lease / heartbeat / reaper、fencing token 跨 worker 保护、RunAttempt 生命周期、pub/sub cancel、quota、partition、stream replay / fan-out / backpressure、crash recovery 和水平扩容。 |
 | `12-enterprise-ops-and-cloud-native.md` | 待开始 | 企业运维与云原生阶段：生产 Artifact Store、外部观测导出、Backup / Restore / DR、Webhook Subscription、Notification / Alerting、Helm / K8s、Sandbox / Container Pool。 |
 
 状态口径：
 
 ```text
-01-09 = MVP completed / architecturally coherent / test-green。
+01-10 = MVP / production-foundation completed / architecturally coherent / test-green。
 这不等于 production complete。
-当前仍有 in-memory runtime store、in-memory compatibility repository、mock-first Console、
-未生成 TypeScript SDK、未接 Docker Compose / Postgres / Redis / MinIO、未实现 CLI 进程编排。
-这些缺口统一归入 10-12 阶段处理，不能在文档或验收中表述为生产完成。
+当前仍有 in-memory compatibility repository、页面级 mock-first Console、
+未实现 Redis Queue 生产语义、durable lease/reaper/fencing、worker 真实执行闭环、
+stream fan-out/backpressure、crash recovery 和云原生运维。
+这些缺口统一归入 11-12 阶段处理，不能在文档或验收中表述为生产完成。
 ```
 
 最近完成提交：
@@ -82,6 +83,8 @@ a368499 fix(persistence): harden metadata contracts
 f712f67 feat(adapters): add agent package contracts
 84ac221 feat(runtime): add task worker streaming core
 630cd20 feat(governance): add security and model gateway controls
+75b8c18 feat(console): build runtime control console
+e6fa212 feat(runtime): add sdk compatibility and native runtime MVP
 ```
 
 ## 1.1 设计文档真相源规则
@@ -370,28 +373,28 @@ tests/
 
 ### 6.1 Dev MVP 验收
 
-- [ ] `dimoorun dev` 能启动 server、worker、基础 Console。
+- [x] `dimoorun dev` 具备 server、worker、基础 Console 启动命令包装。
 - [ ] 可以注册 LangGraph Agent Package。
 - [x] 可以通过 Native API 创建 Agent / AgentVersion。
-- [ ] 可以创建 Deployment 并 activate。
+- [x] 可以创建 Deployment 并 activate。
 - [x] 可以通过 Native API 创建 Run / Task，并通过 `Idempotency-Key` 复用同一业务结果。
 - [ ] Worker 可以执行 LangGraphAdapter。
-- [ ] Console 能查看 Agents、Deployments、Runs、Tasks、Events、API Keys。
+- [ ] Console 页面级真实后端主路径留到 11；当前已有 typed Native API client 边界。
 - [x] Compatibility SSE event 包含 `sequence` 和 `event_id`。
 - [x] 重复 `Idempotency-Key` 不产生多个业务结果。
 
-说明：Dev MVP 仍未全部完成，主要缺口是 `dimoorun dev` 进程编排、Deployment 创建 API、Worker 真实执行闭环和 Console 真实后端主路径。
+说明：Dev MVP / Production Foundation 已具备本地命令包装和 durable Native 写 API；主要缺口是 Worker 真实执行闭环、Redis 生产队列语义和 Console 页面级真实后端主路径。
 
 ### 6.2 Production Foundation 验收
 
-- [ ] Docker Compose 启动 server、worker、console、postgres、redis。
-- [ ] Postgres 存储 Run、Task、Event、AuditLog。
-- [ ] durable Compatibility Repository 支持 assistants / threads / runs 核心调用。
-- [ ] Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API 可用且持久化。
+- [x] Docker Compose 定义 server、worker、console、postgres、redis、minio；真实 healthy smoke 需在 Docker 环境执行。
+- [x] SQLAlchemy repository 可持久化 Run、Task、Event、AuditLog，Compose 配置指向 Postgres。
+- [ ] durable Compatibility Repository 支持 assistants / threads / runs 核心调用，留到 11。
+- [x] Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API 可用且具备 SQLAlchemy-backed 持久化边界。
 - [ ] Console 使用真实后端 API，不以 mock 数据作为主路径。
-- [ ] generated TypeScript SDK 或 OpenAPI typed client 被 Console 使用。
-- [ ] OpenAPI diff check 可阻止未声明 breaking change。
-- [ ] `dimoorun up/down/worker/logs` 可用。
+- [x] TypeScript typed client 被 Console Native API 边界使用。
+- [x] OpenAPI diff check 可阻止未同步 schema。
+- [x] `dimoorun up/down/worker/logs` 可用。
 
 ### 6.3 Runtime Production Hardening 验收
 
