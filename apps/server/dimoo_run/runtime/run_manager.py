@@ -70,6 +70,10 @@ class RuntimeRunStore(Protocol):
 
     def fail_run(self, run_id: str, error: dict[str, Any]) -> None: ...
 
+    def timeout_run(self, run_id: str, error: dict[str, Any]) -> None: ...
+
+    def get_run(self, run_id: str) -> RuntimeRun: ...
+
     def mark_run_running(self, run_id: str) -> None: ...
 
     def cancel_run(self, run_id: str) -> None: ...
@@ -79,6 +83,8 @@ class RuntimeRunStore(Protocol):
     def complete_attempt(self, attempt_id: str) -> None: ...
 
     def fail_attempt(self, attempt_id: str, error: dict[str, Any]) -> None: ...
+
+    def timeout_attempt(self, attempt_id: str, error: dict[str, Any]) -> None: ...
 
 
 class DeploymentRunGate(Protocol):
@@ -148,6 +154,9 @@ class InMemoryRunStore:
             self.runs[run_id].status = "running"
         return attempt
 
+    def get_run(self, run_id: str) -> RuntimeRun:
+        return self.runs[run_id]
+
     def complete_run(self, run_id: str, output: dict[str, Any]) -> None:
         run = self.runs[run_id]
         if run.status == "pending":
@@ -164,6 +173,15 @@ class InMemoryRunStore:
             run.status = "running"
         assert_run_transition(run.status, "failed")
         run.status = "failed"
+        run.error = error
+
+    def timeout_run(self, run_id: str, error: dict[str, Any]) -> None:
+        run = self.runs[run_id]
+        if run.status == "pending":
+            assert_run_transition(run.status, "running")
+            run.status = "running"
+        assert_run_transition(run.status, "timeout")
+        run.status = "timeout"
         run.error = error
 
     def mark_run_running(self, run_id: str) -> None:
@@ -191,6 +209,13 @@ class InMemoryRunStore:
         attempt = self.attempts[attempt_id]
         assert_run_attempt_transition(attempt.status, "failed")
         attempt.status = "failed"
+        attempt.error = error
+        attempt.finished_at = datetime.now(UTC)
+
+    def timeout_attempt(self, attempt_id: str, error: dict[str, Any]) -> None:
+        attempt = self.attempts[attempt_id]
+        assert_run_attempt_transition(attempt.status, "timeout")
+        attempt.status = "timeout"
         attempt.error = error
         attempt.finished_at = datetime.now(UTC)
 

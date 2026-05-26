@@ -202,6 +202,44 @@ def test_native_api_cancel_responses_reflect_sqlalchemy_state(
     assert task.status == "cancelled"
 
 
+def test_native_api_exposes_dead_letter_task_details(
+    durable_client: tuple[TestClient, Session, str],
+) -> None:
+    client, session, api_key = durable_client
+    agent = client.post(
+        "/v1/agents",
+        headers=auth_headers(api_key),
+        json={"name": "support-agent"},
+    ).json()
+    client.post(
+        f"/v1/agents/{agent['id']}/versions",
+        headers=auth_headers(api_key),
+        json={"version": "0.1.0"},
+    )
+    task_response = client.post(
+        f"/v1/agents/{agent['id']}/tasks",
+        headers=auth_headers(api_key),
+        json={"input": {"message": "hello"}},
+    ).json()
+    task = session.get(Task, task_response["task_id"])
+    assert task is not None
+    task.status = "dead_letter"
+    task.error = "boom"
+    task.dead_letter_reason = "boom"
+    session.flush()
+
+    response = client.get(
+        f"/v1/tasks/{task_response['task_id']}",
+        headers=auth_headers(api_key),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "dead_letter"
+    assert body["error"] == {"message": "boom"}
+    assert body["dead_letter_reason"] == "boom"
+
+
 def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(
     tmp_path,
     monkeypatch,

@@ -79,6 +79,8 @@ class NativeTask:
     attempt: int = 0
     max_attempts: int = 3
     idempotency_key: str | None = None
+    error: dict[str, Any] | None = None
+    dead_letter_reason: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -657,6 +659,8 @@ def _task_from_model(task: Task) -> NativeTask:
         attempt=task.attempt,
         max_attempts=task.max_attempts,
         idempotency_key=task.idempotency_key,
+        error={"message": task.error} if task.error else None,
+        dead_letter_reason=task.dead_letter_reason,
         created_at=task.created_at,
         updated_at=task.updated_at or task.created_at,
     )

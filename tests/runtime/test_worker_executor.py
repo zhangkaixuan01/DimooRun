@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from dimoo_run.adapters.base.contract import CapabilityNotSupportedError
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentEvent, AgentResult
 from dimoo_run.runtime.run_manager import InMemoryRunStore, RunManager
@@ -64,6 +66,33 @@ class FailingAdapter(FakeAdapter):
     ) -> AgentResult:
         _ = agent, input_data, context
         raise RuntimeError("boom")
+
+
+class TrackingCancelAdapter(FakeAdapter):
+    def __init__(self) -> None:
+        self.cancelled_run_id: str | None = None
+
+    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+        _ = context
+        self.cancelled_run_id = run_id
+
+
+class UnsupportedCancelAdapter(FakeAdapter):
+    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+        _ = run_id, context
+        raise CapabilityNotSupportedError("cancel", self.framework)
+
+
+class SlowAdapter(FakeAdapter):
+    async def invoke(
+        self,
+        agent: Any,
+        input_data: dict[str, Any],
+        context: RuntimeContext,
+    ) -> AgentResult:
+        _ = agent, input_data, context
+        await asyncio.sleep(1)
+        return AgentResult(output={"late": True})
 
 
 class StreamOnlyAdapter(FakeAdapter):
@@ -418,3 +447,101 @@ async def test_worker_executor_dead_letters_after_retry_exhaustion() -> None:
     assert result is not None
     assert run_store.runs[run_id].status == "failed"
     assert task_backend.tasks[task_id].status == "dead_letter"
+
+
+@pytest.mark.asyncio
+async def test_worker_executor_calls_adapter_cancel_when_supported() -> None:
+    run_store = InMemoryRunStore()
+    task_backend = InMemoryTaskBackend()
+    task_id = await create_task(run_store, task_backend)
+    run_id = task_backend.tasks[task_id].run_id
+    adapter = TrackingCancelAdapter()
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=ReplayBuffer(),
+        adapters={"fake": adapter},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={},
+            )
+        },
+    )
+
+    status = await executor.cancel_run(run_id, task_id=task_id)
+
+    assert status == "adapter_cancelled"
+    assert adapter.cancelled_run_id == run_id
+    assert executor.replay_buffer.replay(run_id)[0].payload == {
+        "status": "adapter_cancelled",
+        "task_id": task_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_worker_executor_marks_cancel_best_effort_when_unsupported() -> None:
+    run_store = InMemoryRunStore()
+    task_backend = InMemoryTaskBackend()
+    task_id = await create_task(run_store, task_backend)
+    run_id = task_backend.tasks[task_id].run_id
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=ReplayBuffer(),
+        adapters={"fake": UnsupportedCancelAdapter()},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={},
+            )
+        },
+    )
+
+    status = await executor.cancel_run(run_id, task_id=task_id)
+
+    assert status == "best_effort"
+    assert executor.replay_buffer.replay(run_id)[0].payload["status"] == "best_effort"
+
+
+@pytest.mark.asyncio
+async def test_worker_executor_marks_run_timeout_after_retry_exhaustion() -> None:
+    run_store = InMemoryRunStore()
+    task_backend = InMemoryTaskBackend()
+    task_id = await create_task(run_store, task_backend, max_attempts=1)
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=ReplayBuffer(),
+        adapters={"fake": SlowAdapter()},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={"timeout_seconds": 0.01},
+            )
+        },
+    )
+
+    result = await executor.execute_once(queue="default")
+
+    run_id = task_backend.tasks[task_id].run_id
+    assert result is not None
+    assert result.status == "timeout"
+    assert run_store.runs[run_id].status == "timeout"
+    assert list(run_store.attempts.values())[0].status == "timeout"
+    assert task_backend.tasks[task_id].status == "dead_letter"
+    assert [event.type for event in executor.replay_buffer.replay(run_id)] == [
+        "attempt.started",
+        "attempt.timeout",
+        "run.timeout",
+        "stream.failed",
+    ]

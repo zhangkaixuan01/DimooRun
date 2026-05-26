@@ -36,6 +36,8 @@ class TaskRead(BaseModel):
     attempt: int
     max_attempts: int
     idempotency_key: str | None = None
+    error: dict[str, str] | None = None
+    dead_letter_reason: str | None = None
 
 
 def _task_to_read(task: NativeTask) -> TaskRead:
