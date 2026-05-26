@@ -75,6 +75,7 @@ class RedisStreamFanOutBridge:
         self.redis_client = redis_client
         self.stream_prefix = stream_prefix
         self.channel_prefix = channel_prefix
+        self._pubsubs: dict[str, Any] = {}
 
     async def publish(self, run_id: str, event: AgentEvent) -> str | None:
         payload = {
@@ -102,8 +103,53 @@ class RedisStreamFanOutBridge:
             )
         return str(stream_id) if stream_id is not None else None
 
+    async def replay(self, run_id: str, *, last_event_id: str | None = None) -> list[AgentEvent]:
+        start = "-"
+        if last_event_id is not None:
+            start = f"({last_event_id}"
+        entries = await _maybe_await(
+            self.redis_client.xrange(f"{self.stream_prefix}:{run_id}", min=start, max="+")
+        )
+        return [_event_from_payload(_event_payload(fields)) for _stream_id, fields in entries]
+
+    async def relay_once(self, run_id: str, hub: StreamFanOutHub) -> int:
+        pubsub = self._pubsubs.get(run_id)
+        if pubsub is None:
+            pubsub = self.redis_client.pubsub()
+            await _maybe_await(pubsub.subscribe(f"{self.channel_prefix}:{run_id}"))
+            self._pubsubs[run_id] = pubsub
+        message = await _maybe_await(
+            pubsub.get_message(ignore_subscribe_messages=True, timeout=0)
+        )
+        if not message:
+            return 0
+        data = message.get("data")
+        if isinstance(data, bytes):
+            data = data.decode()
+        payload = json.loads(str(data))
+        return hub.publish(run_id, _event_from_payload(payload))
+
 
 async def _maybe_await(value: Any) -> Any:
     if hasattr(value, "__await__"):
         return await value
     return value
+
+
+def _event_payload(fields: dict[str, Any]) -> dict[str, Any]:
+    value = fields.get("event")
+    if isinstance(value, bytes):
+        value = value.decode()
+    return json.loads(str(value))
+
+
+def _event_from_payload(payload: dict[str, Any]) -> AgentEvent:
+    return AgentEvent(
+        type=payload["type"],
+        payload=payload.get("payload") or {},
+        run_id=payload.get("run_id"),
+        attempt_id=payload.get("attempt_id"),
+        sequence=payload.get("sequence"),
+        event_id=payload.get("event_id"),
+        visibility_level=payload.get("visibility_level", "internal"),
+    )

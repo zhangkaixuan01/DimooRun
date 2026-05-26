@@ -66,6 +66,14 @@ export type Task = {
   fencingToken: number;
   retryCount: number;
   deadLetterReason?: string;
+  partitionKey?: string;
+  resourceClass?: string;
+  quotaBlockingReason?: {
+    errorCode: string;
+    scope: string;
+    limit: number;
+    current: number;
+  };
 };
 
 export type HumanTask = {

@@ -222,6 +222,7 @@ def test_runtime_tables_include_scheduler_and_streaming_columns() -> None:
     event_columns = Base.metadata.tables["events"].columns
 
     assert "fencing_token" in task_columns
+    assert "metadata_json" in task_columns
     assert "sequence" in event_columns
     assert "event_id" in event_columns
     assert event_columns["sequence"].nullable is False

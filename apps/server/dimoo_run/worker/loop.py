@@ -24,6 +24,7 @@ class WorkerLoop:
         queue: str = "default",
         lease_seconds: int = 30,
         cancel_subscriber: Any | None = None,
+        cancel_handler: Any | None = None,
     ) -> None:
         self.worker_id = worker_id or f"worker_{uuid4().hex[:8]}"
         self.poll_interval_seconds = poll_interval_seconds
@@ -31,6 +32,7 @@ class WorkerLoop:
         self.queue = queue
         self.lease_seconds = lease_seconds
         self.cancel_subscriber = cancel_subscriber
+        self.cancel_handler = cancel_handler
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="starting")
         self._stopped = False
 
@@ -40,6 +42,7 @@ class WorkerLoop:
 
             message = anyio.run(self.cancel_subscriber.listen_once)
             if message is not None and message.get("worker_id") in {None, self.worker_id}:
+                self._handle_cancel_message(message)
                 self.heartbeat = WorkerHeartbeat(
                     worker_id=self.worker_id,
                     status="cancel_requested",
@@ -74,3 +77,19 @@ class WorkerLoop:
     def stop(self) -> None:
         self._stopped = True
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="stopped")
+
+    def _handle_cancel_message(self, message: dict[str, Any]) -> None:
+        if self.cancel_handler is None:
+            return
+        run_id = message.get("run_id")
+        if run_id is None:
+            return
+        import anyio
+
+        if hasattr(self.cancel_handler, "cancel_run"):
+            async def invoke_cancel() -> None:
+                await self.cancel_handler.cancel_run(run_id, task_id=message.get("task_id"))
+
+            anyio.run(invoke_cancel)
+            return
+        anyio.run(self.cancel_handler, message)

@@ -8,6 +8,7 @@ from dimoo_run.api.native.runtime import (
 )
 from dimoo_run.domain.models import Agent, AuditLog, Deployment, Event, Run, Task
 from dimoo_run.persistence.database import Base
+from dimoo_run.runtime.state_machine import InvalidStateTransitionError
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 from pytest import fixture
@@ -202,6 +203,42 @@ def test_native_api_cancel_responses_reflect_sqlalchemy_state(
     assert task.status == "cancelled"
 
 
+def test_native_api_cancel_uses_runtime_state_machine(
+    durable_client: tuple[TestClient, Session, str],
+) -> None:
+    client, session, api_key = durable_client
+    agent = client.post(
+        "/v1/agents",
+        headers=auth_headers(api_key),
+        json={"name": "support-agent"},
+    ).json()
+    client.post(
+        f"/v1/agents/{agent['id']}/versions",
+        headers=auth_headers(api_key),
+        json={"version": "0.1.0"},
+    )
+    task_response = client.post(
+        f"/v1/agents/{agent['id']}/tasks",
+        headers=auth_headers(api_key),
+        json={"input": {"message": "hello"}},
+    ).json()
+    run = session.get(Run, task_response["run_id"])
+    assert run is not None
+    run.status = "succeeded"
+    session.flush()
+
+    try:
+        client.post(
+            f"/v1/runs/{task_response['run_id']}/cancel",
+            headers=auth_headers(api_key),
+        )
+    except InvalidStateTransitionError as exc:
+        assert exc.current == "succeeded"
+        assert exc.target == "cancelled"
+    else:
+        raise AssertionError("Expected invalid state transition")
+
+
 def test_native_api_exposes_dead_letter_task_details(
     durable_client: tuple[TestClient, Session, str],
 ) -> None:
@@ -238,6 +275,51 @@ def test_native_api_exposes_dead_letter_task_details(
     assert body["status"] == "dead_letter"
     assert body["error"] == {"message": "boom"}
     assert body["dead_letter_reason"] == "boom"
+
+
+def test_native_api_exposes_task_runtime_scheduling_details(
+    durable_client: tuple[TestClient, Session, str],
+) -> None:
+    client, session, api_key = durable_client
+    agent = client.post(
+        "/v1/agents",
+        headers=auth_headers(api_key),
+        json={"name": "support-agent"},
+    ).json()
+    client.post(
+        f"/v1/agents/{agent['id']}/versions",
+        headers=auth_headers(api_key),
+        json={"version": "0.1.0"},
+    )
+    task_response = client.post(
+        f"/v1/agents/{agent['id']}/tasks",
+        headers=auth_headers(api_key),
+        json={"input": {"message": "hello"}},
+    ).json()
+    task = session.get(Task, task_response["task_id"])
+    assert task is not None
+    task.metadata_json = {
+        "partition_key": "tenant_1:project_1",
+        "resource_class": "gpu",
+        "quota_blocking_reason": {
+            "error_code": "runtime_quota_exceeded",
+            "scope": "project",
+            "limit": 1,
+            "current": 1,
+        },
+    }
+    session.flush()
+
+    response = client.get(
+        f"/v1/tasks/{task_response['task_id']}",
+        headers=auth_headers(api_key),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["partition_key"] == "tenant_1:project_1"
+    assert body["resource_class"] == "gpu"
+    assert body["quota_blocking_reason"]["scope"] == "project"
 
 
 def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(

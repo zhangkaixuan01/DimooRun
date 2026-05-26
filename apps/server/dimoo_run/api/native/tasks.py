@@ -38,6 +38,9 @@ class TaskRead(BaseModel):
     idempotency_key: str | None = None
     error: dict[str, str] | None = None
     dead_letter_reason: str | None = None
+    partition_key: str | None = None
+    resource_class: str | None = None
+    quota_blocking_reason: dict[str, object] | None = None
 
 
 def _task_to_read(task: NativeTask) -> TaskRead:

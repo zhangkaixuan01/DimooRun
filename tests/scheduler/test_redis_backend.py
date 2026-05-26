@@ -53,6 +53,41 @@ class FakeRedis:
         return FakePubSub(self)
 
 
+class EvalRedis(FakeRedis):
+    def __init__(self) -> None:
+        super().__init__()
+        self.eval_calls = 0
+
+    def eval(self, script: str, numkeys: int, *args: str) -> list[str] | None:
+        _ = script, numkeys
+        self.eval_calls += 1
+        queue_key, _prefix, worker_id, leased_until, now = args
+        for task_id in self.zrange(queue_key, 0, -1):
+            key = f"dimoorun:task:{task_id}"
+            task = {name: json.loads(value) for name, value in self.hashes[key].items()}
+            if task["status"] != "queued":
+                continue
+            scheduled_at = task.get("scheduled_at")
+            if scheduled_at is not None and scheduled_at > now:
+                continue
+            task["status"] = "leased"
+            task["worker_id"] = worker_id
+            task["leased_until"] = leased_until
+            task["heartbeat_at"] = now
+            task["fencing_token"] = int(task.get("fencing_token", 0)) + 1
+            self.hset(
+                key,
+                mapping={name: json.dumps(value) for name, value in task.items()},
+            )
+            self.zrem(queue_key, task_id)
+            encoded = self.hgetall(key)
+            pairs: list[str] = []
+            for name, value in encoded.items():
+                pairs.extend([name, value])
+            return pairs
+        return None
+
+
 class FakePubSub:
     def __init__(self, redis: FakeRedis) -> None:
         self.redis = redis
@@ -97,6 +132,20 @@ async def test_redis_backend_leases_by_priority_and_sets_fencing_token() -> None
     assert leased["fencing_token"] == 1
     assert backend._sync_task(low_id)["status"] == "queued"
     assert backend._sync_task(high_id)["status"] == "leased"
+
+
+async def test_redis_backend_uses_eval_for_atomic_lease_when_available() -> None:
+    redis = EvalRedis()
+    backend = RedisTaskBackend(redis)
+    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+
+    leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
+
+    assert leased is not None
+    assert redis.eval_calls == 1
+    assert leased["task_id"] == task_id
+    assert leased["status"] == "leased"
+    assert leased["worker_id"] == "worker_1"
 
 
 async def test_redis_backend_checks_owner_and_fencing_token() -> None:
@@ -162,6 +211,21 @@ async def test_redis_backend_dead_letters_expired_running_task_after_attempts() 
     assert changed == 1
     assert task["status"] == "dead_letter"
     assert task["dead_letter_reason"] == "lease_expired"
+
+
+async def test_redis_backend_reaper_consumes_attempt_before_requeue() -> None:
+    backend = RedisTaskBackend(FakeRedis())
+    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1", "max_attempts": 3})
+    leased = await backend.lease("default", worker_id="worker_1", lease_seconds=-1)
+
+    assert leased is not None
+    backend.mark_running(task_id, "worker_1", leased["fencing_token"])
+    changed = await backend.reap_expired_leases(queue="default")
+
+    task = backend._sync_task(task_id)
+    assert changed == 1
+    assert task["status"] == "queued"
+    assert task["attempt"] == 1
 
 
 async def test_redis_backend_cancel_publishes_cross_instance_message() -> None:

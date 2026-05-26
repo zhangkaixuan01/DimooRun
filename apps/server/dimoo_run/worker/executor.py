@@ -150,6 +150,7 @@ class WorkerExecutor:
             )
         except Exception as exc:
             error = {"message": str(exc), "type": exc.__class__.__name__}
+            self._assert_active_fencing()
             self.run_store.fail_attempt(attempt.attempt_id, error)
             self._append(
                 run_id,

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from dimoo_run.domain.models import Run, Task
@@ -47,6 +47,7 @@ class SQLAlchemyTaskBackend:
             max_attempts=task.get("max_attempts", 3),
             scheduled_at=task.get("scheduled_at"),
             idempotency_key=task.get("idempotency_key"),
+            metadata_json=_task_metadata(task),
         )
         self.session.add(model)
         self.session.flush()
@@ -88,20 +89,22 @@ class SQLAlchemyTaskBackend:
                     self.quota_policy.assert_can_lease(candidate)
                 except QuotaExceededError as exc:
                     last_quota_error = exc
+                    self._record_quota_block(candidate, exc)
                     continue
-            task = candidate
+            claimed = self._claim_queued_task(
+                candidate,
+                worker_id=worker_id,
+                leased_until=now + timedelta(seconds=lease_seconds),
+                now=now,
+            )
+            if claimed is None:
+                continue
+            task = claimed
             break
         if task is None:
             self.last_quota_error = last_quota_error
             return None
         self.last_quota_error = None
-        assert_task_transition(task.status, "leased")
-        task.status = "leased"
-        task.worker_id = worker_id
-        task.leased_until = now + timedelta(seconds=lease_seconds)
-        task.heartbeat_at = now
-        task.fencing_token += 1
-        self.session.flush()
         return self._snapshot(task)
 
     async def heartbeat(
@@ -217,6 +220,7 @@ class SQLAlchemyTaskBackend:
                     continue
                 assert_task_transition(task.status, "retrying")
                 task.status = "retrying"
+                task.attempt += 1
             assert_task_transition(task.status, "queued")
             task.status = "queued"
             task.worker_id = None
@@ -248,6 +252,9 @@ class SQLAlchemyTaskBackend:
             "scheduled_at": task.scheduled_at,
             "fencing_token": task.fencing_token,
             "input_data": _decode_ref(run.input_ref) if run is not None else {},
+            "partition_key": task.metadata_json.get("partition_key"),
+            "resource_class": task.metadata_json.get("resource_class"),
+            "quota_blocking_reason": task.metadata_json.get("quota_blocking_reason"),
         }
 
     def _task(self, task_id: str) -> Task:
@@ -268,6 +275,49 @@ class SQLAlchemyTaskBackend:
     def _assert_owner(self, task: Task, worker_id: str) -> None:
         if task.worker_id != worker_id:
             raise TaskLeaseError(f"Task {task.id} is not leased by {worker_id}.")
+
+    def _record_quota_block(self, task: Task, error: QuotaExceededError) -> None:
+        metadata = dict(task.metadata_json or {})
+        metadata["quota_blocking_reason"] = {
+            "error_code": error.error_code,
+            "scope": error.scope,
+            "limit": error.limit,
+            "current": error.current,
+        }
+        task.metadata_json = metadata
+        task.error = f"{error.error_code}:{error.scope}"
+        self.session.flush()
+
+    def _claim_queued_task(
+        self,
+        task: Task,
+        *,
+        worker_id: str,
+        leased_until: datetime,
+        now: datetime,
+    ) -> Task | None:
+        assert_task_transition(task.status, "leased")
+        result = self.session.execute(
+            update(Task)
+            .where(
+                Task.id == task.id,
+                Task.status == "queued",
+                Task.is_deleted.is_(False),
+            )
+            .values(
+                status="leased",
+                worker_id=worker_id,
+                leased_until=leased_until,
+                heartbeat_at=now,
+                fencing_token=Task.fencing_token + 1,
+            )
+        )
+        if result.rowcount != 1:
+            self.session.expire(task)
+            return None
+        self.session.flush()
+        self.session.refresh(task)
+        return task
 
     def _active_partition_count(self, task: Task) -> int:
         statement = select(Task).where(
@@ -305,3 +355,14 @@ def _decode_ref(value: str | None) -> dict[str, Any]:
         return {}
     payload = json.loads(value.removeprefix("json:"))
     return payload if isinstance(payload, dict) else {}
+
+
+def _task_metadata(task: dict[str, Any]) -> dict[str, Any]:
+    metadata = dict(task.get("metadata") or {})
+    metadata.setdefault("partition_key", f"{task['tenant_id']}:{task['project_id']}")
+    metadata.setdefault("resource_class", task.get("resource_class", "default"))
+    if "agent_id" in task:
+        metadata.setdefault("agent_id", task["agent_id"])
+    if "deployment_id" in task and task["deployment_id"] is not None:
+        metadata.setdefault("deployment_id", task["deployment_id"])
+    return metadata

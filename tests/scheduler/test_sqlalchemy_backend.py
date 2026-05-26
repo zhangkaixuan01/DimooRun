@@ -71,6 +71,8 @@ async def test_sqlalchemy_backend_leases_by_priority_and_sets_fencing_token() ->
     assert leased["task_id"] == high_id
     assert leased["fencing_token"] == 1
     assert leased["input_data"] == {"message": "hello"}
+    assert leased["partition_key"] == "tenant_1:project_1"
+    assert leased["resource_class"] == "default"
     assert session.get(Task, low_id).status == "queued"  # type: ignore[union-attr]
     assert session.get(Task, high_id).status == "leased"  # type: ignore[union-attr]
 
@@ -218,7 +220,10 @@ async def test_sqlalchemy_backend_blocks_lease_when_project_quota_is_exceeded() 
     assert backend.last_quota_error is not None
     assert backend.last_quota_error.error_code == "runtime_quota_exceeded"
     assert backend.last_quota_error.scope == "project"
-    assert session.get(Task, second_id).status == "queued"  # type: ignore[union-attr]
+    blocked_task = session.get(Task, second_id)
+    assert blocked_task is not None
+    assert blocked_task.status == "queued"
+    assert blocked_task.metadata_json["quota_blocking_reason"]["scope"] == "project"
 
 
 @pytest.mark.asyncio
@@ -428,3 +433,97 @@ async def test_sqlalchemy_backend_dead_letters_expired_running_task_after_attemp
     events = list(session.query(Event).filter(Event.run_id == "run_1"))
     assert [event.type for event in events] == ["task.dead_letter"]
     assert events[0].payload_json == {"task_id": task_id, "reason": "lease_expired"}
+
+
+@pytest.mark.asyncio
+async def test_sqlalchemy_backend_reaper_consumes_attempt_before_requeue() -> None:
+    session = make_session()
+    current = datetime(2026, 1, 1, tzinfo=UTC)
+    backend = SQLAlchemyTaskBackend(session, now=lambda: current)
+    create_run(session)
+    task_id = await backend.enqueue(
+        {
+            "tenant_id": "tenant_1",
+            "project_id": "project_1",
+            "queue": "default",
+            "run_id": "run_1",
+            "max_attempts": 3,
+        }
+    )
+    leased = await backend.lease("default", worker_id="worker_1", lease_seconds=1)
+    assert leased is not None
+    backend.mark_running(task_id, "worker_1", leased["fencing_token"])
+    current = current + timedelta(seconds=2)
+
+    changed = backend.reap_expired_leases()
+
+    task = session.get(Task, task_id)
+    assert changed == 1
+    assert task is not None
+    assert task.status == "queued"
+    assert task.attempt == 1
+
+
+@pytest.mark.asyncio
+async def test_sqlalchemy_backend_stores_partition_and_resource_class_metadata() -> None:
+    session = make_session()
+    backend = SQLAlchemyTaskBackend(session, now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
+    create_run(session)
+    task_id = await backend.enqueue(
+        {
+            "tenant_id": "tenant_1",
+            "project_id": "project_1",
+            "queue": "default",
+            "run_id": "run_1",
+            "resource_class": "gpu",
+        }
+    )
+
+    task = session.get(Task, task_id)
+
+    assert task is not None
+    assert task.metadata_json["partition_key"] == "tenant_1:project_1"
+    assert task.metadata_json["resource_class"] == "gpu"
+
+
+@pytest.mark.asyncio
+async def test_sqlalchemy_backend_fairness_covers_multiple_tenants() -> None:
+    session = make_session()
+    backend = SQLAlchemyTaskBackend(session, now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
+    create_run(session, "run_tenant_1_active", tenant_id="tenant_1", project_id="project_1")
+    create_run(session, "run_tenant_1_waiting", tenant_id="tenant_1", project_id="project_1")
+    create_run(session, "run_tenant_2_waiting", tenant_id="tenant_2", project_id="project_2")
+    active_id = await backend.enqueue(
+        {
+            "tenant_id": "tenant_1",
+            "project_id": "project_1",
+            "queue": "default",
+            "priority": 10,
+            "run_id": "run_tenant_1_active",
+        }
+    )
+    await backend.enqueue(
+        {
+            "tenant_id": "tenant_1",
+            "project_id": "project_1",
+            "queue": "default",
+            "priority": 10,
+            "run_id": "run_tenant_1_waiting",
+        }
+    )
+    tenant_2_id = await backend.enqueue(
+        {
+            "tenant_id": "tenant_2",
+            "project_id": "project_2",
+            "queue": "default",
+            "run_id": "run_tenant_2_waiting",
+        }
+    )
+    first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
+    assert first is not None
+    backend.mark_running(active_id, "worker_1", first["fencing_token"])
+
+    leased = await backend.lease("default", worker_id="worker_2", lease_seconds=30)
+
+    assert leased is not None
+    assert leased["task_id"] == tenant_2_id

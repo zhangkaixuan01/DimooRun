@@ -44,6 +44,14 @@ class RedisTaskBackend:
         self._require_client()
         await self.reap_expired_leases(queue=queue)
         now = _now()
+        atomic_lease = await self._lease_with_eval(
+            queue=queue,
+            worker_id=worker_id,
+            lease_seconds=lease_seconds,
+            now=now,
+        )
+        if atomic_lease is not None:
+            return atomic_lease
         for task_id in await self._zrange(self._queue_key(queue), 0, -1):
             task = await self._task(str(task_id))
             if task.get("status") != "queued":
@@ -195,6 +203,7 @@ class RedisTaskBackend:
                         continue
                     assert_task_transition(task["status"], "retrying")
                     task["status"] = "retrying"
+                    task["attempt"] = int(task.get("attempt", 0)) + 1
                 assert_task_transition(task["status"], "queued")
                 task["status"] = "queued"
                 task["worker_id"] = None
@@ -288,6 +297,33 @@ class RedisTaskBackend:
     async def _keys(self, pattern: str) -> list[str]:
         return await _maybe_await(self.redis_client.keys(pattern))
 
+    async def _lease_with_eval(
+        self,
+        *,
+        queue: str,
+        worker_id: str,
+        lease_seconds: int,
+        now: datetime,
+    ) -> dict[str, Any] | None:
+        eval_fn = getattr(self.redis_client, "eval", None)
+        if eval_fn is None:
+            return None
+        leased_until = (now + timedelta(seconds=lease_seconds)).isoformat()
+        response = await _maybe_await(
+            eval_fn(
+                _LEASE_SCRIPT,
+                1,
+                self._queue_key(queue),
+                self.prefix,
+                worker_id,
+                leased_until,
+                now.isoformat(),
+            )
+        )
+        if not response:
+            return None
+        return _decode_hgetall_response(response)
+
 
 class RedisCancelSubscriber:
     def __init__(self, redis_client: Any, *, prefix: str = "dimoorun") -> None:
@@ -353,3 +389,46 @@ def _now() -> datetime:
 def _error_message(error: dict[str, Any]) -> str:
     message = error.get("message")
     return str(message if message is not None else error)
+
+
+def _decode_hgetall_response(response: Any) -> dict[str, Any]:
+    if isinstance(response, dict):
+        return _decode_mapping(response)
+    pairs = list(response)
+    return _decode_mapping(dict(zip(pairs[0::2], pairs[1::2], strict=False)))
+
+
+_LEASE_SCRIPT = """
+local queue_key = KEYS[1]
+local prefix = ARGV[1]
+local worker_id = ARGV[2]
+local leased_until = ARGV[3]
+local now = ARGV[4]
+local task_ids = redis.call("ZRANGE", queue_key, 0, -1)
+for _, task_id in ipairs(task_ids) do
+  local task_key = prefix .. ":task:" .. task_id
+  local values = redis.call("HGETALL", task_key)
+  local task = {}
+  for index = 1, #values, 2 do
+    task[values[index]] = cjson.decode(values[index + 1])
+  end
+  if task["status"] == "queued" then
+    local scheduled_at = task["scheduled_at"]
+    if scheduled_at == nil or scheduled_at <= now then
+      local token = tonumber(task["fencing_token"] or 0) + 1
+      redis.call(
+        "HSET",
+        task_key,
+        "status", cjson.encode("leased"),
+        "worker_id", cjson.encode(worker_id),
+        "leased_until", cjson.encode(leased_until),
+        "heartbeat_at", cjson.encode(now),
+        "fencing_token", cjson.encode(token)
+      )
+      redis.call("ZREM", queue_key, task_id)
+      return redis.call("HGETALL", task_key)
+    end
+  end
+end
+return nil
+"""

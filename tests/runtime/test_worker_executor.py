@@ -151,6 +151,18 @@ class StaleCompleteBackend(InMemoryTaskBackend):
         raise StaleFencingTokenError("stale")
 
 
+class StaleAfterFirstFencingBackend(InMemoryTaskBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.assert_calls = 0
+
+    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+        self.assert_calls += 1
+        if self.assert_calls > 1:
+            raise StaleFencingTokenError("stale")
+        super().assert_can_complete(task_id, worker_id, fencing_token)
+
+
 class FailingCompleteRunStore(InMemoryRunStore):
     def complete_run(self, run_id: str, output: dict[str, Any]) -> None:
         _ = run_id, output
@@ -356,6 +368,37 @@ async def test_worker_executor_does_not_mark_run_failed_on_stale_complete() -> N
     assert run_store.runs[run_id].status == "running"
     assert list(run_store.attempts.values())[0].status == "running"
     assert "run.failed" not in [event.type for event in replay_buffer.replay(run_id)]
+
+
+@pytest.mark.asyncio
+async def test_worker_executor_does_not_fail_attempt_after_stale_adapter_error() -> None:
+    run_store = InMemoryRunStore()
+    task_backend = StaleAfterFirstFencingBackend()
+    replay_buffer = ReplayBuffer()
+    task_id = await create_task(run_store, task_backend)
+    executor = WorkerExecutor(
+        worker_id="worker_1",
+        task_backend=task_backend,
+        run_store=run_store,
+        replay_buffer=replay_buffer,
+        adapters={"fake": FailingAdapter()},  # type: ignore[dict-item]
+        agent_specs={
+            "version_1": AgentRuntimeSpec(
+                adapter="fake",
+                package_uri="memory://fake",
+                manifest={"runtime": {"entrypoint": "agent:create"}},
+                runtime_config={},
+            )
+        },
+    )
+
+    with pytest.raises(StaleFencingTokenError):
+        await executor.execute_once(queue="default")
+
+    run_id = task_backend.tasks[task_id].run_id
+    assert run_store.runs[run_id].status == "running"
+    assert list(run_store.attempts.values())[0].status == "running"
+    assert [event.type for event in replay_buffer.replay(run_id)] == ["attempt.started"]
 
 
 @pytest.mark.asyncio

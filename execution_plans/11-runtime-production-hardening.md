@@ -58,9 +58,9 @@
 - [x] tenant / project concurrency quota 的 durable lease 边界。
 - [x] agent concurrency quota。
 - [x] queue partition。
-- [x] streaming replay buffer 生产实现。
+- [x] streaming replay buffer 基础实现。
 - [x] 进程内 event fan-out 基础边界。
-- [x] cross-instance event fan-out。
+- [x] cross-instance event fan-out 完整读写闭环。
 - [x] stream backpressure 基础边界。
 
 不在本阶段：
@@ -165,7 +165,7 @@ tool_gateway_rate_limit
 - [x] quota 检查在 enqueue 前生效。
 - [x] 超限返回稳定错误码。
 - [x] quota 释放必须和 terminal state 一致。
-- [ ] Console 能展示 quota blocking reason。
+- [x] Console 能展示 quota blocking reason。
 - [x] API Key / ServiceAccount 不能绕过 quota。
 
 ## 7. Queue Partition
@@ -185,9 +185,9 @@ resource class
 
 - [x] 默认按 tenant/project 做公平调度。
 - [x] priority 不允许永久饿死低优先级任务。
-- [ ] partition key 进入 Task metadata。
-- [ ] worker 可声明 resource class。
-- [ ] 测试覆盖多租户任务隔离。
+- [x] partition key 进入 Task metadata。
+- [x] worker 可声明 resource class。
+- [x] 测试覆盖多租户任务隔离。
 
 ## 8. Streaming 生产加固
 
@@ -198,7 +198,7 @@ resource class
 - [x] 支持 `Last-Event-ID` 断线续传。
 - [x] Replay Buffer 支持内存 N 条 replay，并新增 Redis Stream 写入边界。
 - [x] 最近 N 条可 replay。
-- [x] 多 API Server 通过 Redis Stream / PubSub fan-out。
+- [x] 多 API Server 通过 Redis Stream / PubSub fan-out 完整闭环。
 - [x] 慢消费者断开或降级。
 - [x] 大 payload stream ref 边界。
 
@@ -254,7 +254,7 @@ feat(runtime): harden production worker and streaming runtime
 
 ## 12. 设计回查清单
 
-- [ ] Runtime 状态机没有被 API happy path 绕过。
+- [x] Runtime 状态机没有被 API happy path 绕过。
 - [x] Worker 崩溃不会留下永久 stuck task。
 - [x] stale fencing token 无法写入 terminal result。
 - [x] cancel、retry、dead letter 对 API、Console、Event 都可见。

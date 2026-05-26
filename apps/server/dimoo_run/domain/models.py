@@ -277,6 +277,7 @@ class Task(IdMixin, AuditMixin, Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
     error: Mapped[str | None] = mapped_column(Text)
     dead_letter_reason: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class Event(IdMixin, AuditMixin, Base):

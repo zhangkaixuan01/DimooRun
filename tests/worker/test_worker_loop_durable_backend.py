@@ -19,6 +19,15 @@ class FakeCancelSubscriber:
         }
 
 
+class FakeCancelHandler:
+    def __init__(self) -> None:
+        self.cancelled: tuple[str, str | None] | None = None
+
+    async def cancel_run(self, run_id: str, *, task_id: str | None = None) -> str:
+        self.cancelled = (run_id, task_id)
+        return "adapter_cancelled"
+
+
 def test_worker_loop_can_lease_durable_task_and_mark_it_running() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -97,8 +106,14 @@ def test_worker_loop_horizontal_scaling_leases_distinct_tasks() -> None:
 
 
 def test_worker_loop_consumes_cancel_message_for_worker() -> None:
-    loop = WorkerLoop(worker_id="worker_1", cancel_subscriber=FakeCancelSubscriber())
+    handler = FakeCancelHandler()
+    loop = WorkerLoop(
+        worker_id="worker_1",
+        cancel_subscriber=FakeCancelSubscriber(),
+        cancel_handler=handler,
+    )
 
     heartbeat = loop.run_once()
 
     assert heartbeat.status == "cancel_requested"
+    assert handler.cancelled == ("run_1", "task_1")

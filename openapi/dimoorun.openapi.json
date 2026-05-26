@@ -753,6 +753,17 @@
             "title": "Max Attempts",
             "type": "integer"
           },
+          "partition_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partition Key"
+          },
           "priority": {
             "title": "Priority",
             "type": "integer"
@@ -764,6 +775,29 @@
           "queue": {
             "title": "Queue",
             "type": "string"
+          },
+          "quota_blocking_reason": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Blocking Reason"
+          },
+          "resource_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Class"
           },
           "run_id": {
             "title": "Run Id",

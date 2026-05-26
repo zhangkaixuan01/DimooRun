@@ -20,6 +20,7 @@ from dimoo_run.persistence.repositories import (
     TaskRepository,
 )
 from dimoo_run.runtime.idempotency import IdempotencyStore
+from dimoo_run.runtime.state_machine import assert_run_transition, assert_task_transition
 from dimoo_run.streaming.replay_buffer import ReplayBuffer
 
 
@@ -81,6 +82,9 @@ class NativeTask:
     idempotency_key: str | None = None
     error: dict[str, Any] | None = None
     dead_letter_reason: str | None = None
+    partition_key: str | None = None
+    resource_class: str | None = None
+    quota_blocking_reason: dict[str, Any] | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -275,6 +279,9 @@ class NativeRuntimeStore:
         return self.replay_buffer.replay(run_id)
 
     def cancel_run(self, run: NativeRun) -> NativeRun:
+        if run.status == RunStatus.cancelled:
+            return run
+        assert_run_transition(run.status.value, RunStatus.cancelled.value)
         run.status = RunStatus.cancelled
         run.updated_at = datetime.now(UTC)
         cancellable_statuses = {
@@ -284,15 +291,20 @@ class NativeRuntimeStore:
         }
         for task in self.tasks.values():
             if task.run_id == run.id and task.status in cancellable_statuses:
+                assert_task_transition(task.status.value, TaskStatus.cancelled.value)
                 task.status = TaskStatus.cancelled
                 task.updated_at = run.updated_at
         self.replay_buffer.append(run.id, None, AgentEvent(type="run.cancelled", payload={}))
         return run
 
     def cancel_task(self, task: NativeTask) -> NativeTask:
+        if task.status == TaskStatus.cancelled:
+            return task
+        assert_task_transition(task.status.value, TaskStatus.cancelled.value)
         task.status = TaskStatus.cancelled
         task.updated_at = datetime.now(UTC)
         run = self.runs[task.run_id]
+        assert_run_transition(run.status.value, RunStatus.cancelled.value)
         run.status = RunStatus.cancelled
         run.updated_at = task.updated_at
         self.replay_buffer.append(
@@ -548,9 +560,13 @@ class SQLAlchemyNativeRuntimeStore:
         ]
 
     def cancel_run(self, run: NativeRun) -> NativeRun:
+        if run.status == RunStatus.cancelled:
+            return run
+        assert_run_transition(run.status.value, RunStatus.cancelled.value)
         run_model = RunRepository(self.session).transition(run.id, "cancelled")
         for task in TaskRepository(self.session).list_by_run(run.id):
             if task.status in {"queued", "leased", "running"}:
+                assert_task_transition(task.status, "cancelled")
                 TaskRepository(self.session).transition(task.id, "cancelled")
         EventRepository(self.session).append(
             event_id=f"event_{uuid4().hex[:12]}",
@@ -564,7 +580,14 @@ class SQLAlchemyNativeRuntimeStore:
         return _run_from_model(run_model)
 
     def cancel_task(self, task: NativeTask) -> NativeTask:
+        if task.status == TaskStatus.cancelled:
+            return task
+        assert_task_transition(task.status.value, TaskStatus.cancelled.value)
         task_model = TaskRepository(self.session).transition(task.id, "cancelled")
+        run_model = RunRepository(self.session).get_by_id(task.run_id)
+        if run_model is None:
+            raise KeyError(task.run_id)
+        assert_run_transition(run_model.status, "cancelled")
         RunRepository(self.session).transition(task.run_id, "cancelled")
         EventRepository(self.session).append(
             event_id=f"event_{uuid4().hex[:12]}",
@@ -648,6 +671,7 @@ def _run_from_model(run: Run) -> NativeRun:
 
 
 def _task_from_model(task: Task) -> NativeTask:
+    metadata = task.metadata_json or {}
     return NativeTask(
         id=task.id,
         run_id=task.run_id,
@@ -661,6 +685,9 @@ def _task_from_model(task: Task) -> NativeTask:
         idempotency_key=task.idempotency_key,
         error={"message": task.error} if task.error else None,
         dead_letter_reason=task.dead_letter_reason,
+        partition_key=metadata.get("partition_key"),
+        resource_class=metadata.get("resource_class"),
+        quota_blocking_reason=metadata.get("quota_blocking_reason"),
         created_at=task.created_at,
         updated_at=task.updated_at or task.created_at,
     )
