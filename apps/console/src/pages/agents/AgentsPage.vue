@@ -39,9 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { agents } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const agents = consoleClient.listAgents().items;
 </script>

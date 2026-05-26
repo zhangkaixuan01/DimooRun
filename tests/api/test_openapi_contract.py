@@ -18,14 +18,6 @@ def test_openapi_schema_contains_error_response_and_runtime_control_paths() -> N
 def test_unimplemented_get_routes_document_501_response() -> None:
     schema = create_app().openapi()
     get_paths = [
-        "/v1/agents",
-        "/v1/agents/{agent_id}",
-        "/v1/agents/{agent_id}/versions",
-        "/v1/agents/{agent_id}/versions/{version}",
-        "/v1/runs/{run_id}",
-        "/v1/runs/{run_id}/events",
-        "/v1/runs/{run_id}/attempts",
-        "/v1/tasks/{task_id}",
         "/v1/policies",
         "/v1/artifacts/{artifact_id}",
         "/v1/human-tasks",
@@ -40,6 +32,17 @@ def test_unimplemented_get_routes_document_501_response() -> None:
 def test_implemented_deployment_routes_do_not_document_501_response() -> None:
     schema = create_app().openapi()
     paths = [
+        ("/v1/agents", "get"),
+        ("/v1/agents", "post"),
+        ("/v1/agents/{agent_id}", "get"),
+        ("/v1/agents/{agent_id}/versions", "get"),
+        ("/v1/agents/{agent_id}/versions", "post"),
+        ("/v1/agents/{agent_id}/versions/{version}", "get"),
+        ("/v1/agents/{agent_id}/tasks", "post"),
+        ("/v1/runs/{run_id}", "get"),
+        ("/v1/runs/{run_id}/events", "get"),
+        ("/v1/runs/{run_id}/attempts", "get"),
+        ("/v1/tasks/{task_id}", "get"),
         ("/v1/deployments", "get"),
         ("/v1/deployments/{deployment_id}", "get"),
         ("/v1/deployments/{deployment_id}/instances", "get"),

@@ -76,10 +76,12 @@ import ResourceLink from "../../components/ResourceLink.vue";
 import RuntimeTrendChart from "../../components/RuntimeTrendChart.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import TimeRangePicker from "../../components/TimeRangePicker.vue";
-import { humanTasks, runs } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const humanTasks = consoleClient.listHumanTasks().items;
+const runs = consoleClient.listRuns().items;
 const failedRuns = runs.filter((run) => run.status === "failed");
 </script>
 

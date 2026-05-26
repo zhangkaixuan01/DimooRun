@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { events, runs } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import EventTimeline from "../../components/EventTimeline.vue";
 import RunCostBreakdown from "../../components/RunCostBreakdown.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
@@ -58,7 +58,8 @@ import { useI18n } from "../../i18n/useI18n";
 
 const props = defineProps<{ runId: string }>();
 const { t } = useI18n();
-const currentRun = computed(() => runs.find((run) => run.id === props.runId) ?? runs[0]);
+const events = consoleClient.listEvents().items;
+const currentRun = computed(() => consoleClient.getRun(props.runId) ?? consoleClient.listRuns().items[0]);
 </script>
 
 <style scoped>

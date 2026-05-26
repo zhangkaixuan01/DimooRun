@@ -10,7 +10,7 @@ class InvalidStateTransitionError(ValueError):
 
 
 RUN_TRANSITIONS: Mapping[str, set[str]] = {
-    "pending": {"running"},
+    "pending": {"running", "cancelled"},
     "running": {"interrupted", "succeeded", "failed", "cancelled", "timeout"},
     "interrupted": {"running", "cancelled", "timeout"},
     "failed": {"running"},
@@ -20,7 +20,7 @@ RUN_TRANSITIONS: Mapping[str, set[str]] = {
 }
 
 TASK_TRANSITIONS: Mapping[str, set[str]] = {
-    "queued": {"leased"},
+    "queued": {"leased", "cancelled"},
     "leased": {"running", "queued"},
     "running": {"succeeded", "failed", "retrying", "cancelled", "dead_letter"},
     "retrying": {"queued"},

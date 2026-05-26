@@ -38,10 +38,11 @@
 </template>
 
 <script setup lang="ts">
-import { tasks } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import ResourceLink from "../../components/ResourceLink.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const tasks = consoleClient.listTasks().items;
 </script>

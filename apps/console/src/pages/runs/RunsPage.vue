@@ -53,12 +53,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import { runs } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import ResourceLink from "../../components/ResourceLink.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const runs = consoleClient.listRuns().items;
 const query = ref("");
 const status = ref("");
 

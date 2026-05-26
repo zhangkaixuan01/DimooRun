@@ -148,8 +148,12 @@ class InMemoryTaskBackend:
         task.status = "queued"
 
     async def cancel(self, task_id: str) -> None:
-        self._transition(self.tasks[task_id], "cancelled")
-        self.tasks[task_id].status = "cancelled"
+        task = self.tasks[task_id]
+        if task.status == "leased":
+            self._transition(task, "running")
+            task.status = "running"
+        self._transition(task, "cancelled")
+        task.status = "cancelled"
 
     def mark_running(self, task_id: str, worker_id: str, fencing_token: int) -> None:
         task = self._owned_task(task_id, worker_id)

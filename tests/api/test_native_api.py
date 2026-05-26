@@ -1,3 +1,6 @@
+from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
+from dimoo_run.api.native.runtime import reset_native_runtime
+from dimoo_run.identity.service_accounts import ServiceAccountRecord
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
@@ -30,6 +33,66 @@ NATIVE_PATHS = [
 ]
 
 
+def setup_function() -> None:
+    reset_api_key_authenticator()
+    reset_native_runtime()
+
+
+def create_api_key(*, scopes: set[str] | None = None) -> tuple[str, ServiceAccountRecord]:
+    requested_scopes = scopes or {"agent:read", "agent:write", "agent:invoke"}
+    authenticator = default_api_key_authenticator()
+    service_account = authenticator.service_accounts.create(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        name="native",
+        permissions=requested_scopes,
+        created_by="admin_1",
+    )
+    plain_key, _ = authenticator.create_key(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        name="native-key",
+        owner_type="service_account",
+        owner_id=service_account.id,
+        scopes=requested_scopes,
+        created_by="admin_1",
+    )
+    return plain_key, service_account
+
+
+def auth_headers(
+    api_key: str | None = None,
+    *,
+    idempotency_key: str | None = None,
+) -> dict[str, str]:
+    headers = {
+        "Authorization": f"Bearer {api_key or create_api_key()[0]}",
+        "X-Request-Id": "req_native",
+        "X-Tenant-Id": "tenant_1",
+        "X-Project-Id": "project_1",
+    }
+    if idempotency_key is not None:
+        headers["Idempotency-Key"] = idempotency_key
+    return headers
+
+
+def create_agent_with_version(client: TestClient, key: str) -> tuple[str, str]:
+    agent = client.post(
+        "/v1/agents",
+        headers=auth_headers(key),
+        json={"name": "support-agent"},
+    )
+    assert agent.status_code == 201
+    agent_id = agent.json()["id"]
+    version = client.post(
+        f"/v1/agents/{agent_id}/versions",
+        headers=auth_headers(key),
+        json={"version": "0.1.0", "package_uri": "file://support-agent"},
+    )
+    assert version.status_code == 201
+    return agent_id, version.json()["id"]
+
+
 def test_native_api_paths_are_registered_in_openapi() -> None:
     client = TestClient(create_app())
     paths = client.get("/openapi.json").json()["paths"]
@@ -38,54 +101,91 @@ def test_native_api_paths_are_registered_in_openapi() -> None:
         assert path in paths
 
 
-def test_unimplemented_write_api_returns_stable_error_response() -> None:
+def test_native_agent_task_run_event_flow_is_real() -> None:
     client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, version_id = create_agent_with_version(client, key)
 
-    response = client.post(
-        "/v1/agents/agent_1/invoke",
-        headers={"X-Request-Id": "req_123", "Idempotency-Key": "idem_123"},
+    task_response = client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="idem_1"),
         json={"input": {"message": "hello"}},
     )
 
-    assert response.status_code == 501
-    assert response.json() == {
-        "error_code": "not_implemented",
-        "message": "This API contract is registered but not implemented yet.",
-        "request_id": "req_123",
-        "details": {"path": "/v1/agents/agent_1/invoke"},
-    }
+    assert task_response.status_code == 202
+    task_body = task_response.json()
+    assert task_body["run_id"].startswith("run_")
+    assert task_body["task_id"].startswith("task_")
+    assert task_body["status"] == "queued"
+
+    run = client.get(
+        f"/v1/runs/{task_body['run_id']}",
+        headers=auth_headers(key),
+    )
+    assert run.status_code == 200
+    assert run.json()["agent_id"] == agent_id
+    assert run.json()["agent_version_id"] == version_id
+
+    task = client.get(
+        f"/v1/tasks/{task_body['task_id']}",
+        headers=auth_headers(key),
+    )
+    assert task.status_code == 200
+    assert task.json()["run_id"] == task_body["run_id"]
+
+    events = client.get(
+        f"/v1/runs/{task_body['run_id']}/events",
+        headers=auth_headers(key),
+    )
+    assert events.status_code == 200
+    assert [event["type"] for event in events.json()] == ["run.created", "task.queued"]
 
 
-def test_unimplemented_read_api_returns_stable_error_response_instead_of_fake_data() -> None:
+def test_native_agent_task_creation_is_idempotent() -> None:
     client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, _ = create_agent_with_version(client, key)
 
-    response = client.get("/v1/tasks/task_1", headers={"X-Request-Id": "req_read"})
-
-    assert response.status_code == 501
-    assert response.json() == {
-        "error_code": "not_implemented",
-        "message": "This API contract is registered but not implemented yet.",
-        "request_id": "req_read",
-        "details": {"path": "/v1/tasks/task_1"},
-    }
-
-
-def test_delete_agent_returns_soft_delete_contract_placeholder() -> None:
-    client = TestClient(create_app())
-
-    response = client.delete(
-        "/v1/agents/agent_1",
-        headers={"X-Request-Id": "req_delete"},
+    first = client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="idem_1"),
+        json={"input": {"message": "hello"}},
+    )
+    second = client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="idem_1"),
+        json={"input": {"message": "hello"}},
+    )
+    conflict = client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="idem_1"),
+        json={"input": {"message": "different"}},
     )
 
-    assert response.status_code == 501
-    assert response.json() == {
-        "error_code": "not_implemented",
-        "message": "This API contract is registered but not implemented yet.",
-        "request_id": "req_delete",
-        "details": {
-            "path": "/v1/agents/agent_1",
-            "audit_required": True,
-            "soft_delete_required": True,
-        },
-    }
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json()["run_id"] == first.json()["run_id"]
+    assert second.json()["replayed"] is True
+    assert conflict.status_code == 409
+    assert conflict.json()["error_code"] == "idempotency_key_conflict"
+
+
+def test_native_cancel_updates_run_and_task() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, _ = create_agent_with_version(client, key)
+    task_body = client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "hello"}},
+    ).json()
+
+    cancelled = client.post(
+        f"/v1/runs/{task_body['run_id']}/cancel",
+        headers=auth_headers(key),
+    )
+
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    task = client.get(f"/v1/tasks/{task_body['task_id']}", headers=auth_headers(key))
+    assert task.json()["status"] == "cancelled"

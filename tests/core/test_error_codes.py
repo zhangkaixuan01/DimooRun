@@ -21,3 +21,11 @@ def test_error_codes_include_api_and_observability_codes() -> None:
         "dataset_scope_mismatch",
         "notification_configuration_invalid",
     } <= ERROR_CODES
+
+
+def test_error_codes_include_compat_mapping_codes() -> None:
+    assert {
+        "assistant_not_found",
+        "run_not_found",
+        "thread_not_found",
+    } <= ERROR_CODES

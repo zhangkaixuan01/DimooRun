@@ -55,6 +55,7 @@ class RuntimeRunStore(Protocol):
         input_data: dict[str, Any],
         override_config: dict[str, Any] | None = None,
         thread_id: str | None = None,
+        run_id: str | None = None,
     ) -> RuntimeRun: ...
 
     async def create_attempt(
@@ -68,6 +69,12 @@ class RuntimeRunStore(Protocol):
     def complete_run(self, run_id: str, output: dict[str, Any]) -> None: ...
 
     def fail_run(self, run_id: str, error: dict[str, Any]) -> None: ...
+
+    def mark_run_running(self, run_id: str) -> None: ...
+
+    def cancel_run(self, run_id: str) -> None: ...
+
+    def delete_run(self, run_id: str) -> None: ...
 
     def complete_attempt(self, attempt_id: str) -> None: ...
 
@@ -102,9 +109,10 @@ class InMemoryRunStore:
         input_data: dict[str, Any],
         override_config: dict[str, Any] | None = None,
         thread_id: str | None = None,
+        run_id: str | None = None,
     ) -> RuntimeRun:
         run = RuntimeRun(
-            run_id=str(uuid4()),
+            run_id=run_id or str(uuid4()),
             tenant_id=tenant_id,
             project_id=project_id,
             agent_id=agent_id,
@@ -142,15 +150,36 @@ class InMemoryRunStore:
 
     def complete_run(self, run_id: str, output: dict[str, Any]) -> None:
         run = self.runs[run_id]
+        if run.status == "pending":
+            assert_run_transition(run.status, "running")
+            run.status = "running"
         assert_run_transition(run.status, "succeeded")
         run.status = "succeeded"
         run.output = output
 
     def fail_run(self, run_id: str, error: dict[str, Any]) -> None:
         run = self.runs[run_id]
+        if run.status == "pending":
+            assert_run_transition(run.status, "running")
+            run.status = "running"
         assert_run_transition(run.status, "failed")
         run.status = "failed"
         run.error = error
+
+    def mark_run_running(self, run_id: str) -> None:
+        run = self.runs[run_id]
+        if run.status == "running":
+            return
+        assert_run_transition(run.status, "running")
+        run.status = "running"
+
+    def cancel_run(self, run_id: str) -> None:
+        run = self.runs[run_id]
+        assert_run_transition(run.status, "cancelled")
+        run.status = "cancelled"
+
+    def delete_run(self, run_id: str) -> None:
+        self.runs.pop(run_id, None)
 
     def complete_attempt(self, attempt_id: str) -> None:
         attempt = self.attempts[attempt_id]
@@ -189,6 +218,9 @@ class RunManager:
         input_data: dict[str, Any],
         override_config: dict[str, Any] | None = None,
         queue: str = "default",
+        thread_id: str | None = None,
+        run_id: str | None = None,
+        task_id: str | None = None,
     ) -> tuple[RuntimeRun, str]:
         if deployment_id is not None and self.deployment_gate is not None:
             self.deployment_gate.assert_accepts_new_run(
@@ -206,18 +238,26 @@ class RunManager:
             deployment_id=deployment_id,
             input_data=input_data,
             override_config=override_config,
+            thread_id=thread_id,
+            run_id=run_id,
         )
-        task_id = await self.task_backend.enqueue(
-            {
-                "run_id": run.run_id,
-                "tenant_id": tenant_id,
-                "project_id": project_id,
-                "agent_id": agent_id,
-                "agent_version_id": agent_version_id,
-                "deployment_id": deployment_id,
-                "input_data": input_data,
-                "override_config": dict(override_config or {}),
-                "queue": queue,
-            }
-        )
+        try:
+            task_id = await self.task_backend.enqueue(
+                {
+                    "task_id": task_id,
+                    "run_id": run.run_id,
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "agent_id": agent_id,
+                    "agent_version_id": agent_version_id,
+                    "deployment_id": deployment_id,
+                    "input_data": input_data,
+                    "override_config": dict(override_config or {}),
+                    "queue": queue,
+                    "thread_id": thread_id,
+                }
+            )
+        except Exception:
+            self.run_store.delete_run(run.run_id)
+            raise
         return run, task_id

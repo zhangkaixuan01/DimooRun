@@ -26,13 +26,17 @@ Runtime behavior is a white box.
 
 ## Current Status
 
-This repository is in the early implementation stage.
+This repository is in the early implementation stage. Phases `01` through `09`
+are MVP-complete and test-green, but they should not be read as production
+complete. Several runtime services deliberately remain in-process or in-memory
+until the production foundation phases wire durable storage, queues, generated
+SDKs, and process orchestration.
 
 The primary artifact is [DESIGN_SPEC.md](DESIGN_SPEC.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
 roadmap.
 
-Completed implementation phases:
+Implemented MVP phase slices:
 
 - `01-project-foundation`: FastAPI server scaffold, configuration models,
   Worker entrypoint, Vue Console scaffold, examples, OpenAPI output directory,
@@ -82,17 +86,53 @@ Completed implementation phases:
   Run Detail, Tasks, Events, Debug / Replay, Human Tasks, Policies, API Keys,
   Settings, Chinese / English switching, light / dark theme switching, high-risk
   operation confirmation, ECharts runtime trends, GSAP-scoped page motion, and
-  frontend contract tests.
+  frontend contract tests. The default UI data path still uses mock data for
+  product validation; a `nativeConsoleClient` and `VITE_DIMOORUN_*` environment
+  boundary now exist for wiring real backend calls.
+- `09-sdk-cli-compatibility-and-migration`: `dimoorun` CLI entrypoint, project
+  configuration model, `init` / `validate` / `doctor` / `migrate langgraph` /
+  `migrate aegra` / `migrate langgraph-platform`, LangGraph Compatibility API
+  routes for assistants / threads / runs / SSE stream backed by RunManager,
+  TaskBackend, deployment gate checks when a referenced Deployment exists,
+  tenant / project scoped API keys, and AuditLog, Agent Protocol
+  capability skeleton, best-effort migration reports with source-specific
+  warnings, a minimal Native Agents / AgentVersions / Runs / Tasks API backed by
+  an in-process runtime store, Python SDK error-code and idempotency-key
+  handling with a real Native API integration test, and TypeScript SDK
+  placeholder boundary.
 
-Next implementation phase:
+Current verification baseline:
 
-- `09-sdk-cli-compatibility-and-migration`: SDK / CLI / Compatibility API /
-  migration workflow hardening.
+```text
+uv run pytest -q
+uv run ruff check apps tests packages\sdk-python
+cd apps/console && npm run test
+cd apps/console && npm run build
+uv run python scripts\export_openapi.py
+```
 
-The long-running worker process loop, Redis queue command mapping, production
-event store fan-out, production Policy Engine, durable deployment repositories,
-Agent Gateway request forwarding, external observability exporters, production
-Artifact Store backend, and generated Console SDK wiring are still planned work.
+As of the current workspace state, those checks pass.
+
+Next implementation phases:
+
+- `10-production-foundation-and-console-wiring`: production foundation,
+  Docker Compose, Postgres / Redis / MinIO wiring, durable repositories,
+  durable Native write APIs, worker loop, generated Console SDK wiring,
+  OpenAPI diff, and making real Console-to-backend integration the primary
+  frontend path.
+- `11-runtime-production-hardening`: production Runtime reliability, Redis
+  queue semantics, lease reaper, fencing-token protection, pub/sub cancel,
+  quota, queue partitioning, streaming replay/fan-out/backpressure, crash
+  recovery, and horizontal worker scaling.
+- `12-enterprise-ops-and-cloud-native`: enterprise operations, production
+  Artifact Store, external observability exporters, backup/restore, webhook
+  subscriptions, alerting/incidents, Helm/K8s, and sandbox/container-pool
+  boundaries.
+
+The next concrete implementation step is phase 10. Kafka, Temporal,
+multi-region deployment, leaderless reapers, and open-ended custom backend
+routes remain later optional work, not part of the immediate production
+foundation.
 
 ## LangChain Ecosystem Version Policy
 
@@ -187,6 +227,12 @@ Build the Console:
 cd apps/console
 npm run test
 npm run build
+```
+
+Run the 09 CLI / Compatibility / Migration checks:
+
+```bash
+uv run pytest tests/cli tests/compat tests/migration tests/sdk -q
 ```
 
 ## Design Principle

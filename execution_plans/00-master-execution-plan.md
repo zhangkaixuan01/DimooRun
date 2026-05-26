@@ -31,7 +31,9 @@ execution_plans/
 07-observability-replay-and-quality.md
 08-console-product-plan.md
 09-sdk-cli-compatibility-and-migration.md
-10-enterprise-ops-and-cloud-native.md
+10-production-foundation-and-console-wiring.md
+11-runtime-production-hardening.md
+12-enterprise-ops-and-cloud-native.md
 ```
 
 执行原则：
@@ -53,7 +55,21 @@ execution_plans/
 | `05-deployment-runtime-control.md` | 已完成 | Deployment desired-status 控制、AgentInstance 缓存、runtime_status 聚合、RunManager deployment gate、Deployment API 接线、PublishedSurface / IngressRoute 治理边界和字段硬化已落地。 |
 | `06-governance-security-and-model-gateway.md` | 已完成 | RBAC resource:action、ServiceAccount、API Key、Deployment API Bearer API Key 接入、PolicyEngine、ToolGateway、SecretProvider、ModelGatewayProvider、HumanTask、Catalog、Prompt/Config/Template、SandboxPolicy 和治理表字段硬化已落地。 |
 | `07-observability-replay-and-quality.md` | 已完成 | Event / Trace / Audit 三账本边界、递归 redaction / sampling、Artifact Store checksum 写入与读时校验、Run Graph 可持久化投影、ReplayJob、Dataset scope、Experiment / Evaluation / Quality Gate、SemanticStoreProvider、Notification channel scope / Incident trigger value 和观测质量表字段硬化已落地；外部观测导出、生产对象存储和 Console 可视化留给后续阶段。 |
-| `08-console-product-plan.md` | 已完成 | Vue Runtime Control Plane Console 已落地，覆盖 Dashboard、Agents、Deployments、Compatibility、Published Surfaces、Runs、Run Detail、Tasks、Events、Debug / Replay、Human Tasks、Policies、API Keys、Settings，包含中英文切换、明暗主题切换、高风险操作确认、ECharts 趋势图、GSAP 页面动效、Console API client 边界和前端契约测试；真实 OpenAPI SDK 接线留给 09 阶段。 |
+| `08-console-product-plan.md` | MVP 已完成 | Vue Runtime Control Plane Console 已落地，覆盖 Dashboard、Agents、Deployments、Compatibility、Published Surfaces、Runs、Run Detail、Tasks、Events、Debug / Replay、Human Tasks、Policies、API Keys、Settings，包含中英文切换、明暗主题切换、高风险操作确认、ECharts 趋势图、GSAP 页面动效、Console API client 边界和前端契约测试；当前默认页面数据仍以 mock 为主，已新增 `nativeConsoleClient` 与 `VITE_DIMOORUN_*` 环境变量边界，真实后端主路径接线留给 10 阶段。 |
+| `09-sdk-cli-compatibility-and-migration.md` | MVP 已完成 / test-green | `dimoorun` CLI 入口、项目配置模型、init / validate / doctor / migrate langgraph / aegra / langgraph-platform、LangGraph Compatibility assistants / threads / runs / SSE stream 核心路由、真实 API Key 与 tenant/project scope 校验、RunManager / TaskBackend / Deployment Gate / AuditLog 接线、Agent Protocol capabilities skeleton、LangGraph / Aegra / LangGraph Platform best-effort 迁移报告、最小 Native Agents / AgentVersions / Runs / Tasks API、Python SDK 错误码与幂等键处理、Python SDK 对 Native API 的集成测试、TypeScript SDK 占位边界已落地；完整 OpenAPI diff CI、生成式 TS SDK、durable Repository / EventLog / PolicyEngine 生产接线、真实生产部署命令留给后续阶段。 |
+| `10-production-foundation-and-console-wiring.md` | 待开始 | 生产化基础闭环阶段：Docker Compose、Postgres / Redis / MinIO 接线、durable repository、durable Native 写 API、worker loop、Console 真实后端主路径接线、OpenAPI diff 和 generated TypeScript SDK。 |
+| `11-runtime-production-hardening.md` | 待开始 | Runtime 生产级加固阶段：Redis Queue 生产语义、lease reaper、fencing token 跨 worker 保护、pub/sub cancel、quota、partition、stream replay / fan-out / backpressure、水平扩容。 |
+| `12-enterprise-ops-and-cloud-native.md` | 待开始 | 企业运维与云原生阶段：生产 Artifact Store、外部观测导出、Backup / Restore / DR、Webhook Subscription、Notification / Alerting、Helm / K8s、Sandbox / Container Pool。 |
+
+状态口径：
+
+```text
+01-09 = MVP completed / architecturally coherent / test-green。
+这不等于 production complete。
+当前仍有 in-memory runtime store、in-memory compatibility repository、mock-first Console、
+未生成 TypeScript SDK、未接 Docker Compose / Postgres / Redis / MinIO、未实现 CLI 进程编排。
+这些缺口统一归入 10-12 阶段处理，不能在文档或验收中表述为生产完成。
+```
 
 最近完成提交：
 
@@ -139,11 +155,11 @@ langsmith      0.8.5
 | 14 Agent Package 规范 | `03-agent-package-and-adapters.md` |
 | 15 Project Configuration | `01-project-foundation.md`、`09-sdk-cli-compatibility-and-migration.md` |
 | 16 CLI / DX | `09-sdk-cli-compatibility-and-migration.md` |
-| 17 Deployment Modes | `01-project-foundation.md`、`10-enterprise-ops-and-cloud-native.md` |
-| 18 Execution Isolation & Sandbox | `06-governance-security-and-model-gateway.md`、`10-enterprise-ops-and-cloud-native.md` |
+| 17 Deployment Modes | `01-project-foundation.md`、`10-production-foundation-and-console-wiring.md`、`12-enterprise-ops-and-cloud-native.md` |
+| 18 Execution Isolation & Sandbox | `06-governance-security-and-model-gateway.md`、`12-enterprise-ops-and-cloud-native.md` |
 | 19 RuntimeContext | `03-agent-package-and-adapters.md`、`04-runtime-task-worker-streaming.md` |
-| 20 Event Model | `04-runtime-task-worker-streaming.md`、`07-observability-replay-and-quality.md` |
-| 21 Streaming Runtime | `04-runtime-task-worker-streaming.md` |
+| 20 Event Model | `04-runtime-task-worker-streaming.md`、`07-observability-replay-and-quality.md`、`10-production-foundation-and-console-wiring.md`、`11-runtime-production-hardening.md` |
+| 21 Streaming Runtime | `04-runtime-task-worker-streaming.md`、`10-production-foundation-and-console-wiring.md`、`11-runtime-production-hardening.md` |
 | 22 核心领域模型 | `02-domain-persistence-and-api.md` |
 | 23 Extended Domain Models | `02-domain-persistence-and-api.md` 和各专项计划 |
 | 24 Agent Lifecycle | `03-agent-package-and-adapters.md`、`05-deployment-runtime-control.md` |
@@ -156,26 +172,26 @@ langsmith      0.8.5
 | 30 Checkpoint Boundary | `03-agent-package-and-adapters.md`、`04-runtime-task-worker-streaming.md` |
 | 31 Human-in-the-loop Governance | `06-governance-security-and-model-gateway.md`、`08-console-product-plan.md` |
 | 32 Policy Engine | `06-governance-security-and-model-gateway.md` |
-| 33 Artifact Store | `07-observability-replay-and-quality.md` |
-| 33.1 Backup / Restore / DR | `10-enterprise-ops-and-cloud-native.md` |
+| 33 Artifact Store | `07-observability-replay-and-quality.md`、`12-enterprise-ops-and-cloud-native.md` |
+| 33.1 Backup / Restore / DR | `12-enterprise-ops-and-cloud-native.md` |
 | 34 Event / Trace / Audit 三账本 | `07-observability-replay-and-quality.md` |
 | 35 Run Graph and Execution Provenance | `07-observability-replay-and-quality.md` |
 | 36 Dataset, Experiment, and Quality Loop | `07-observability-replay-and-quality.md` |
 | 37 存储边界 | `02-domain-persistence-and-api.md` |
-| 38 API 设计 | `02-domain-persistence-and-api.md`、`09-sdk-cli-compatibility-and-migration.md` |
-| 39 SDK Design | `09-sdk-cli-compatibility-and-migration.md` |
-| 40 Task Scheduler | `04-runtime-task-worker-streaming.md` |
-| 41 Worker Pool | `04-runtime-task-worker-streaming.md`、`05-deployment-runtime-control.md` |
-| 42 HA / Scaling Design | `04-runtime-task-worker-streaming.md`、`10-enterprise-ops-and-cloud-native.md` |
+| 38 API 设计 | `02-domain-persistence-and-api.md`、`09-sdk-cli-compatibility-and-migration.md`、`10-production-foundation-and-console-wiring.md` |
+| 39 SDK Design | `09-sdk-cli-compatibility-and-migration.md`、`10-production-foundation-and-console-wiring.md` |
+| 40 Task Scheduler | `04-runtime-task-worker-streaming.md`、`10-production-foundation-and-console-wiring.md`、`11-runtime-production-hardening.md` |
+| 41 Worker Pool | `04-runtime-task-worker-streaming.md`、`05-deployment-runtime-control.md`、`10-production-foundation-and-console-wiring.md`、`11-runtime-production-hardening.md` |
+| 42 HA / Scaling Design | `04-runtime-task-worker-streaming.md`、`11-runtime-production-hardening.md`、`12-enterprise-ops-and-cloud-native.md` |
 | 43 权限系统 | `06-governance-security-and-model-gateway.md` |
 | 44 Tool Gateway | `06-governance-security-and-model-gateway.md` |
 | 45 Model Gateway / Provider Governance | `06-governance-security-and-model-gateway.md` |
 | 46 Secret 管理 | `06-governance-security-and-model-gateway.md` |
-| 47 可观测性 | `07-observability-replay-and-quality.md` |
-| 48 前端 Console 设计 | `08-console-product-plan.md` |
+| 47 可观测性 | `07-observability-replay-and-quality.md`、`11-runtime-production-hardening.md`、`12-enterprise-ops-and-cloud-native.md` |
+| 48 前端 Console 设计 | `08-console-product-plan.md`、`10-production-foundation-and-console-wiring.md` |
 | 49 评估设计 | `07-observability-replay-and-quality.md` |
 | 50 插件化设计 | 全部计划按 Provider 边界实现 |
-| 51 Extension API | `10-enterprise-ops-and-cloud-native.md` |
+| 51 Extension API | `12-enterprise-ops-and-cloud-native.md` |
 | 52 代码结构建议 | `01-project-foundation.md` |
 | 53 MVP 范围 | `01`、`02`、`03`、`04`、`05`、`08`、`09` |
 | 54 Roadmap | 全部计划 |
@@ -274,6 +290,9 @@ task_lease_expired
 idempotency_key_conflict
 stream_replay_unavailable
 compatibility_not_supported
+assistant_not_found
+thread_not_found
+run_not_found
 policy_denied
 approval_required
 secret_access_denied
@@ -353,40 +372,58 @@ tests/
 
 - [ ] `dimoorun dev` 能启动 server、worker、基础 Console。
 - [ ] 可以注册 LangGraph Agent Package。
-- [ ] 可以创建 AgentVersion。
+- [x] 可以通过 Native API 创建 Agent / AgentVersion。
 - [ ] 可以创建 Deployment 并 activate。
-- [ ] 可以通过 Native API 创建 Run/Task。
+- [x] 可以通过 Native API 创建 Run / Task，并通过 `Idempotency-Key` 复用同一业务结果。
 - [ ] Worker 可以执行 LangGraphAdapter。
 - [ ] Console 能查看 Agents、Deployments、Runs、Tasks、Events、API Keys。
-- [ ] SSE event 包含 `sequence` 和 `event_id`。
-- [ ] 重复 `Idempotency-Key` 不产生多个业务结果。
+- [x] Compatibility SSE event 包含 `sequence` 和 `event_id`。
+- [x] 重复 `Idempotency-Key` 不产生多个业务结果。
 
-### 6.2 Runtime MVP 验收
+说明：Dev MVP 仍未全部完成，主要缺口是 `dimoorun dev` 进程编排、Deployment 创建 API、Worker 真实执行闭环和 Console 真实后端主路径。
+
+### 6.2 Production Foundation 验收
 
 - [ ] Docker Compose 启动 server、worker、console、postgres、redis。
-- [ ] Redis Queue 支持 lease、heartbeat、retry、dead letter。
 - [ ] Postgres 存储 Run、Task、Event、AuditLog。
+- [ ] durable Compatibility Repository 支持 assistants / threads / runs 核心调用。
+- [ ] Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API 可用且持久化。
+- [ ] Console 使用真实后端 API，不以 mock 数据作为主路径。
+- [ ] generated TypeScript SDK 或 OpenAPI typed client 被 Console 使用。
+- [ ] OpenAPI diff check 可阻止未声明 breaking change。
+- [ ] `dimoorun up/down/worker/logs` 可用。
+
+### 6.3 Runtime Production Hardening 验收
+
+- [ ] Redis Queue 支持 lease、heartbeat、retry、dead letter。
+- [ ] lease reaper 可回收过期任务。
+- [ ] fencing token 可拒绝旧 Worker 写入结果。
+- [ ] Redis pub/sub cancel 可跨实例通知 Worker。
+- [ ] tenant / project / agent concurrency quota 生效。
+- [ ] queue partition 支持 tenant/project/priority/resource class。
+- [ ] Streaming 支持 Last-Event-ID reconnect、Replay Buffer、fan-out 和 backpressure。
 - [ ] Compatibility API 支持 assistants / threads / runs 核心调用。
 - [ ] Worker 崩溃后任务可恢复或进入可见失败状态。
+- [ ] Worker 可水平扩容并消化队列积压。
 - [ ] Deployment pause/resume/restart/drain/stop 语义可验证。
 
-### 6.3 Phase 2 验收
+### 6.4 Phase 2 验收
 
 - [ ] LangChain Agent 和 DeepAgents Adapter 可执行。
 - [ ] Adapter Conformance Test Kit 覆盖 invoke、stream、capability negative tests。
 - [ ] Debug / Replay 可从失败 Run 创建新 Run。
 - [ ] OpenTelemetry、Langfuse / Phoenix 接口边界可用。
 - [ ] ServiceAccount 可调用 Runtime API。
-- [ ] OpenAPI diff check 可阻止未声明 breaking change。
 
-### 6.4 Enterprise Ops 验收
+### 6.5 Enterprise Ops 验收
 
 - [ ] Tool Gateway 支持高风险审批。
 - [ ] Model Gateway 接入 New API / OpenAI-compatible endpoint。
 - [ ] Notification / Alerting 可触发 incident。
 - [ ] Backup dry-run restore 可验证。
 - [ ] Helm chart 可 render。
-- [ ] Worker 可水平扩容并消化队列积压。
+- [ ] Extension Webhook Subscription 可安全接收事件。
+- [ ] 生产 Artifact Store 和外部观测导出可配置。
 
 ## 7. 执行方式
 

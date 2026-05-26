@@ -62,13 +62,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-import { deployments } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import type { Deployment } from "../../api/types";
 import ConfirmImpactDialog from "../../components/ConfirmImpactDialog.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const deployments = consoleClient.listDeployments().items;
 const dialogOpen = ref(false);
 const selected = ref<Deployment | null>(null);
 const operation = ref("pause");

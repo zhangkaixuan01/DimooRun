@@ -14,9 +14,10 @@
 </template>
 
 <script setup lang="ts">
-import { events } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import EventTimeline from "../../components/EventTimeline.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const events = consoleClient.listEvents().items;
 </script>

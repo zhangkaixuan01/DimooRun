@@ -61,7 +61,7 @@ npm run build         # passed
 - [x] 真实 Adapter：不在本阶段，进入 `03-agent-package-and-adapters.md`。
 - [x] 真实 Task Queue：不在本阶段，进入 `04-runtime-task-worker-streaming.md`。
 - [x] 真实 Console 页面：不在本阶段，进入 `08-console-product-plan.md`。
-- [x] Docker Compose 完整生产启动：不在本阶段，进入 `10-enterprise-ops-and-cloud-native.md`。
+- [x] Docker Compose 完整生产启动：不在本阶段，进入 `10-production-foundation-and-console-wiring.md`。
 
 ## 2. 目标目录结构
 

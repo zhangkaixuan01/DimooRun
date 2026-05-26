@@ -106,3 +106,20 @@ def test_manifest_rejects_unsupported_schema_version() -> None:
                 },
             }
         )
+
+
+def test_manifest_rejects_inline_required_secret() -> None:
+    with pytest.raises(ValidationError, match="required_secrets"):
+        AgentManifest.model_validate(
+            {
+                "name": "bad-secret-agent",
+                "version": "0.1.0",
+                "schema_version": "1.0",
+                "runtime": {
+                    "framework": "langgraph",
+                    "adapter": "langgraph",
+                    "entrypoint": "agent:create",
+                },
+                "required_secrets": ["sk-live-plaintext"],
+            }
+        )

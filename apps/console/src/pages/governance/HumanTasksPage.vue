@@ -26,11 +26,12 @@
 </template>
 
 <script setup lang="ts">
-import { humanTasks } from "../../api/mockData";
+import { consoleClient } from "../../api/client";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const humanTasks = consoleClient.listHumanTasks().items;
 </script>
 
 <style scoped>

@@ -61,6 +61,16 @@ class AgentManifest(BaseModel):
             raise ValueError("unsupported manifest schema_version")
         return value
 
+    @field_validator("required_secrets")
+    @classmethod
+    def validate_required_secrets_are_refs(cls, value: list[str]) -> list[str]:
+        for secret_ref in value:
+            if secret_ref.startswith(("sk-", "pk-")) or "=" in secret_ref:
+                raise ValueError(
+                    "required_secrets must contain secret reference names, not plaintext"
+                )
+        return value
+
 
 def load_manifest(path: str | Path) -> AgentManifest:
     manifest_path = Path(path)

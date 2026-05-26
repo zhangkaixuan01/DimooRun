@@ -1,0 +1,1 @@
+"""DimooRun command-line interface."""
