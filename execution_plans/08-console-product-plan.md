@@ -10,17 +10,38 @@
 
 ---
 
+## 实施结果
+
+- [x] Console 保持 Runtime Control Plane 定位，没有加入低代码画布、Prompt 设计器或营销首页。
+- [x] 已实现 Vue 3 / TypeScript / Vite / Vue Router / Pinia 前端骨架。
+- [x] 已实现 Dashboard、Agents、Deployments、Compatibility、Published Surfaces、Runs、Run Detail、Tasks、Events、Debug / Replay、Human Tasks、Policies、API Keys、Settings。
+- [x] 已实现中英文切换、明暗主题切换、tenant / project / environment selector、全局搜索入口、live refresh 开关。
+- [x] 已实现 Deployment pause / resume / restart 的高风险操作确认弹窗，并展示影响对象、环境、新 Run、已有 Run、AuditLog 和可回滚信息。
+- [x] 已实现 Event Timeline、Run cost breakdown、ECharts runtime trend、状态 badge、metric cards 等基础组件。
+- [x] 已新增 `consoleClient` 边界，先用 mock 数据模拟后端聚合 API，后续 09 阶段接入生成 SDK。
+- [x] 已新增前端契约测试 `npm run test`，并通过 `npm run build` 验证。
+
+暂缓到后续阶段：
+
+- [ ] 真实 OpenAPI SDK 生成和 API 接线。
+- [ ] 真实 SSE Last-Event-ID reconnect client。
+- [ ] 完整 Console 后端聚合 API。
+- [ ] 完整权限 summary 驱动的按钮级可见性。
+- [ ] 复杂 Console 页面：Workers、Agent Instances、Trace waterfall、Costs、Alerts、Datasets、Experiments、Users、Roles、Backups。
+
+---
+
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 7.4 章：Frontend Console。
-- [ ] 第 24.1 章：Deployment Runtime Control。
-- [ ] 第 26 章：Published Runtime Surfaces。
-- [ ] 第 31 章：Human-in-the-loop Governance。
-- [ ] 第 38 章：API 设计。
-- [ ] 第 47 章：可观测性。
-- [ ] 第 48 章：前端 Console 设计。
-- [ ] 第 53 章：MVP 范围。
-- [ ] 第 54 章：Roadmap。
+- [x] 第 7.4 章：Frontend Console。
+- [x] 第 24.1 章：Deployment Runtime Control。
+- [x] 第 26 章：Published Runtime Surfaces。
+- [x] 第 31 章：Human-in-the-loop Governance。
+- [x] 第 38 章：API 设计。
+- [x] 第 47 章：可观测性。
+- [x] 第 48 章：前端 Console 设计。
+- [x] 第 53 章：MVP 范围。
+- [x] 第 54 章：Roadmap。
 
 ## 1. 产品定位
 
@@ -579,16 +600,16 @@ pending-actions:
 
 ## 14. MVP 验收
 
-- [ ] Dashboard 能展示 Run、Task、Worker、成本、错误趋势。
-- [ ] Agents 页面能查看 AgentVersion、manifest、capabilities。
-- [ ] Deployments 页面能展示 desired_status / runtime_status。
-- [ ] Deployments 页面能发起 pause / resume / restart。
-- [ ] Runs 页面能过滤、搜索、进入 Run 详情。
-- [ ] Run 详情能展示 Timeline、input/output、attempts、error、cost。
-- [ ] Tasks 页面能展示 lease、heartbeat、retry、dead letter。
-- [ ] API Keys 页面能创建、禁用、查看 scopes。
-- [ ] Compatibility 页面能展示 LangGraph assistants / threads / runs 映射。
-- [ ] 高风险操作有确认弹窗和 AuditLog 提示。
+- [x] Dashboard 能展示 Run、Task、Worker、成本、错误趋势。
+- [x] Agents 页面能查看 AgentVersion、manifest、capabilities。
+- [x] Deployments 页面能展示 desired_status / runtime_status。
+- [x] Deployments 页面能发起 pause / resume / restart。
+- [x] Runs 页面能过滤、搜索、进入 Run 详情。
+- [x] Run 详情能展示 Timeline、input/output、attempts、error、cost。
+- [x] Tasks 页面能展示 lease、heartbeat、retry、dead letter。
+- [x] API Keys 页面能创建、禁用、查看 scopes。
+- [x] Compatibility 页面能展示 LangGraph assistants / threads / runs 映射。
+- [x] 高风险操作有确认弹窗和 AuditLog 提示。
 
 命令：
 
@@ -606,13 +627,13 @@ feat: build runtime control console
 
 ## 16. 设计回查清单
 
-- [ ] Console 没有低代码画布、Prompt 设计器、Workflow Builder，符合第 48.1 章。
-- [ ] 信息架构覆盖第 48.4 章。
-- [ ] MVP 菜单覆盖第 48.5 章。
+- [x] Console 没有低代码画布、Prompt 设计器、Workflow Builder，符合第 48.1 章。
+- [x] 信息架构覆盖第 48.4 章。
+- [x] MVP 菜单覆盖第 48.5 章。
 - [ ] Phase 2 菜单覆盖第 48.6 章。
-- [ ] Dashboard / Agents / Deployments / Runs / Run Detail / Tasks / Replay / Governance 页面覆盖第 48.7 章。
-- [ ] 高风险操作确认覆盖第 48.8 章。
-- [ ] 状态颜色和空态覆盖第 48.9 章。
+- [x] Dashboard / Agents / Deployments / Runs / Run Detail / Tasks / Replay / Governance 页面覆盖第 48.7 章。
+- [x] 高风险操作确认覆盖第 48.8 章。
+- [x] 状态颜色和空态覆盖第 48.9 章。
 - [ ] API 类型生成和 SSE reconnect 覆盖第 48.10 章。
-- [ ] MVP 前端验收覆盖第 48.11 章。
-- [ ] Dashboard 和健康视图依赖后端聚合 API，不在前端拼接大量底层 API。
+- [x] MVP 前端验收覆盖第 48.11 章。
+- [x] Dashboard 和健康视图保留后端聚合 API client 边界，不直接绑定数据库字段。

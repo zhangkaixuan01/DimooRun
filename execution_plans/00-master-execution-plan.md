@@ -53,6 +53,7 @@ execution_plans/
 | `05-deployment-runtime-control.md` | 已完成 | Deployment desired-status 控制、AgentInstance 缓存、runtime_status 聚合、RunManager deployment gate、Deployment API 接线、PublishedSurface / IngressRoute 治理边界和字段硬化已落地。 |
 | `06-governance-security-and-model-gateway.md` | 已完成 | RBAC resource:action、ServiceAccount、API Key、Deployment API Bearer API Key 接入、PolicyEngine、ToolGateway、SecretProvider、ModelGatewayProvider、HumanTask、Catalog、Prompt/Config/Template、SandboxPolicy 和治理表字段硬化已落地。 |
 | `07-observability-replay-and-quality.md` | 已完成 | Event / Trace / Audit 三账本边界、递归 redaction / sampling、Artifact Store checksum 写入与读时校验、Run Graph 可持久化投影、ReplayJob、Dataset scope、Experiment / Evaluation / Quality Gate、SemanticStoreProvider、Notification channel scope / Incident trigger value 和观测质量表字段硬化已落地；外部观测导出、生产对象存储和 Console 可视化留给后续阶段。 |
+| `08-console-product-plan.md` | 已完成 | Vue Runtime Control Plane Console 已落地，覆盖 Dashboard、Agents、Deployments、Compatibility、Published Surfaces、Runs、Run Detail、Tasks、Events、Debug / Replay、Human Tasks、Policies、API Keys、Settings，包含中英文切换、明暗主题切换、高风险操作确认、ECharts 趋势图、GSAP 页面动效、Console API client 边界和前端契约测试；真实 OpenAPI SDK 接线留给 09 阶段。 |
 
 最近完成提交：
 

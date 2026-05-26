@@ -77,17 +77,22 @@ Completed implementation phases:
   runtime override propagation, Dataset scope checks, Experiment / Evaluation /
   Quality Gate contracts, Semantic Store provider metadata, Notification /
   Alert incident flow, and hardened observability / quality tables.
+- `08-console-product-plan`: product-grade Vue Runtime Control Plane Console
+  with Dashboard, Agents, Deployments, Compatibility, Published Surfaces, Runs,
+  Run Detail, Tasks, Events, Debug / Replay, Human Tasks, Policies, API Keys,
+  Settings, Chinese / English switching, light / dark theme switching, high-risk
+  operation confirmation, ECharts runtime trends, GSAP-scoped page motion, and
+  frontend contract tests.
 
 Next implementation phase:
 
-- `08-console-product-plan`: product-grade Runtime Control Plane Console for
-  agents, deployments, runs, events, governance, observability, replay, and
-  quality workflows.
+- `09-sdk-cli-compatibility-and-migration`: SDK / CLI / Compatibility API /
+  migration workflow hardening.
 
 The long-running worker process loop, Redis queue command mapping, production
 event store fan-out, production Policy Engine, durable deployment repositories,
 Agent Gateway request forwarding, external observability exporters, production
-Artifact Store backend, and full Console product screens are still planned work.
+Artifact Store backend, and generated Console SDK wiring are still planned work.
 
 ## LangChain Ecosystem Version Policy
 
@@ -180,6 +185,7 @@ Build the Console:
 
 ```bash
 cd apps/console
+npm run test
 npm run build
 ```
 

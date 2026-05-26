@@ -9,6 +9,7 @@ wheels/
 # Node / frontend-generated files
 node_modules/
 apps/console/dist/
+apps/console/dev-server.log
 
 # Virtual environments
 .venv
