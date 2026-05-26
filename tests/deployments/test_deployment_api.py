@@ -1,12 +1,36 @@
+from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.deployments import default_deployment_control, reset_deployment_control
 from dimoo_run.deployments.service import DeploymentRecord
 from dimoo_run.domain.enums import DeploymentDesiredStatus
+from dimoo_run.identity.service_accounts import ServiceAccountRecord
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
 
 def setup_function() -> None:
+    reset_api_key_authenticator()
     reset_deployment_control()
+
+
+def create_api_key(*, scopes: set[str]) -> tuple[str, ServiceAccountRecord]:
+    authenticator = default_api_key_authenticator()
+    service_account = authenticator.service_accounts.create(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        name="runtime",
+        permissions=scopes,
+        created_by="admin_1",
+    )
+    plain_key, _ = authenticator.create_key(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        name="runtime-key",
+        owner_type="service_account",
+        owner_id=service_account.id,
+        scopes=scopes,
+        created_by="admin_1",
+    )
+    return plain_key, service_account
 
 
 def test_deployment_control_api_updates_status_and_lists_instances() -> None:
@@ -32,12 +56,13 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
         execution_profile_id=None,
     )
     service.instances.mark_ready(instance.id)
+    plain_key, service_account = create_api_key(scopes={"agent:read", "agent:deploy"})
     client = TestClient(create_app())
 
     response = client.post(
         "/v1/deployments/deployment_1/activate",
         headers={
-            "X-Actor-Id": "user_1",
+            "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_1",
             "X-Tenant-Id": "tenant_1",
             "X-Project-Id": "project_1",
@@ -45,21 +70,28 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
     )
     instances_response = client.get(
         "/v1/deployments/deployment_1/instances",
-        headers={"X-Tenant-Id": "tenant_1", "X-Project-Id": "project_1"},
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
     )
 
     assert response.status_code == 200
     assert response.json()["desired_status"] == "active"
     assert instances_response.status_code == 200
     assert instances_response.json()[0]["worker_id"] == "worker_1"
+    assert service.audit_sink.entries[0].actor_id == service_account.id
 
 
 def test_deployment_control_api_returns_stable_error_response() -> None:
+    plain_key, _ = create_api_key(scopes={"agent:deploy"})
     client = TestClient(create_app())
 
     response = client.post(
         "/v1/deployments/missing/activate",
         headers={
+            "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_missing",
             "X-Tenant-Id": "tenant_1",
             "X-Project-Id": "project_1",
@@ -97,16 +129,25 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
             environment="dev",
         )
     )
+    plain_key, _ = create_api_key(scopes={"agent:read"})
     client = TestClient(create_app())
 
     missing_scope = client.get("/v1/deployments", headers={"X-Request-Id": "req_scope"})
     scoped = client.get(
         "/v1/deployments",
-        headers={"X-Tenant-Id": "tenant_1", "X-Project-Id": "project_1"},
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
     )
     cross_scope = client.get(
         "/v1/deployments/deployment_2",
-        headers={"X-Tenant-Id": "tenant_1", "X-Project-Id": "project_1"},
+        headers={
+            "Authorization": f"Bearer {plain_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
     )
 
     assert missing_scope.status_code == 400
@@ -114,3 +155,37 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
     assert [deployment["id"] for deployment in scoped.json()] == ["deployment_1"]
     assert cross_scope.status_code == 404
     assert cross_scope.json()["error_code"] == "deployment_not_found"
+
+
+def test_deployment_control_api_requires_api_key_with_deploy_scope() -> None:
+    service = default_deployment_control()
+    service.deployments.add(
+        DeploymentRecord(
+            id="deployment_1",
+            tenant_id="tenant_1",
+            project_id="project_1",
+            agent_id="agent_1",
+            agent_version_id="version_1",
+            environment="dev",
+        )
+    )
+    read_only_key, _ = create_api_key(scopes={"agent:read"})
+    client = TestClient(create_app())
+
+    missing_auth = client.post(
+        "/v1/deployments/deployment_1/activate",
+        headers={"X-Tenant-Id": "tenant_1", "X-Project-Id": "project_1"},
+    )
+    insufficient_scope = client.post(
+        "/v1/deployments/deployment_1/activate",
+        headers={
+            "Authorization": f"Bearer {read_only_key}",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+    )
+
+    assert missing_auth.status_code == 401
+    assert missing_auth.json()["error_code"] == "api_key_invalid"
+    assert insufficient_scope.status_code == 403
+    assert insufficient_scope.json()["error_code"] == "api_key_scope_denied"

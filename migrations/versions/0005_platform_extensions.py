@@ -8,7 +8,13 @@ Create Date: 2026-05-24
 from alembic import op
 from sqlalchemy import JSON, Boolean, Column, ForeignKey, String, text
 
-from migrations.table_helpers import audit_columns, create_placeholder_table, drop_tables, id_column
+from migrations.table_helpers import (
+    audit_columns,
+    create_placeholder_table,
+    drop_tables,
+    id_column,
+    tenant_project_columns,
+)
 
 revision = "0005_platform_extensions"
 down_revision = "0004_observability_quality"
@@ -85,7 +91,92 @@ def upgrade() -> None:
         sqlite_where=text("is_deleted = 0"),
         postgresql_where=text("is_deleted = false"),
     )
-    for table_name in TABLE_NAMES[2:]:
+    op.create_table(
+        "catalog_items",
+        id_column(),
+        *tenant_project_columns(project_nullable=True),
+        Column("type", String(128), nullable=False),
+        Column("name", String(255), nullable=False),
+        Column("provider", String(255), nullable=False),
+        Column("version", String(128), nullable=False),
+        Column("schema_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("capabilities_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("risk_level", String(64), nullable=False),
+        Column("required_secrets_json", JSON, nullable=False, server_default=text("'[]'")),
+        Column("required_permissions_json", JSON, nullable=False, server_default=text("'[]'")),
+        Column("runtime_requirements_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("status", String(64), nullable=False, server_default="active"),
+        *audit_columns(),
+    )
+    op.create_index(
+        "uq_catalog_items_scope_type_name_version_active",
+        "catalog_items",
+        ["tenant_id", "project_id", "type", "name", "version"],
+        unique=True,
+        sqlite_where=text("is_deleted = 0"),
+        postgresql_where=text("is_deleted = false"),
+    )
+    op.create_table(
+        "prompt_assets",
+        id_column(),
+        *tenant_project_columns(project_nullable=True),
+        Column("name", String(255), nullable=False),
+        Column("version", String(128), nullable=False),
+        Column("content_ref", String(1024), nullable=False),
+        Column("variables_schema_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("visibility_level", String(64), nullable=False, server_default="internal"),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    op.create_index(
+        "uq_prompt_assets_scope_name_version_active",
+        "prompt_assets",
+        ["tenant_id", "project_id", "name", "version"],
+        unique=True,
+        sqlite_where=text("is_deleted = 0"),
+        postgresql_where=text("is_deleted = false"),
+    )
+    op.create_table(
+        "config_assets",
+        id_column(),
+        *tenant_project_columns(project_nullable=True),
+        Column("name", String(255), nullable=False),
+        Column("version", String(128), nullable=False),
+        Column("schema_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("content_ref", String(1024), nullable=False),
+        Column("environment", String(128)),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    op.create_index(
+        "uq_config_assets_scope_name_version_active",
+        "config_assets",
+        ["tenant_id", "project_id", "name", "version"],
+        unique=True,
+        sqlite_where=text("is_deleted = 0"),
+        postgresql_where=text("is_deleted = false"),
+    )
+    op.create_table(
+        "templates",
+        id_column(),
+        *tenant_project_columns(project_nullable=True),
+        Column("type", String(128), nullable=False),
+        Column("name", String(255), nullable=False),
+        Column("version", String(128), nullable=False),
+        Column("content_ref", String(1024), nullable=False),
+        Column("schema_json", JSON, nullable=False, server_default=text("'{}'")),
+        Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
+        *audit_columns(),
+    )
+    op.create_index(
+        "uq_templates_scope_type_name_version_active",
+        "templates",
+        ["tenant_id", "project_id", "type", "name", "version"],
+        unique=True,
+        sqlite_where=text("is_deleted = 0"),
+        postgresql_where=text("is_deleted = false"),
+    )
+    for table_name in TABLE_NAMES[6:]:
         create_placeholder_table(table_name)
 
 

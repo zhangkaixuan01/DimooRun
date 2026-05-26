@@ -4,6 +4,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -375,6 +376,267 @@ class Secret(IdMixin, TimestampMixin, Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ExecutionProfile(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "execution_profiles"
+    __table_args__ = (
+        Index(
+            "uq_execution_profiles_scope_name_active",
+            "tenant_id",
+            "project_id",
+            "name",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    isolation_level: Mapped[str] = mapped_column(String(64), nullable=False)
+    image: Mapped[str | None] = mapped_column(String(512))
+    python_version: Mapped[str | None] = mapped_column(String(64))
+    dependency_lock_required: Mapped[bool] = mapped_column(default=True, nullable=False)
+    network_policy: Mapped[str] = mapped_column(String(128), nullable=False)
+    filesystem_policy: Mapped[str] = mapped_column(String(128), nullable=False)
+    cpu_limit: Mapped[str | None] = mapped_column(String(64))
+    memory_limit: Mapped[str | None] = mapped_column(String(64))
+    timeout_seconds: Mapped[int | None] = mapped_column(Integer)
+    allowed_env_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    allowed_secret_refs_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    allowed_gateway_refs_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class Policy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "policies"
+
+    type: Mapped[str] = mapped_column(String(128), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    decision: Mapped[str] = mapped_column(String(64), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    risk_level: Mapped[str | None] = mapped_column(String(64))
+    condition_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class PolicyDecisionRecord(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "policy_decisions"
+
+    policy_id: Mapped[str | None] = mapped_column(ForeignKey("policies.id"))
+    resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    decision: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(255))
+    actor_id: Mapped[str | None] = mapped_column(String(64))
+    actor_type: Mapped[str | None] = mapped_column(String(64))
+    matched_policy_ids_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ModelGateway(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "model_gateways"
+    __table_args__ = (
+        Index(
+            "uq_model_gateways_scope_name_active",
+            "tenant_id",
+            "project_id",
+            "name",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    base_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    credential_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+    default_model_group: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ModelPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "model_policies"
+
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"))
+    agent_version_id: Mapped[str | None] = mapped_column(ForeignKey("agent_versions.id"))
+    gateway_id: Mapped[str] = mapped_column(ForeignKey("model_gateways.id"), nullable=False)
+    allowed_models_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    denied_models_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    default_model: Mapped[str] = mapped_column(String(255), nullable=False)
+    max_tokens_per_run: Mapped[int | None] = mapped_column(Integer)
+    max_cost_per_run: Mapped[float | None] = mapped_column(Float)
+    max_cost_per_day: Mapped[float | None] = mapped_column(Float)
+    fallback_policy_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    on_budget_exceeded: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class ModelUsageSnapshot(IdMixin, TimestampMixin, Base):
+    __tablename__ = "model_usage_snapshots"
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    gateway_id: Mapped[str] = mapped_column(ForeignKey("model_gateways.id"), nullable=False)
+    gateway_request_id: Mapped[str | None] = mapped_column(String(255))
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(128))
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cost: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    currency: Mapped[str] = mapped_column(String(16), default="USD", nullable=False)
+    raw_usage_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class HumanTask(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "human_tasks"
+
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
+    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
+    assignee_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    assignee_role: Mapped[str | None] = mapped_column(String(128))
+    payload_ref: Mapped[str | None] = mapped_column(String(1024))
+    decision_ref: Mapped[str | None] = mapped_column(String(1024))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ApprovalRequest(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "approval_requests"
+
+    human_task_id: Mapped[str] = mapped_column(ForeignKey("human_tasks.id"), nullable=False)
+    requested_by: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
+    decision_ref: Mapped[str | None] = mapped_column(String(1024))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ApprovalPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "approval_policies"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    risk_level: Mapped[str | None] = mapped_column(String(64))
+    condition_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    required_role: Mapped[str] = mapped_column(String(128), nullable=False)
+    timeout_seconds: Mapped[int | None] = mapped_column(Integer)
+    on_timeout: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class CatalogItem(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "catalog_items"
+    __table_args__ = (
+        Index(
+            "uq_catalog_items_scope_type_name_version_active",
+            "tenant_id",
+            "project_id",
+            "type",
+            "name",
+            "version",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    type: Mapped[str] = mapped_column(String(128), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(128), nullable=False)
+    schema_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    capabilities_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(64), nullable=False)
+    required_secrets_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    required_permissions_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    runtime_requirements_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class PromptAsset(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "prompt_assets"
+    __table_args__ = (
+        Index(
+            "uq_prompt_assets_scope_name_version_active",
+            "tenant_id",
+            "project_id",
+            "name",
+            "version",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(128), nullable=False)
+    content_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    variables_schema_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    visibility_level: Mapped[str] = mapped_column(String(64), default="internal", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ConfigAsset(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "config_assets"
+    __table_args__ = (
+        Index(
+            "uq_config_assets_scope_name_version_active",
+            "tenant_id",
+            "project_id",
+            "name",
+            "version",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(128), nullable=False)
+    schema_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    content_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    environment: Mapped[str | None] = mapped_column(String(128))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class Template(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "templates"
+    __table_args__ = (
+        Index(
+            "uq_templates_scope_type_name_version_active",
+            "tenant_id",
+            "project_id",
+            "type",
+            "name",
+            "version",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    type: Mapped[str] = mapped_column(String(128), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(128), nullable=False)
+    content_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    schema_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class AuditLog(IdMixin, AuditMixin, Base):
     __tablename__ = "audit_logs"
     __table_args__ = {"info": {"immutable": True}}
@@ -431,10 +693,6 @@ def create_metadata_model(table_name: str) -> type[Base]:
 
 
 for _table_name in [
-    "catalog_items",
-    "prompt_assets",
-    "config_assets",
-    "templates",
     "run_graph_nodes",
     "run_graph_edges",
     "datasets",
@@ -448,14 +706,6 @@ for _table_name in [
     "replay_jobs",
     "memory_blocks",
     "semantic_store_providers",
-    "model_gateways",
-    "model_policies",
-    "model_usage_snapshots",
-    "policies",
-    "policy_decisions",
-    "human_tasks",
-    "approval_requests",
-    "approval_policies",
     "artifacts",
     "notification_channels",
     "alert_rules",

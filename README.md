@@ -55,18 +55,24 @@ Completed implementation phases:
   events are appended incrementally, retryable failures emit `task.retrying`
   without marking the Run terminal, and terminal failures emit `run.failed` /
   `stream.failed`. Event `sequence` and `event_id` are required fields with a
-  per-run sequence uniqueness constraint.
+  per-run sequence uniqueness constraint. The in-memory lease reaper requeues
+  expired leased and running tasks so worker loss does not leave tasks stuck.
 - `05-deployment-runtime-control`: Deployment desired-status control,
   AgentInstance cache semantics, runtime-status aggregation, Deployment API
   control routes, RunManager deployment gating, and governed PublishedSurface /
   IngressRoute boundaries.
+- `06-governance-security-and-model-gateway`: RBAC resource/action permissions,
+  ServiceAccounts, API Key authentication, Policy Engine decisions and audit
+  records, Deployment API Bearer API Key scope checks, Tool Gateway approval
+  boundaries, SecretProvider policy checks, Model Gateway / New API
+  configuration boundaries with tenant/project scope validation, HITL tasks, Catalog,
+  Prompt/Config/Template assets, Sandbox Policy, and hardened governance tables.
 
 Next implementation phase:
 
-- `06-governance-security-and-model-gateway`: RBAC, API keys,
-  ServiceAccounts, Policy Engine, Tool Gateway, SecretProvider, Model Gateway /
-  New API integration, HITL governance, Catalog, Prompt/Config/Template assets,
-  and Sandbox Policy.
+- `07-observability-replay-and-quality`: trace, run graph, artifacts, datasets,
+  experiments, evaluation, feedback, replay quality loops, and observability
+  provider boundaries.
 
 The long-running worker process loop, Redis queue command mapping, production
 event store fan-out, production Policy Engine, durable deployment repositories,

@@ -49,8 +49,9 @@ execution_plans/
 | `01-project-foundation.md` | 已完成 | 项目骨架、Server、Worker、Console scaffold、基础测试已落地。 |
 | `02-domain-persistence-and-api.md` | 已完成 | 领域模型、迁移、Repository、API skeleton、OpenAPI、审计/软删除契约已落地并通过验证。 |
 | `03-agent-package-and-adapters.md` | 已完成 | Agent Package manifest、entrypoint loader、Adapter contract、RuntimeContext、版本治理、Conformance Kit 和三类早期 Adapter 已落地。 |
-| `04-runtime-task-worker-streaming.md` | 已完成 | 状态机、幂等、InMemory TaskBackend、lease / heartbeat / retry / dead letter、fencing token、ReplayBuffer、SSE 编码、CheckpointIndex、ReplayScheduler 和 Worker fake-adapter 执行闭环已落地；Redis 命令映射保留为生产阶段边界。 |
+| `04-runtime-task-worker-streaming.md` | 已完成 | 状态机、幂等、InMemory TaskBackend、lease / heartbeat / retry / dead letter、fencing token、ReplayBuffer、SSE 编码、CheckpointIndex、ReplayScheduler 和 Worker fake-adapter 执行闭环已落地；lease reaper 会回收 expired leased/running task；Redis 命令映射保留为生产阶段边界。 |
 | `05-deployment-runtime-control.md` | 已完成 | Deployment desired-status 控制、AgentInstance 缓存、runtime_status 聚合、RunManager deployment gate、Deployment API 接线、PublishedSurface / IngressRoute 治理边界和字段硬化已落地。 |
+| `06-governance-security-and-model-gateway.md` | 已完成 | RBAC resource:action、ServiceAccount、API Key、Deployment API Bearer API Key 接入、PolicyEngine、ToolGateway、SecretProvider、ModelGatewayProvider、HumanTask、Catalog、Prompt/Config/Template、SandboxPolicy 和治理表字段硬化已落地。 |
 
 最近完成提交：
 

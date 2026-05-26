@@ -31,6 +31,7 @@ REQUIRED_TABLES = {
     "permissions",
     "api_keys",
     "idempotency_records",
+    "execution_profiles",
     "agents",
     "agent_versions",
     "deployments",
@@ -133,6 +134,7 @@ def test_metadata_tables_have_tenant_and_project_foreign_keys() -> None:
         "checkpoint_indexes",
         "tools",
         "secrets",
+        "execution_profiles",
         "audit_logs",
         "idempotency_records",
     }
@@ -276,6 +278,92 @@ def test_gateway_tables_have_active_uniqueness_indexes() -> None:
     assert "is_deleted" in str(route_index.dialect_options["sqlite"]["where"])
 
 
+def test_governance_security_and_model_gateway_tables_are_hardened() -> None:
+    hardened_columns = {
+        "policies": {"type", "resource_type", "action", "decision", "priority", "condition_json"},
+        "policy_decisions": {
+            "policy_id",
+            "resource_type",
+            "resource_id",
+            "action",
+            "decision",
+            "reason",
+        },
+        "model_gateways": {
+            "name",
+            "provider_type",
+            "base_url",
+            "credential_ref",
+            "default_model_group",
+        },
+        "model_policies": {
+            "gateway_id",
+            "default_model",
+            "allowed_models_json",
+            "max_cost_per_run",
+            "on_budget_exceeded",
+        },
+        "model_usage_snapshots": {
+            "run_id",
+            "attempt_id",
+            "gateway_id",
+            "model",
+            "total_tokens",
+            "cost",
+            "currency",
+        },
+        "human_tasks": {"run_id", "type", "assignee_role", "payload_ref", "expires_at"},
+        "approval_requests": {"human_task_id", "requested_by", "status", "decision_ref"},
+        "approval_policies": {
+            "name",
+            "resource_type",
+            "action",
+            "risk_level",
+            "required_role",
+            "on_timeout",
+        },
+        "catalog_items": {
+            "type",
+            "name",
+            "provider",
+            "version",
+            "schema_json",
+            "risk_level",
+        },
+        "prompt_assets": {"name", "version", "content_ref", "variables_schema_json"},
+        "config_assets": {"name", "version", "content_ref", "schema_json", "environment"},
+        "templates": {"name", "version", "type", "content_ref"},
+        "execution_profiles": {
+            "name",
+            "isolation_level",
+            "network_policy",
+            "filesystem_policy",
+            "allowed_env_json",
+        },
+    }
+
+    for table_name, columns in hardened_columns.items():
+        table = Base.metadata.tables[table_name]
+        assert table.info.get("placeholder") is not True, table_name
+        assert columns <= set(table.columns.keys()), table_name
+
+
+def test_governance_active_uniqueness_indexes_are_present() -> None:
+    expected_indexes = {
+        "catalog_items": "uq_catalog_items_scope_type_name_version_active",
+        "prompt_assets": "uq_prompt_assets_scope_name_version_active",
+        "config_assets": "uq_config_assets_scope_name_version_active",
+        "templates": "uq_templates_scope_type_name_version_active",
+        "model_gateways": "uq_model_gateways_scope_name_active",
+        "execution_profiles": "uq_execution_profiles_scope_name_active",
+    }
+
+    for table_name, index_name in expected_indexes.items():
+        indexes = {index.name: index for index in Base.metadata.tables[table_name].indexes}
+        assert index_name in indexes, table_name
+        assert indexes[index_name].unique is True
+
+
 def test_metadata_tables_can_be_created_in_sqlite() -> None:
     from sqlalchemy import create_engine
 
@@ -300,10 +388,6 @@ def test_datetime_columns_are_timezone_aware() -> None:
 
 def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> None:
     placeholder_tables = {
-        "catalog_items",
-        "prompt_assets",
-        "config_assets",
-        "templates",
         "run_graph_nodes",
         "run_graph_edges",
         "datasets",
@@ -317,14 +401,6 @@ def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> Non
         "replay_jobs",
         "memory_blocks",
         "semantic_store_providers",
-        "model_gateways",
-        "model_policies",
-        "model_usage_snapshots",
-        "policies",
-        "policy_decisions",
-        "human_tasks",
-        "approval_requests",
-        "approval_policies",
         "artifacts",
         "notification_channels",
         "alert_rules",

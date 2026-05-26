@@ -9,7 +9,7 @@ class LeaseReaper:
         before = {
             task_id
             for task_id, task in self.backend.tasks.items()
-            if task.status == "leased" and task.leased_until is not None
+            if task.status in {"leased", "running"} and task.leased_until is not None
         }
         self.backend.reap_expired_leases()
         return [

@@ -166,10 +166,13 @@ class InMemoryTaskBackend:
         now = self._now()
         for task in self.tasks.values():
             if (
-                task.status == "leased"
+                task.status in {"leased", "running"}
                 and task.leased_until is not None
                 and task.leased_until < now
             ):
+                if task.status == "running":
+                    self._transition(task, "retrying")
+                    task.status = "retrying"
                 self._transition(task, "queued")
                 task.status = "queued"
                 task.worker_id = None

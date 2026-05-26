@@ -4,7 +4,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 
-from dimoo_run.api.dependencies import RequestIdHeader
+from dimoo_run.api.dependencies import AuthorizationHeader, RequestIdHeader, authenticate_api_key
 from dimoo_run.deployments.service import (
     DeploymentNotFoundError,
     DeploymentRecord,
@@ -55,6 +55,7 @@ def list_deployments(
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> list[DeploymentRead] | JSONResponse:
     scope_error = require_scope(
         tenant_id=x_tenant_id,
@@ -63,6 +64,16 @@ def list_deployments(
     )
     if scope_error is not None:
         return scope_error
+    assert x_tenant_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:read",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
     return [
         deployment_to_read(deployment)
         for deployment in service.deployments.list(
@@ -83,6 +94,7 @@ def get_deployment(
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
     scope_error = require_scope(
         tenant_id=x_tenant_id,
@@ -91,6 +103,16 @@ def get_deployment(
     )
     if scope_error is not None:
         return scope_error
+    assert x_tenant_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:read",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
     try:
         deployment = service.deployments.get(deployment_id)
     except DeploymentNotFoundError:
@@ -117,6 +139,7 @@ def list_deployment_instances(
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> list[AgentInstanceRead] | JSONResponse:
     scope_error = require_scope(
         tenant_id=x_tenant_id,
@@ -125,6 +148,16 @@ def list_deployment_instances(
     )
     if scope_error is not None:
         return scope_error
+    assert x_tenant_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:read",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
     try:
         deployment = service.deployments.get(deployment_id)
         if not deployment_in_scope(deployment, tenant_id=x_tenant_id, project_id=x_project_id):
@@ -137,11 +170,12 @@ def list_deployment_instances(
 def control_response(
     deployment_id: str,
     *,
-    action: Callable[[str], DeploymentRecord],
+    action: Callable[[str, str], DeploymentRecord],
     service: DeploymentRuntimeControlService,
     request_id: str | None,
     tenant_id: str | None,
     project_id: str | None,
+    authorization: str | None,
 ) -> DeploymentRead | JSONResponse:
     scope_error = require_scope(
         tenant_id=tenant_id,
@@ -150,6 +184,16 @@ def control_response(
     )
     if scope_error is not None:
         return scope_error
+    assert tenant_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        required_scope="agent:deploy",
+        request_id=request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
     try:
         deployment_scope = service.deployments.get(deployment_id)
         if not deployment_in_scope(
@@ -158,7 +202,7 @@ def control_response(
             project_id=project_id,
         ):
             return deployment_not_found(deployment_id, request_id)
-        deployment = action(deployment_id)
+        deployment = action(deployment_id, auth.actor_id)
     except DeploymentNotFoundError:
         return deployment_not_found(deployment_id, request_id)
     except PolicyDeniedError as exc:
@@ -184,13 +228,15 @@ def activate_deployment(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
     x_actor_id: ActorIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
+    _ = x_actor_id
     return control_response(
         deployment_id,
         service=service,
-        action=lambda value: service.activate(
+        action=lambda value, actor_id: service.activate(
             value,
-            actor_id=x_actor_id,
+            actor_id=actor_id,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             request_id=x_request_id,
@@ -198,6 +244,7 @@ def activate_deployment(
         request_id=x_request_id,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
+        authorization=authorization,
     )
 
 
@@ -213,13 +260,15 @@ def pause_deployment(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
     x_actor_id: ActorIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
+    _ = x_actor_id
     return control_response(
         deployment_id,
         service=service,
-        action=lambda value: service.pause(
+        action=lambda value, actor_id: service.pause(
             value,
-            actor_id=x_actor_id,
+            actor_id=actor_id,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             request_id=x_request_id,
@@ -227,6 +276,7 @@ def pause_deployment(
         request_id=x_request_id,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
+        authorization=authorization,
     )
 
 
@@ -242,13 +292,15 @@ def resume_deployment(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
     x_actor_id: ActorIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
+    _ = x_actor_id
     return control_response(
         deployment_id,
         service=service,
-        action=lambda value: service.resume(
+        action=lambda value, actor_id: service.resume(
             value,
-            actor_id=x_actor_id,
+            actor_id=actor_id,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             request_id=x_request_id,
@@ -256,6 +308,7 @@ def resume_deployment(
         request_id=x_request_id,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
+        authorization=authorization,
     )
 
 
@@ -271,13 +324,15 @@ def drain_deployment(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
     x_actor_id: ActorIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
+    _ = x_actor_id
     return control_response(
         deployment_id,
         service=service,
-        action=lambda value: service.drain(
+        action=lambda value, actor_id: service.drain(
             value,
-            actor_id=x_actor_id,
+            actor_id=actor_id,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             request_id=x_request_id,
@@ -285,6 +340,7 @@ def drain_deployment(
         request_id=x_request_id,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
+        authorization=authorization,
     )
 
 
@@ -300,13 +356,15 @@ def stop_deployment(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
     x_actor_id: ActorIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
+    _ = x_actor_id
     return control_response(
         deployment_id,
         service=service,
-        action=lambda value: service.stop(
+        action=lambda value, actor_id: service.stop(
             value,
-            actor_id=x_actor_id,
+            actor_id=actor_id,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             request_id=x_request_id,
@@ -314,6 +372,7 @@ def stop_deployment(
         request_id=x_request_id,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
+        authorization=authorization,
     )
 
 
@@ -329,13 +388,15 @@ def restart_deployment(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
     x_actor_id: ActorIdHeader = None,
+    authorization: AuthorizationHeader = None,
 ) -> DeploymentRead | JSONResponse:
+    _ = x_actor_id
     return control_response(
         deployment_id,
         service=service,
-        action=lambda value: service.restart(
+        action=lambda value, actor_id: service.restart(
             value,
-            actor_id=x_actor_id,
+            actor_id=actor_id,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             request_id=x_request_id,
@@ -343,6 +404,7 @@ def restart_deployment(
         request_id=x_request_id,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
+        authorization=authorization,
     )
 
 

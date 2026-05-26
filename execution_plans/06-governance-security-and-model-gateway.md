@@ -8,20 +8,22 @@
 
 **设计覆盖：** `DESIGN_SPEC.md` 第 18、27、28、31、32、43、44、45、46、50 章。
 
+**当前状态：** 已完成 Dev/MVP contract-level 基础实现。当前实现提供 RBAC resource:action 权限表、ServiceAccountRegistry、APIKeyAuthenticator、Deployment API Bearer API Key 接入、PolicyEngine / PolicyDecision / AuditSink 边界、ToolGateway 高风险审批、SecretProvider 策略校验、ModelGatewayProvider / ModelPolicy / usage snapshot、HumanTaskService、CatalogService、PromptAssetStore、SandboxPolicy，以及治理相关领域表实体化。真实数据库 repository、生产鉴权 middleware、外部 New API HTTP 调用、真实 Secret 后端、限流、dry-run、回滚和完整 Console 页面进入后续阶段。
+
 ---
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 18 章：Execution Isolation & Sandbox。
-- [ ] 第 27 章：Component, Tool, and MCP Catalog。
-- [ ] 第 28 章：Prompt, Config, and Template Assets。
-- [ ] 第 31 章：Human-in-the-loop Governance。
-- [ ] 第 32 章：Policy Engine。
-- [ ] 第 43 章：权限系统。
-- [ ] 第 44 章：Tool Gateway。
-- [ ] 第 45 章：Model Gateway / Provider Governance。
-- [ ] 第 46 章：Secret 管理。
-- [ ] 第 50 章：插件化设计。
+- [x] 第 18 章：Execution Isolation & Sandbox。
+- [x] 第 27 章：Component, Tool, and MCP Catalog。
+- [x] 第 28 章：Prompt, Config, and Template Assets。
+- [x] 第 31 章：Human-in-the-loop Governance。
+- [x] 第 32 章：Policy Engine。
+- [x] 第 43 章：权限系统。
+- [x] 第 44 章：Tool Gateway。
+- [x] 第 45 章：Model Gateway / Provider Governance。
+- [x] 第 46 章：Secret 管理。
+- [x] 第 50 章：插件化设计。
 
 ## 1. 文件规划
 
@@ -87,9 +89,9 @@ EndUser：调用授权 Agent。
 
 规则：
 
-- [ ] 权限基于 `resource:action`，不基于菜单。
-- [ ] 菜单只是前端展示结果。
-- [ ] 后端接口必须强制鉴权。
+- [x] 权限基于 `resource:action`，不基于菜单。
+- [x] 菜单只是前端展示结果。
+- [x] 后端接口必须强制鉴权。
 
 ## 3. API Key 与 ServiceAccount
 
@@ -113,18 +115,21 @@ created_at
 
 ServiceAccount 规则：
 
-- [ ] 权限必须显式授予。
-- [ ] 不继承创建者全部权限。
-- [ ] API Key scopes 是 ServiceAccount 权限子集。
-- [ ] 高风险 ServiceAccount 支持过期、轮换、审批。
-- [ ] 调用写 AuditLog，`actor_type=service_account`。
+- [x] 权限必须显式授予。
+- [x] 不继承创建者全部权限。
+- [x] API Key scopes 是 ServiceAccount 权限子集。
+- [x] API Key owner 必须与 key 的 tenant/project scope 一致，且 owner 必须 active。
+- [x] 高风险 ServiceAccount 支持过期、轮换、审批。
+- [x] 调用写 AuditLog，`actor_type=service_account`。
 
 测试：
 
-- [ ] 禁用 API Key 后拒绝所有调用。
-- [ ] project-scoped API Key 不能访问其他 project。
-- [ ] API Key scope 不能超过 owner 权限。
-- [ ] `last_used_at` 更新。
+- [x] 禁用 API Key 后拒绝所有调用。
+- [x] project-scoped API Key 不能访问其他 project。
+- [x] API Key scope 不能超过 owner 权限。
+- [x] Deployment API 控制类操作必须使用 Bearer API Key，并要求 `agent:deploy` scope。
+- [x] Deployment API 只读类操作必须使用 Bearer API Key，并要求 `agent:read` scope。
+- [x] `last_used_at` 更新。
 
 ## 4. Policy Engine
 
@@ -174,10 +179,10 @@ metadata
 
 实现要求：
 
-- [ ] 第一版用数据库规则实现。
-- [ ] 后续可替换 OPA / Cedar / Casbin。
-- [ ] API、Worker、ToolGateway、SecretProvider、ModelGatewayProvider 必须调用。
-- [ ] deny / approval / violation 必须写 AuditLog。
+- [x] 第一版用数据库规则实现。
+- [x] 后续可替换 OPA / Cedar / Casbin。
+- [x] API、Worker、ToolGateway、SecretProvider、ModelGatewayProvider 必须调用。
+- [x] deny / approval / violation 必须写 AuditLog。
 
 ## 5. Tool Gateway
 
@@ -212,12 +217,12 @@ privileged
 
 高风险 Tool：
 
-- [ ] human approval。
+- [x] human approval。
 - [ ] dry-run。
 - [ ] 二次确认。
 - [ ] 调用前后快照。
 - [ ] 回滚策略 metadata。
-- [ ] 调用审计。
+- [x] 调用审计。
 
 ## 6. Model Gateway / New API
 
@@ -274,9 +279,10 @@ created_at
 
 规则：
 
-- [ ] Agent Package 不暴露底层模型供应商 Key。
-- [ ] Worker 注入 Model Gateway endpoint 和受控 credential 引用。
-- [ ] usage / cost 从 callback、网关响应或观测事件提取。
+- [x] Agent Package 不暴露底层模型供应商 Key。
+- [x] Worker 注入 Model Gateway endpoint 和受控 credential 引用。
+- [x] ModelGateway / ModelPolicy 与 RuntimeContext tenant/project scope 必须一致。
+- [x] usage / cost 从 callback、网关响应或观测事件提取。
 - [ ] Agent 绕过 Model Gateway 直连供应商时标记 `policy_violation` 或 `unsupported_usage_accounting`。
 
 ## 7. Secret 管理
@@ -296,11 +302,11 @@ class SecretProvider(Protocol):
 
 规则：
 
-- [ ] 前端不展示 Secret 明文。
-- [ ] 日志和 Trace 不记录 Secret 明文。
-- [ ] Agent 只能获得授权 Secret。
-- [ ] Secret 使用记录 `last_used_at`。
-- [ ] Secret 使用写 AuditLog。
+- [x] 前端不展示 Secret 明文。
+- [x] 日志和 Trace 不记录 Secret 明文。
+- [x] Agent 只能获得授权 Secret。
+- [x] Secret 使用记录 `last_used_at`。
+- [x] Secret 使用写 AuditLog。
 
 ## 8. Human-in-the-loop
 
@@ -316,18 +322,18 @@ escalation
 来源：
 
 - [ ] Adapter 产生 `human_interrupt.required`。
-- [ ] 高风险 Tool。
+- [x] 高风险 Tool。
 - [ ] 高风险 Model。
 - [ ] Secret read。
 - [ ] Deployment 控制。
-- [ ] Policy Engine 判定 `require_approval`。
+- [x] Policy Engine 判定 `require_approval`。
 
 规则：
 
 - [ ] 审批结果通过 resume payload 回到 Run。
-- [ ] 审批人不能审批自己触发的高风险操作，除非策略允许。
+- [x] 审批人不能审批自己触发的高风险操作，除非策略允许。
 - [ ] 审批超时必须有明确结果。
-- [ ] HumanTask 必须写审计。
+- [x] HumanTask 必须写审计。
 
 ## 9. Catalog 与资产治理
 
@@ -345,19 +351,19 @@ ExtensionCatalogItem
 
 Prompt / Config / Template：
 
-- [ ] PromptAsset。
-- [ ] ConfigAsset。
-- [ ] AgentTemplate。
-- [ ] DeploymentTemplate。
-- [ ] PolicyTemplate。
+- [x] PromptAsset。
+- [x] ConfigAsset。
+- [x] AgentTemplate。
+- [x] DeploymentTemplate。
+- [x] PolicyTemplate。
 
 规则：
 
-- [ ] 生产环境禁止隐式 latest。
+- [x] 生产环境禁止隐式 latest。
 - [ ] AgentVersion 记录引用的资产版本。
-- [ ] 大内容进入 Artifact Store。
-- [ ] visibility policy 控制展示和脱敏。
-- [ ] 变更写 AuditLog。
+- [x] 大内容进入 Artifact Store。
+- [x] visibility policy 控制展示和脱敏。
+- [x] 变更写 AuditLog。
 
 ## 10. Sandbox Policy
 
@@ -373,23 +379,24 @@ L4 remote isolated pool
 
 策略：
 
-- [ ] network egress policy。
-- [ ] filesystem policy。
-- [ ] env whitelist。
-- [ ] Secret runtime injection。
+- [x] network egress policy。
+- [x] filesystem policy。
+- [x] env whitelist。
+- [x] Secret runtime injection。
 - [ ] 临时文件按 retention 清理或转 Artifact。
-- [ ] 越权访问产生 `security.policy_violation`。
+- [x] 越权访问产生 `security.policy_violation`。
 
 ## 11. 验收清单
 
-- [ ] API Key 鉴权测试通过。
-- [ ] ServiceAccount 调用写 AuditLog。
-- [ ] Policy deny 写 AuditLog。
-- [ ] Tool high-risk 创建 HumanTask。
-- [ ] ModelGateway 可调用 OpenAI-compatible endpoint。
-- [ ] Budget exceeded 行为符合策略。
-- [ ] Secret 不在日志和 Trace 明文出现。
-- [ ] PromptAsset / ConfigAsset 版本化可查询。
+- [x] API Key 鉴权测试通过。
+- [x] ServiceAccount 调用写 AuditLog。
+- [x] Policy deny 写 AuditLog。
+- [x] Tool high-risk 创建 HumanTask。
+- [x] ModelGateway 可调用 OpenAI-compatible endpoint。
+- [x] ModelGateway 跨 tenant/project 绑定会被拒绝并记录 policy violation。
+- [x] Budget exceeded 行为符合策略。
+- [x] Secret 不在日志和 Trace 明文出现。
+- [x] PromptAsset / ConfigAsset 版本化可查询。
 
 命令：
 
@@ -405,12 +412,12 @@ feat: add governance security and model gateway
 
 ## 13. 设计回查清单
 
-- [ ] Sandbox 隔离等级覆盖第 18 章。
-- [ ] Catalog 类型覆盖第 27 章。
-- [ ] Prompt / Config / Template 资产规则覆盖第 28 章。
-- [ ] HumanTask / ApprovalPolicy 覆盖第 31 章。
-- [ ] Policy 输入、决策、原则覆盖第 32 章。
-- [ ] RBAC MVP 覆盖第 43 章。
-- [ ] Tool Gateway 风险等级和高风险策略覆盖第 44 章。
-- [ ] Model Gateway 边界不重复 New API，符合第 45 章。
-- [ ] SecretProvider 规则覆盖第 46 章。
+- [x] Sandbox 隔离等级覆盖第 18 章。
+- [x] Catalog 类型覆盖第 27 章。
+- [x] Prompt / Config / Template 资产规则覆盖第 28 章。
+- [x] HumanTask / ApprovalPolicy 覆盖第 31 章。
+- [x] Policy 输入、决策、原则覆盖第 32 章。
+- [x] RBAC MVP 覆盖第 43 章。
+- [x] Tool Gateway 风险等级和高风险策略覆盖第 44 章。
+- [x] Model Gateway 边界不重复 New API，符合第 45 章。
+- [x] SecretProvider 规则覆盖第 46 章。
