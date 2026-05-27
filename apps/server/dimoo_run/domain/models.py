@@ -817,6 +817,48 @@ class IncidentEvent(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
+class WebhookSubscription(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "webhook_subscriptions"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_types_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    target_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    secret_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    retry_policy_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    permissions_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    rate_limit_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class BackupPlan(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "backup_plans"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    targets_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    schedule: Mapped[str] = mapped_column(String(255), nullable=False)
+    retention_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    rpo_seconds: Mapped[int | None] = mapped_column(Integer)
+    rto_seconds: Mapped[int | None] = mapped_column(Integer)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class RestoreJob(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "restore_jobs"
+
+    backup_plan_id: Mapped[str | None] = mapped_column(ForeignKey("backup_plans.id"))
+    backup_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    restore_scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="created", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    validation_report_ref: Mapped[str | None] = mapped_column(String(1024))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class ReplayJob(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "replay_jobs"
 
@@ -891,10 +933,7 @@ def create_metadata_model(table_name: str) -> type[Base]:
 for _table_name in [
     "scheduled_runs",
     "batch_runs",
-    "webhook_subscriptions",
     "extensions",
-    "backup_plans",
-    "restore_jobs",
 ]:
     globals()["".join(part.capitalize() for part in _table_name.split("_"))] = (
         create_metadata_model(_table_name)

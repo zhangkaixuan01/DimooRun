@@ -59,7 +59,7 @@ execution_plans/
 | `09-sdk-cli-compatibility-and-migration.md` | MVP 已完成 / test-green | `dimoorun` CLI 入口、项目配置模型、init / validate / doctor / migrate langgraph / aegra / langgraph-platform、LangGraph Compatibility assistants / threads / runs / SSE stream 核心路由、真实 API Key 与 tenant/project scope 校验、RunManager / TaskBackend / Deployment Gate / AuditLog 接线、Agent Protocol capabilities skeleton、LangGraph / Aegra / LangGraph Platform best-effort 迁移报告、最小 Native Agents / AgentVersions / Runs / Tasks API、Python SDK 错误码与幂等键处理、Python SDK 对 Native API 的集成测试、TypeScript SDK 占位边界已落地；完整 OpenAPI diff CI、生成式 TS SDK、durable Repository / EventLog / PolicyEngine 生产接线、真实生产部署命令留给后续阶段。 |
 | `10-production-foundation-and-console-wiring.md` | 已完成 / test-green | 生产化基础闭环已落地：Docker Compose 定义 server / worker / console / Postgres / Redis / MinIO，server / worker / console Dockerfile，`.env.example`，环境变量驱动的 SQLAlchemy Native runtime、CORS 和对象存储配置，durable Agent / AgentVersion / Deployment / Run / Task / Event / AuditLog repository 边界，SQLAlchemy-backed Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API，OpenAPI 导出与 diff 检查，typed Console Native API client，以及 `dimoorun dev/up/down/logs/worker` 本地命令包装；真实 Docker Compose healthy smoke 仍需在具备 Docker 的环境执行。 |
 | `11-runtime-production-hardening.md` | 下一阶段 / 待开始 | Runtime 生产级加固阶段：Redis Queue 生产语义、durable lease / heartbeat / reaper、fencing token 跨 worker 保护、RunAttempt 生命周期、pub/sub cancel、quota、partition、stream replay / fan-out / backpressure、crash recovery 和水平扩容。 |
-| `12-enterprise-ops-and-cloud-native.md` | 待开始 | 企业运维与云原生阶段：生产 Artifact Store、外部观测导出、Backup / Restore / DR、Webhook Subscription、Notification / Alerting、Helm / K8s、Sandbox / Container Pool。 |
+| `12-enterprise-ops-and-cloud-native.md` | 已完成 / test-green | 企业运维与云原生阶段已落地：生产 Artifact Store 本地与 S3/MinIO 兼容对象存储客户端边界、外部观测 exporter、BackupPlan / RestoreJob dry-run validation 与 scope 校验、Webhook Subscription 分钟窗口限流、Notification / Alerting、Helm / K8s manifests、Sandbox / Container Pool 企业边界；server / worker Helm 模板均注入 Postgres、Redis 与 object store Secret 引用；真实 `helm template` 因本机未安装 Helm 未执行，已由 `scripts/helm_smoke.py` 和静态 chart 测试覆盖关键对象。 |
 
 状态口径：
 
@@ -426,7 +426,7 @@ tests/
 - [ ] Backup dry-run restore 可验证。
 - [ ] Helm chart 可 render。
 - [ ] Extension Webhook Subscription 可安全接收事件。
-- [ ] 生产 Artifact Store 和外部观测导出可配置。
+- [x] 生产 Artifact Store 和外部观测导出可配置。
 
 ## 7. 执行方式
 

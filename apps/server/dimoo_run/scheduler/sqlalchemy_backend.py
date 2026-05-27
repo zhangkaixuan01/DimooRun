@@ -1,7 +1,7 @@
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from sqlalchemy import select, update
@@ -312,7 +312,7 @@ class SQLAlchemyTaskBackend:
                 fencing_token=Task.fencing_token + 1,
             )
         )
-        if result.rowcount != 1:
+        if cast(Any, result).rowcount != 1:
             self.session.expire(task)
             return None
         self.session.flush()

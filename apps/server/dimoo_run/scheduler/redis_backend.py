@@ -1,6 +1,6 @@
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from dimoo_run.runtime.state_machine import assert_task_transition
@@ -245,6 +245,10 @@ class RedisTaskBackend:
         if self.redis_client is None:
             raise RedisUnavailableError("Redis client is not configured.")
 
+    def _client(self) -> Any:
+        self._require_client()
+        return self.redis_client
+
     def _task_key(self, task_id: str) -> str:
         return f"{self.prefix}:task:{task_id}"
 
@@ -265,37 +269,37 @@ class RedisTaskBackend:
         return [str(key).rsplit(":", 1)[-1] for key in keys]
 
     async def _hset(self, key: str, *, mapping: dict[str, str]) -> Any:
-        return await _maybe_await(self.redis_client.hset(key, mapping=mapping))
+        return await _maybe_await(self._client().hset(key, mapping=mapping))
 
     def _sync_hset(self, key: str, *, mapping: dict[str, str]) -> Any:
-        return self.redis_client.hset(key, mapping=mapping)
+        return self._client().hset(key, mapping=mapping)
 
     async def _hgetall(self, key: str) -> dict[str, str]:
-        return await _maybe_await(self.redis_client.hgetall(key))
+        return cast(dict[str, str], await _maybe_await(self._client().hgetall(key)))
 
     def _sync_hgetall(self, key: str) -> dict[str, str]:
-        return self.redis_client.hgetall(key)
+        return cast(dict[str, str], self._client().hgetall(key))
 
     async def _zadd(self, key: str, mapping: dict[str, float]) -> Any:
-        return await _maybe_await(self.redis_client.zadd(key, mapping))
+        return await _maybe_await(self._client().zadd(key, mapping))
 
     async def _zrange(self, key: str, start: int, end: int) -> list[str]:
-        return await _maybe_await(self.redis_client.zrange(key, start, end))
+        return cast(list[str], await _maybe_await(self._client().zrange(key, start, end)))
 
     async def _zrem(self, key: str, member: str) -> Any:
-        return await _maybe_await(self.redis_client.zrem(key, member))
+        return await _maybe_await(self._client().zrem(key, member))
 
     async def _rpush(self, key: str, value: str) -> Any:
-        return await _maybe_await(self.redis_client.rpush(key, value))
+        return await _maybe_await(self._client().rpush(key, value))
 
     async def _publish(self, channel: str, value: str) -> Any:
-        publish = getattr(self.redis_client, "publish", None)
+        publish = getattr(self._client(), "publish", None)
         if publish is None:
             return None
         return await _maybe_await(publish(channel, value))
 
     async def _keys(self, pattern: str) -> list[str]:
-        return await _maybe_await(self.redis_client.keys(pattern))
+        return cast(list[str], await _maybe_await(self._client().keys(pattern)))
 
     async def _lease_with_eval(
         self,
@@ -305,7 +309,7 @@ class RedisTaskBackend:
         lease_seconds: int,
         now: datetime,
     ) -> dict[str, Any] | None:
-        eval_fn = getattr(self.redis_client, "eval", None)
+        eval_fn = getattr(self._client(), "eval", None)
         if eval_fn is None:
             return None
         leased_until = (now + timedelta(seconds=lease_seconds)).isoformat()
@@ -343,7 +347,7 @@ class RedisCancelSubscriber:
         data = message.get("data")
         if isinstance(data, bytes):
             data = data.decode()
-        return json.loads(str(data))
+        return cast(dict[str, Any], json.loads(str(data)))
 
 
 async def _maybe_await(value: Any) -> Any:

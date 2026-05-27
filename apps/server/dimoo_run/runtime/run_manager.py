@@ -41,8 +41,11 @@ class RuntimeAttempt:
 
 
 class RuntimeRunStore(Protocol):
-    runs: dict[str, RuntimeRun]
-    attempts: dict[str, RuntimeAttempt]
+    @property
+    def runs(self) -> dict[str, RuntimeRun]: ...
+
+    @property
+    def attempts(self) -> dict[str, RuntimeAttempt]: ...
 
     async def create_run(
         self,

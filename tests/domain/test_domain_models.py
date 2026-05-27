@@ -450,6 +450,46 @@ def test_observability_replay_and_quality_tables_are_hardened() -> None:
         assert columns <= set(table.columns.keys()), table_name
 
 
+def test_enterprise_ops_tables_are_hardened() -> None:
+    hardened_columns = {
+        "webhook_subscriptions": {
+            "name",
+            "event_types_json",
+            "target_url",
+            "secret_ref",
+            "status",
+            "retry_policy_json",
+            "permissions_json",
+            "rate_limit_json",
+        },
+        "backup_plans": {
+            "name",
+            "scope",
+            "targets_json",
+            "schedule",
+            "retention_days",
+            "storage_ref",
+            "status",
+            "rpo_seconds",
+            "rto_seconds",
+        },
+        "restore_jobs": {
+            "backup_plan_id",
+            "backup_ref",
+            "restore_scope",
+            "status",
+            "started_at",
+            "finished_at",
+            "validation_report_ref",
+        },
+    }
+
+    for table_name, columns in hardened_columns.items():
+        table = Base.metadata.tables[table_name]
+        assert table.info.get("placeholder") is not True, table_name
+        assert columns <= set(table.columns.keys()), table_name
+
+
 def test_metadata_tables_can_be_created_in_sqlite() -> None:
     from sqlalchemy import create_engine
 
@@ -476,10 +516,7 @@ def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> Non
     placeholder_tables = {
         "scheduled_runs",
         "batch_runs",
-        "webhook_subscriptions",
         "extensions",
-        "backup_plans",
-        "restore_jobs",
     }
 
     for table_name in placeholder_tables:

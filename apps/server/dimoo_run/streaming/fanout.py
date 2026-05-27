@@ -1,7 +1,7 @@
 import json
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from dimoo_run.core.events import AgentEvent
 
@@ -140,7 +140,7 @@ def _event_payload(fields: dict[str, Any]) -> dict[str, Any]:
     value = fields.get("event")
     if isinstance(value, bytes):
         value = value.decode()
-    return json.loads(str(value))
+    return cast(dict[str, Any], json.loads(str(value)))
 
 
 def _event_from_payload(payload: dict[str, Any]) -> AgentEvent:

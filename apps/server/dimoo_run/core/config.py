@@ -24,14 +24,23 @@ class ConsoleConfig(BaseModel):
 
 
 class ObjectStoreConfig(BaseModel):
+    backend: Literal["memory", "local", "s3", "minio"] = "local"
     endpoint_url: str = "http://localhost:9000"
     bucket: str = "dimoorun-artifacts"
     access_key: str = "dimoorun"
     secret_key: str = "dimoorun-dev-secret"
+    local_root: str = "./data/artifacts"
 
 
 class ObservabilityConfig(BaseModel):
     tracing: bool = False
+    exporters: list[str] = Field(default_factory=list)
+
+
+class SandboxConfig(BaseModel):
+    mode: Literal["process", "container", "disabled"] = "process"
+    cpu_limit: str = "1000m"
+    memory_limit: str = "1Gi"
 
 
 class Settings(BaseModel):
@@ -43,6 +52,7 @@ class Settings(BaseModel):
     console: ConsoleConfig = Field(default_factory=ConsoleConfig)
     object_store: ObjectStoreConfig = Field(default_factory=ObjectStoreConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -68,6 +78,7 @@ class Settings(BaseModel):
                 ),
             ),
             object_store=ObjectStoreConfig(
+                backend=os.getenv("OBJECT_STORE_BACKEND", ObjectStoreConfig().backend),  # type: ignore[arg-type]
                 endpoint_url=os.getenv(
                     "OBJECT_STORE_ENDPOINT_URL",
                     ObjectStoreConfig().endpoint_url,
@@ -75,9 +86,19 @@ class Settings(BaseModel):
                 bucket=os.getenv("OBJECT_STORE_BUCKET", ObjectStoreConfig().bucket),
                 access_key=os.getenv("OBJECT_STORE_ACCESS_KEY", ObjectStoreConfig().access_key),
                 secret_key=os.getenv("OBJECT_STORE_SECRET_KEY", ObjectStoreConfig().secret_key),
+                local_root=os.getenv("OBJECT_STORE_LOCAL_ROOT", ObjectStoreConfig().local_root),
             ),
             observability=ObservabilityConfig(
                 tracing=os.getenv("DIMOORUN_TRACING_ENABLED", "false").lower() == "true",
+                exporters=_split_csv(os.getenv("DIMOORUN_OBSERVABILITY_EXPORTERS", "")),
+            ),
+            sandbox=SandboxConfig(
+                mode=os.getenv("DIMOORUN_SANDBOX_MODE", SandboxConfig().mode),  # type: ignore[arg-type]
+                cpu_limit=os.getenv("DIMOORUN_SANDBOX_CPU_LIMIT", SandboxConfig().cpu_limit),
+                memory_limit=os.getenv(
+                    "DIMOORUN_SANDBOX_MEMORY_LIMIT",
+                    SandboxConfig().memory_limit,
+                ),
             ),
         )
 

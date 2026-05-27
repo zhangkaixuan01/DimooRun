@@ -1,0 +1,51 @@
+image:
+  repository: dimoorun
+  tag: latest
+  pullPolicy: IfNotPresent
+
+server:
+  replicas: 2
+  port: 8000
+
+worker:
+  replicas: 2
+
+console:
+  replicas: 1
+  port: 80
+  ingress:
+    enabled: false
+    host: console.local
+
+postgres:
+  external:
+    enabled: true
+    urlSecretRef: dimoorun-postgres-url
+
+redis:
+  external:
+    enabled: true
+    urlSecretRef: dimoorun-redis-url
+
+objectStore:
+  external:
+    enabled: true
+    endpointUrl: http://minio:9000
+    bucket: dimoorun-artifacts
+    secretRef: dimoorun-object-store
+
+secretProvider:
+  mode: kubernetes
+
+sandbox:
+  mode: container
+  cpuLimit: 1000m
+  memoryLimit: 1Gi
+
+resources: {}
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70

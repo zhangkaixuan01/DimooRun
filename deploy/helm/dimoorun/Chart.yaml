@@ -1,0 +1,6 @@
+apiVersion: v2
+name: dimoorun
+description: DimooRun control plane and runtime workers
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

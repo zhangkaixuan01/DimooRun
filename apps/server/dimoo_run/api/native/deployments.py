@@ -72,7 +72,7 @@ class SQLAlchemyDeploymentStore:
         tenant_id: str | None = None,
         project_id: str | None = None,
     ) -> list[DeploymentRecord]:
-        conditions = [Deployment.is_deleted.is_(False)]
+        conditions: list[Any] = [Deployment.is_deleted.is_(False)]
         if tenant_id is not None:
             conditions.append(Deployment.tenant_id == tenant_id)
         if project_id is not None:

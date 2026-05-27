@@ -1,5 +1,7 @@
 from collections.abc import Iterator
+from pathlib import Path
 
+import pytest
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.runtime import (
     SQLAlchemyNativeRuntimeStore,
@@ -323,9 +325,9 @@ def test_native_api_exposes_task_runtime_scheduling_details(
 
 
 def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(
-    tmp_path,
-    monkeypatch,
-) -> None:  # type: ignore[no-untyped-def]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reset_api_key_authenticator()
     database_path = tmp_path / "runtime.db"
     database_url = f"sqlite:///{database_path}"

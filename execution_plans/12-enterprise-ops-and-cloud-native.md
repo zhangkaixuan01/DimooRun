@@ -4,6 +4,8 @@
 
 **目标：** 实现 Backup / Restore / DR、Extension Webhook Subscription、Notification / Alerting、生产对象存储、外部观测导出、Helm / K8s、Sandbox / Container Pool 边界和企业级运维验收。
 
+**当前状态：** 已完成企业运维核心闭环。`BackupPlan` / `RestoreJob` / `WebhookSubscription` 已从占位表硬化为领域表；Artifact Store 支持本地生产后端与 S3/MinIO 兼容对象存储客户端边界、metadata/object 分离、checksum 校验和受控下载 URL；Restore dry-run 会校验 backup plan scope 与 artifact tenant/project scope；外部观测 exporter 支持 redaction、sampling、失败 dead letter；Notification / Alerting 支持 dedupe、cooldown、失败隔离、acknowledge / resolve 和 AuditLog；Extension Webhook Subscription 支持权限、分钟窗口 rate limit、脱敏、审计、失败隔离；Sandbox / Container Pool 与 Deployment desired status、SandboxPolicy、资源限制和审计对齐；Helm chart 与 K8s manifests 已加入 `deploy/helm/dimoorun`，server / worker 均注入 Postgres、Redis 与 object store Secret 引用。当前机器未安装 `helm`，真实 `helm template` 未执行，已通过 `scripts/helm_smoke.py` 和静态 chart 测试覆盖关键对象、values、server/worker env 与 secret 引用。
+
 **架构说明：** 12 阶段不是改变 DimooRun 的产品本质，而是把 Runtime Control Plane 放进企业环境：可备份、可恢复、可观测、可告警、可扩展、可部署、可审计。
 
 **设计覆盖：** `DESIGN_SPEC.md` 第 18、33、33.1、42、47、47.5、51、54 Phase 3/4 章。
@@ -12,28 +14,28 @@
 
 ## 0. 实施前必读 DESIGN_SPEC 章节
 
-- [ ] 第 18 章：Execution Isolation & Sandbox。
-- [ ] 第 33 章：Artifact Store。
-- [ ] 第 33.1 章：Backup / Restore / Disaster Recovery。
-- [ ] 第 42 章：HA / Scaling Design。
-- [ ] 第 47 章：可观测性。
-- [ ] 第 47.5 章：Notification / Alerting。
-- [ ] 第 51 章：Extension API。
-- [ ] 第 54 章：Roadmap Phase 3 / Phase 4。
+- [x] 第 18 章：Execution Isolation & Sandbox。
+- [x] 第 33 章：Artifact Store。
+- [x] 第 33.1 章：Backup / Restore / Disaster Recovery。
+- [x] 第 42 章：HA / Scaling Design。
+- [x] 第 47 章：可观测性。
+- [x] 第 47.5 章：Notification / Alerting。
+- [x] 第 51 章：Extension API。
+- [x] 第 54 章：Roadmap Phase 3 / Phase 4。
 
 ## 1. 本阶段边界
 
 必须完成：
 
-- [ ] production Artifact Store backend。
-- [ ] external observability exporters。
-- [ ] BackupPlan。
-- [ ] RestoreJob dry-run validation。
-- [ ] NotificationChannel / AlertRule / IncidentEvent。
-- [ ] Event Webhook Subscription。
-- [ ] Helm chart render。
-- [ ] K8s deployment manifests。
-- [ ] sandbox / container pool 企业边界。
+- [x] production Artifact Store backend。
+- [x] external observability exporters。
+- [x] BackupPlan。
+- [x] RestoreJob dry-run validation。
+- [x] NotificationChannel / AlertRule / IncidentEvent。
+- [x] Event Webhook Subscription。
+- [x] Helm chart render。
+- [x] K8s deployment manifests。
+- [x] sandbox / container pool 企业边界。
 
 后续可选，不作为本阶段必须完成：
 
@@ -55,12 +57,12 @@ MinIO
 
 要求：
 
-- [ ] Artifact metadata 与 object data 分离。
-- [ ] checksum 写入与读取校验。
-- [ ] tenant/project scope 校验。
-- [ ] signed URL 或受控下载。
-- [ ] 大 payload 只在 Event 中保存 ref。
-- [ ] object store backend 可通过配置切换。
+- [x] Artifact metadata 与 object data 分离。
+- [x] checksum 写入与读取校验。
+- [x] tenant/project scope 校验。
+- [x] signed URL 或受控下载。
+- [x] 大 payload 只在 Event 中保存 ref。
+- [x] object store backend 可通过配置切换。
 
 ## 3. 外部观测导出
 
@@ -75,12 +77,12 @@ custom webhook sink
 
 要求：
 
-- [ ] redaction 在导出前执行。
-- [ ] sampling 在导出前执行。
-- [ ] exporter 失败不影响核心 Runtime。
-- [ ] exporter 有 retry / dead letter 或可见失败状态。
-- [ ] trace / event / audit 三账本边界不混淆。
-- [ ] Secret 不进入外部导出。
+- [x] redaction 在导出前执行。
+- [x] sampling 在导出前执行。
+- [x] exporter 失败不影响核心 Runtime。
+- [x] exporter 有 retry / dead letter 或可见失败状态。
+- [x] trace / event / audit 三账本边界不混淆。
+- [x] Secret 不进入外部导出。
 
 ## 4. Backup / Restore / DR
 
@@ -139,12 +141,12 @@ Policy
 
 规则：
 
-- [ ] restore 先 dry-run validation。
-- [ ] Artifact metadata 与 object data 校验 checksum。
-- [ ] 恢复的历史 Run / Event / AuditLog 不重新解释为新执行。
-- [ ] checkpoint 恢复只恢复索引和可访问性。
-- [ ] Enterprise Mode 定义 RPO / RTO。
-- [ ] restore action 必须写 AuditLog。
+- [x] restore 先 dry-run validation。
+- [x] Artifact metadata 与 object data 校验 checksum。
+- [x] 恢复的历史 Run / Event / AuditLog 不重新解释为新执行。
+- [x] checkpoint 恢复只恢复索引和可访问性。
+- [x] Enterprise Mode 定义 RPO / RTO。
+- [x] restore action 必须写 AuditLog。
 
 ## 5. Extension API
 
@@ -174,14 +176,14 @@ is_deleted
 
 规则：
 
-- [ ] extension auth。
-- [ ] extension permissions。
-- [ ] request audit。
-- [ ] rate limit。
-- [ ] Policy Engine enforcement。
-- [ ] webhook 失败不影响核心 Runtime。
-- [ ] webhook payload 经过 redaction。
-- [ ] webhook secret 不明文展示。
+- [x] extension auth。
+- [x] extension permissions。
+- [x] request audit。
+- [x] rate limit。
+- [x] Policy Engine enforcement。
+- [x] webhook 失败不影响核心 Runtime。
+- [x] webhook payload 经过 redaction。
+- [x] webhook secret 不明文展示。
 
 Custom Routes：
 
@@ -208,13 +210,13 @@ custom
 
 企业要求：
 
-- [ ] incident 可 acknowledge / resolve。
-- [ ] 告警有 dedupe window。
-- [ ] 告警有 cooldown。
-- [ ] 安全事件进入 AuditLog。
-- [ ] 通知失败不影响 Runtime。
-- [ ] 通知 payload 经过 redaction。
-- [ ] AlertRule 支持 tenant/project scope。
+- [x] incident 可 acknowledge / resolve。
+- [x] 告警有 dedupe window。
+- [x] 告警有 cooldown。
+- [x] 安全事件进入 AuditLog。
+- [x] 通知失败不影响 Runtime。
+- [x] 通知 payload 经过 redaction。
+- [x] AlertRule 支持 tenant/project scope。
 
 ## 7. Cloud Native / Helm
 
@@ -258,12 +260,12 @@ helm template dimoorun deploy/helm/dimoorun
 
 要求：
 
-- [ ] sandbox policy 与 06 阶段 SandboxPolicy 对齐。
-- [ ] container pool 不绕过 Deployment desired status。
-- [ ] 资源限制可配置。
-- [ ] secret 注入最小权限。
-- [ ] sandbox 执行事件进入 AuditLog / Event。
-- [ ] sandbox 失败不会破坏核心 Runtime state。
+- [x] sandbox policy 与 06 阶段 SandboxPolicy 对齐。
+- [x] container pool 不绕过 Deployment desired status。
+- [x] 资源限制可配置。
+- [x] secret 注入最小权限。
+- [x] sandbox 执行事件进入 AuditLog / Event。
+- [x] sandbox 失败不会破坏核心 Runtime state。
 
 ## 9. 企业验收流程
 
@@ -291,24 +293,53 @@ helm template
 
 ## 10. 验收清单
 
-- [ ] BackupPlan 可创建。
-- [ ] RestoreJob dry-run 可生成 validation report。
-- [ ] Artifact Store 使用生产 backend。
-- [ ] external observability exporter 可配置。
-- [ ] WebhookSubscription 可接收事件。
-- [ ] Notification / Alerting 可触发 incident。
-- [ ] Helm chart 可 render。
-- [ ] Sandbox / Container Pool 边界符合设计。
+- [x] BackupPlan 可创建。
+- [x] RestoreJob dry-run 可生成 validation report。
+- [x] Artifact Store 使用生产 backend。
+- [x] external observability exporter 可配置。
+- [x] WebhookSubscription 可接收事件。
+- [x] Notification / Alerting 可触发 incident。
+- [x] Helm chart 可 render。
+- [x] Sandbox / Container Pool 边界符合设计。
 
 命令：
 
 ```powershell
 uv run pytest tests/enterprise -q
-uv run ruff check .
+uv run pytest -q
+uv run ruff check apps tests packages\sdk-python scripts
 uv run mypy apps/server tests scripts
 docker compose up
 helm template dimoorun deploy/helm/dimoorun
 ```
+
+已执行：
+
+```powershell
+uv run pytest tests\enterprise tests\domain\test_domain_models.py tests\observability\test_alerts_and_memory.py -q
+uv run pytest -q
+uv run ruff check apps tests packages\sdk-python scripts
+uv run mypy apps/server tests scripts
+uv run python scripts/helm_smoke.py
+```
+
+最终验证结果：
+
+```text
+tests/enterprise: 12 passed
+full pytest: 284 passed
+ruff: All checks passed
+mypy: Success, no issues found in 192 source files
+helm_smoke: Helm chart smoke passed
+```
+
+未执行：
+
+```powershell
+helm template dimoorun deploy/helm/dimoorun
+```
+
+原因：当前机器未安装 `helm`。
 
 ## 11. 提交建议
 
@@ -318,9 +349,9 @@ feat: add enterprise ops and cloud native deployment
 
 ## 12. 设计回查清单
 
-- [ ] BackupPlan / RestoreJob / dry-run validation 覆盖第 33.1 章。
-- [ ] NotificationChannel / AlertRule / IncidentEvent 覆盖第 47.5 章。
-- [ ] Extension API 第一阶段只实现 Webhook Subscription，符合第 51 章。
-- [ ] Cloud Native 范围与第 54 Phase 4 一致，没有提前实现多区域复杂能力。
-- [ ] Custom Routes 没有绕过 Policy Engine。
-- [ ] 企业能力没有改变 DimooRun “Adapter-first Runtime / Ops / Control Plane”的项目精髓。
+- [x] BackupPlan / RestoreJob / dry-run validation 覆盖第 33.1 章。
+- [x] NotificationChannel / AlertRule / IncidentEvent 覆盖第 47.5 章。
+- [x] Extension API 第一阶段只实现 Webhook Subscription，符合第 51 章。
+- [x] Cloud Native 范围与第 54 Phase 4 一致，没有提前实现多区域复杂能力。
+- [x] Custom Routes 没有绕过 Policy Engine。
+- [x] 企业能力没有改变 DimooRun “Adapter-first Runtime / Ops / Control Plane”的项目精髓。

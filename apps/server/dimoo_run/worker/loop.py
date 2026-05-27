@@ -86,10 +86,11 @@ class WorkerLoop:
             return
         import anyio
 
-        if hasattr(self.cancel_handler, "cancel_run"):
+        handler = self.cancel_handler
+        if hasattr(handler, "cancel_run"):
             async def invoke_cancel() -> None:
-                await self.cancel_handler.cancel_run(run_id, task_id=message.get("task_id"))
+                await handler.cancel_run(run_id, task_id=message.get("task_id"))
 
             anyio.run(invoke_cancel)
             return
-        anyio.run(self.cancel_handler, message)
+        anyio.run(handler, message)
