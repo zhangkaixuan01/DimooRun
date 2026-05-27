@@ -239,7 +239,7 @@ resource class
 
 命令：
 
-```powershell
+```bash
 uv run pytest tests/runtime tests/streaming tests/worker -q
 uv run ruff check .
 uv run mypy apps/server tests scripts

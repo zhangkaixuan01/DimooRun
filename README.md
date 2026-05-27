@@ -26,17 +26,19 @@ Runtime behavior is a white box.
 
 ## Current Status
 
-This repository is in the early implementation stage. Phases `01` through `10`
-are MVP-complete and test-green, but they should not be read as production
-complete. Several runtime services deliberately remain in-process or in-memory
-until the later hardening phases wire HA queues, distributed leasing, external
-artifact storage, and cloud-native operations.
+This repository has completed implementation phases `01` through `13` and is
+test-green for the current local verification baseline. It now includes the MVP
+runtime, production-foundation wiring, runtime hardening, and enterprise
+operations / cloud-native deployment foundations, plus Console live-backend
+wiring and admin surface coverage. Real Docker Compose and Helm smoke runs still
+need to be executed in an environment with Docker and Helm available before
+treating those deployment paths as fully environment-verified.
 
-The primary artifact is [DESIGN_SPEC.md](DESIGN_SPEC.md), which describes the
+The primary artifact is [DESIGN_SPEC.md](docs/DESIGN_SPEC.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
 roadmap.
 
-Implemented MVP phase slices:
+Implemented phase slices:
 
 - `01-project-foundation`: FastAPI server scaffold, configuration models,
   Worker entrypoint, Vue Console scaffold, examples, OpenAPI output directory,
@@ -86,9 +88,8 @@ Implemented MVP phase slices:
   Run Detail, Tasks, Events, Debug / Replay, Human Tasks, Policies, API Keys,
   Settings, Chinese / English switching, light / dark theme switching, high-risk
   operation confirmation, ECharts runtime trends, GSAP-scoped page motion, and
-  frontend contract tests. The default UI data path still uses mock data for
-  product validation; a `nativeConsoleClient` and `VITE_DIMOORUN_*` environment
-  boundary now exist for wiring real backend calls.
+  frontend contract tests. Phase 13 replaces the old mock-first page data path
+  with live API as the default and keeps mock data behind explicit demo mode.
 - `09-sdk-cli-compatibility-and-migration`: `dimoorun` CLI entrypoint, project
   configuration model, `init` / `validate` / `doctor` / `migrate langgraph` /
   `migrate aegra` / `migrate langgraph-platform`, LangGraph Compatibility API
@@ -110,35 +111,48 @@ Implemented MVP phase slices:
   and a typed Console Native API client boundary.
   The local Compose stack uses `postgres:16-alpine`, `redis:8-alpine`, and
   `minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1`.
+- `11-runtime-production-hardening`: Redis queue semantics, durable
+  lease / heartbeat / reaper behavior, fencing-token protection across worker
+  writes, RunAttempt lifecycle hardening, pub/sub cancel, quota and partition
+  metadata, stream replay / fan-out / backpressure, crash recovery, and worker
+  horizontal-scaling boundaries.
+- `12-enterprise-ops-and-cloud-native`: production Artifact Store boundaries
+  for local and S3/MinIO-compatible object storage, external observability
+  exporters, BackupPlan / RestoreJob dry-run validation with scope checks,
+  Event Webhook Subscription with minute-window rate limiting, Notification /
+  Alerting incident lifecycle, Helm / K8s manifests, Helm smoke validation, and
+  Sandbox / Container Pool enterprise boundaries.
+- `13-console-real-backend-and-admin-ui`: Console default data mode now uses the
+  live DimooRun API when `VITE_DIMOORUN_API_BASE_URL` is set, shows an explicit
+  offline state when it is not configured, and only uses mock data when
+  `VITE_DIMOORUN_DEMO_MODE=true`. Runtime pages now load agents, deployments,
+  runs, tasks, run detail, run events, human tasks, and admin collections
+  through the API client. Deployment pause / resume / restart and Human Task
+  approve / reject call backend actions. Identity, Governance, Observability,
+  Enterprise Ops, Compatibility, and Settings navigation now exposes the
+  relevant backend admin surfaces. Tenant, project, and environment are now
+  first-class Identity resources with Console CRUD pages; API requests use the
+  logged-in operator's selected scope instead of frontend env constants. Scope
+  resources are backed by SQLAlchemy models and Alembic migrations instead of
+  the in-memory admin collection path.
 
 Current verification baseline:
 
 ```text
 uv run pytest -q
-uv run ruff check apps tests packages\sdk-python
+uv run ruff check apps tests packages\sdk-python scripts
+uv run mypy apps/server tests scripts
+uv run python scripts\helm_smoke.py
 cd apps/console && npm run test
 cd apps/console && npm run build
 uv run python scripts\export_openapi.py
 uv run python scripts\check_openapi_diff.py
 ```
 
-As of the current workspace state, those checks pass.
-
-Next implementation phases:
-
-- `11-runtime-production-hardening`: production Runtime reliability, Redis
-  queue semantics, lease reaper, fencing-token protection, pub/sub cancel,
-  quota, queue partitioning, streaming replay/fan-out/backpressure, crash
-  recovery, and horizontal worker scaling.
-- `12-enterprise-ops-and-cloud-native`: enterprise operations, production
-  Artifact Store, external observability exporters, backup/restore, webhook
-  subscriptions, alerting/incidents, Helm/K8s, and sandbox/container-pool
-  boundaries.
-
-The next concrete implementation step is phase 11. Kafka, Temporal,
-multi-region deployment, leaderless reapers, and open-ended custom backend
-routes remain later optional work, not part of the immediate production
-foundation.
+Current local verification for phase 13 passes with `296 passed`, ruff, full
+mypy, Console test, and Console production build. Kafka, Temporal, multi-region deployment,
+leaderless reapers, and open-ended custom backend routes remain later optional
+work, not part of the completed phase-13 foundation.
 
 ## LangChain Ecosystem Version Policy
 
@@ -161,10 +175,10 @@ lockfile, and run adapter conformance tests before accepting the upgrade.
 ```text
 .
 ├── apps/
-│   ├── server/         # FastAPI Runtime API scaffold
-│   ├── worker/         # Worker process entrypoint scaffold
-│   └── console/        # Vue Console scaffold
-├── deploy/             # Deployment assets placeholder
+│   ├── server/         # FastAPI Runtime API and enterprise services
+│   ├── worker/         # Worker process entrypoint and runtime loop
+│   └── console/        # Vue Runtime Control Plane Console
+├── deploy/             # Docker and Helm deployment assets
 ├── examples/
 │   ├── compatibility/  # LangGraph Compatibility API examples
 │   └── langgraph/      # LangGraph Agent examples
@@ -174,7 +188,7 @@ lockfile, and run adapter conformance tests before accepting the upgrade.
 ├── tests/              # Backend API, domain, persistence, and server tests
 ├── DESIGN_SPEC.md      # Architecture and product design specification
 ├── README.md           # Project overview
-├── main.py             # Minimal Python entrypoint placeholder
+├── main.py             # Minimal Python entrypoint
 ├── pyproject.toml      # Python project metadata and tool config
 └── uv.lock             # uv lockfile
 ```
@@ -182,9 +196,61 @@ lockfile, and run adapter conformance tests before accepting the upgrade.
 ## Development Prerequisites
 
 - Python 3.11+
+- Node.js 20+
 - uv
 
-Run the placeholder entrypoint:
+Run the local backend API:
+
+```bash
+cp .env.example .env
+uv run uvicorn dimoo_run.server:app --reload --host 127.0.0.1 --port 8000
+```
+
+Run the Console against that backend:
+
+```bash
+cd apps/console
+npm run dev
+```
+
+Run the Docker Compose stack:
+
+```bash
+docker compose up --build
+```
+
+Run the Docker Compose development stack with source mounts and reload:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+After the first build, ordinary backend and Console source edits are picked up
+through bind mounts. Rebuild only when Python or Node dependencies change, or
+when Dockerfile/build inputs change.
+
+Both backend and Console read the repository-root `.env`. Vite is configured
+with `envDir: "../.."`, so `apps/console/.env` is intentionally not used.
+`DIMOORUN_DEV_API_KEY` is accepted by API requests only when
+`DIMOORUN_RUNTIME_MODE=dev`; the browser Console uses operator sessions after
+login and does not read a frontend API key.
+Console operator sessions require Redis through `REDIS_URL`; login fails
+closed when the session store is unavailable. The database stores only session
+token hashes, while Redis stores the active session payload with TTL.
+
+Default local Console login:
+
+```text
+email: admin@local.dimoorun
+password: admin12345
+```
+
+The Console is an operator/admin surface. It does not provide public
+self-registration. Operators are created from Identity / Operators after a
+platform admin signs in. Service accounts and API keys remain the machine-to-
+machine path.
+
+Run the minimal Python entrypoint:
 
 ```bash
 uv run python main.py

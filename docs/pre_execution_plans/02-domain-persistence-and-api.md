@@ -19,7 +19,7 @@ a368499 fix(persistence): harden metadata contracts
 
 **最终验证：**
 
-```powershell
+```bash
 uv run pytest -q                         # 38 passed
 uv run ruff check .                      # passed
 uv run mypy apps/server tests scripts    # passed
@@ -490,7 +490,7 @@ artifact_access_denied
 
 验收命令：
 
-```powershell
+```bash
 uv run alembic upgrade head
 uv run alembic downgrade base
 uv run alembic upgrade head

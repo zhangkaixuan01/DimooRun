@@ -252,7 +252,7 @@ HorizontalPodAutoscaler
 
 验收：
 
-```powershell
+```bash
 helm template dimoorun deploy/helm/dimoorun
 ```
 
@@ -304,7 +304,7 @@ helm template
 
 命令：
 
-```powershell
+```bash
 uv run pytest tests/enterprise -q
 uv run pytest -q
 uv run ruff check apps tests packages\sdk-python scripts
@@ -315,7 +315,7 @@ helm template dimoorun deploy/helm/dimoorun
 
 已执行：
 
-```powershell
+```bash
 uv run pytest tests\enterprise tests\domain\test_domain_models.py tests\observability\test_alerts_and_memory.py -q
 uv run pytest -q
 uv run ruff check apps tests packages\sdk-python scripts
@@ -335,7 +335,7 @@ helm_smoke: Helm chart smoke passed
 
 未执行：
 
-```powershell
+```bash
 helm template dimoorun deploy/helm/dimoorun
 ```
 

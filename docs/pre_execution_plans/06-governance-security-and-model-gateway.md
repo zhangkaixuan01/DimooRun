@@ -401,7 +401,7 @@ L4 remote isolated pool
 
 命令：
 
-```powershell
+```bash
 uv run pytest tests/governance -q
 ```
 

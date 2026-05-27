@@ -382,7 +382,7 @@ backup_failed
 
 命令：
 
-```powershell
+```bash
 uv run pytest tests/observability tests/replay tests/evals -q
 ```
 

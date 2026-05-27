@@ -144,7 +144,7 @@ minio readiness
 
 验收命令：
 
-```powershell
+```bash
 docker compose up
 ```
 
@@ -318,7 +318,7 @@ OpenAPI export and diff pass
 
 命令：
 
-```powershell
+```bash
 uv run pytest tests/production_foundation -q
 uv run pytest tests/compat tests/cli tests/sdk -q
 uv run ruff check .

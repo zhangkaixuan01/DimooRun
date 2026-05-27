@@ -16,7 +16,7 @@
 
 **最终验证：**
 
-```powershell
+```bash
 uv run pytest -q      # passed
 npm run build         # passed
 ```
@@ -190,7 +190,7 @@ echarts
 
 验收命令：
 
-```powershell
+```bash
 uv lock
 uv run python --version
 uv run pytest -q
@@ -242,7 +242,7 @@ app
 
 验收命令：
 
-```powershell
+```bash
 uv run pytest tests/server/test_health.py -q
 ```
 
@@ -296,7 +296,7 @@ Worker 当前只做进程入口，不执行任务。
 
 命令：
 
-```powershell
+```bash
 uv run python apps/worker/dimoo_run_worker/main.py
 ```
 
@@ -333,7 +333,7 @@ Runtime Control Plane
 
 验收命令：
 
-```powershell
+```bash
 cd apps/console
 npm install
 npm run build
@@ -394,7 +394,7 @@ README 必须与当前设计保持一致：
 
 提交前检查：
 
-```powershell
+```bash
 git status --short
 uv run pytest -q
 ```

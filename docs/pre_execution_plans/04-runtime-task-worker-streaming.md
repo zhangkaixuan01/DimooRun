@@ -364,7 +364,7 @@ ReplayJob
 
 验收命令：
 
-```powershell
+```bash
 uv run pytest tests/runtime tests/scheduler tests/streaming -q
 ```
 

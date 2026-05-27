@@ -27,7 +27,7 @@
 - [x] 已新增最小 Native API 闭环：进程内 Agents / AgentVersions / Runs / Tasks runtime store，支持创建 Agent、创建 AgentVersion、创建 Run/Task、读取 Run/Task/Event、cancel Run/Task、`Idempotency-Key` 复用与冲突检测。
 - [x] 已新增 Python SDK 基础客户端，错误类型保留 `error_code`、`request_id`、`details`，支持 caller-supplied / per-request idempotency key，并通过 FastAPI Native API 集成测试验证可创建 Run。
 - [x] 已创建 TypeScript SDK 目录和生成 SDK 边界说明。
-- [x] Console 新增 `nativeConsoleClient` 和 `VITE_DIMOORUN_API_BASE_URL` / `VITE_DIMOORUN_API_KEY` / tenant / project 环境变量边界；页面默认 mock 主路径和 generated SDK 主路径仍留给 10 阶段收敛。
+- [x] Console 新增 `nativeConsoleClient` 和 `VITE_DIMOORUN_API_BASE_URL` / tenant / project 环境变量边界；页面默认 mock 主路径和 generated SDK 主路径仍留给 10 阶段收敛。
 - [x] 已新增 `tests/cli`、`tests/compat`、`tests/migration`、`tests/sdk` 覆盖 09 MVP。
 
 暂缓到后续阶段：
@@ -337,7 +337,7 @@ Checkpoint 迁移原则：
 
 命令：
 
-```powershell
+```bash
 uv run pytest tests/cli tests/compat tests/migration tests/sdk tests/api/test_native_api.py -q
 ```
 

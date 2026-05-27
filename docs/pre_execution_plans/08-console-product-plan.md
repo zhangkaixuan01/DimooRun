@@ -613,7 +613,7 @@ pending-actions:
 
 命令：
 
-```powershell
+```bash
 cd apps/console
 npm run typecheck
 npm run build

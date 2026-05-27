@@ -34,6 +34,7 @@ execution_plans/
 10-production-foundation-and-console-wiring.md
 11-runtime-production-hardening.md
 12-enterprise-ops-and-cloud-native.md
+13-console-real-backend-and-admin-ui.md
 ```
 
 执行原则：
@@ -58,18 +59,18 @@ execution_plans/
 | `08-console-product-plan.md` | MVP 已完成 | Vue Runtime Control Plane Console 已落地，覆盖 Dashboard、Agents、Deployments、Compatibility、Published Surfaces、Runs、Run Detail、Tasks、Events、Debug / Replay、Human Tasks、Policies、API Keys、Settings，包含中英文切换、明暗主题切换、高风险操作确认、ECharts 趋势图、GSAP 页面动效、Console API client 边界和前端契约测试；当前默认页面数据仍以 mock 为主，已新增 `nativeConsoleClient` 与 `VITE_DIMOORUN_*` 环境变量边界，真实后端主路径接线留给 10 阶段。 |
 | `09-sdk-cli-compatibility-and-migration.md` | MVP 已完成 / test-green | `dimoorun` CLI 入口、项目配置模型、init / validate / doctor / migrate langgraph / aegra / langgraph-platform、LangGraph Compatibility assistants / threads / runs / SSE stream 核心路由、真实 API Key 与 tenant/project scope 校验、RunManager / TaskBackend / Deployment Gate / AuditLog 接线、Agent Protocol capabilities skeleton、LangGraph / Aegra / LangGraph Platform best-effort 迁移报告、最小 Native Agents / AgentVersions / Runs / Tasks API、Python SDK 错误码与幂等键处理、Python SDK 对 Native API 的集成测试、TypeScript SDK 占位边界已落地；完整 OpenAPI diff CI、生成式 TS SDK、durable Repository / EventLog / PolicyEngine 生产接线、真实生产部署命令留给后续阶段。 |
 | `10-production-foundation-and-console-wiring.md` | 已完成 / test-green | 生产化基础闭环已落地：Docker Compose 定义 server / worker / console / Postgres / Redis / MinIO，server / worker / console Dockerfile，`.env.example`，环境变量驱动的 SQLAlchemy Native runtime、CORS 和对象存储配置，durable Agent / AgentVersion / Deployment / Run / Task / Event / AuditLog repository 边界，SQLAlchemy-backed Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API，OpenAPI 导出与 diff 检查，typed Console Native API client，以及 `dimoorun dev/up/down/logs/worker` 本地命令包装；真实 Docker Compose healthy smoke 仍需在具备 Docker 的环境执行。 |
-| `11-runtime-production-hardening.md` | 下一阶段 / 待开始 | Runtime 生产级加固阶段：Redis Queue 生产语义、durable lease / heartbeat / reaper、fencing token 跨 worker 保护、RunAttempt 生命周期、pub/sub cancel、quota、partition、stream replay / fan-out / backpressure、crash recovery 和水平扩容。 |
+| `11-runtime-production-hardening.md` | 已完成 / test-green | Runtime 生产级加固已落地：Redis Queue 生产语义、durable lease / heartbeat / reaper、fencing token 跨 worker 保护、RunAttempt 生命周期、pub/sub cancel、quota、partition metadata、stream replay / fan-out / backpressure、crash recovery 和水平扩容边界；最终硬化缺口已在 12 前提交收口。 |
 | `12-enterprise-ops-and-cloud-native.md` | 已完成 / test-green | 企业运维与云原生阶段已落地：生产 Artifact Store 本地与 S3/MinIO 兼容对象存储客户端边界、外部观测 exporter、BackupPlan / RestoreJob dry-run validation 与 scope 校验、Webhook Subscription 分钟窗口限流、Notification / Alerting、Helm / K8s manifests、Sandbox / Container Pool 企业边界；server / worker Helm 模板均注入 Postgres、Redis 与 object store Secret 引用；真实 `helm template` 因本机未安装 Helm 未执行，已由 `scripts/helm_smoke.py` 和静态 chart 测试覆盖关键对象。 |
+| `13-console-real-backend-and-admin-ui.md` | 已完成 / test-green | Console 默认 live API、显式 demo mode、未配置 API 的 offline 状态、Runtime 主路径页面接线、Deployment 控制动作、Human Task 审批动作、Identity / Governance / Observability / Enterprise Ops / Settings 管理面入口、Admin collection API 覆盖和前后端验收已落地。 |
 
 状态口径：
 
 ```text
-01-10 = MVP / production-foundation completed / architecturally coherent / test-green。
-这不等于 production complete。
-当前仍有 in-memory compatibility repository、页面级 mock-first Console、
-未实现 Redis Queue 生产语义、durable lease/reaper/fencing、worker 真实执行闭环、
-stream fan-out/backpressure、crash recovery 和云原生运维。
-这些缺口统一归入 11-12 阶段处理，不能在文档或验收中表述为生产完成。
+01-13 = MVP / production-foundation / runtime-hardening / enterprise-ops / console-live-backend completed / test-green。
+这不等于所有未来路线图能力都已完成。
+当前仍有真实 Docker Compose / helm template 环境 smoke、
+Kafka / Temporal / multi-region / Custom Routes 等后续可选能力未进入当前完成范围。
+这些缺口不能在文档或验收中表述为已经完成。
 ```
 
 最近完成提交：
@@ -379,7 +380,7 @@ tests/
 - [x] 可以创建 Deployment 并 activate。
 - [x] 可以通过 Native API 创建 Run / Task，并通过 `Idempotency-Key` 复用同一业务结果。
 - [ ] Worker 可以执行 LangGraphAdapter。
-- [ ] Console 页面级真实后端主路径留到 11；当前已有 typed Native API client 边界。
+- [x] Console 页面级真实后端主路径已接入，mock 仅在显式 demo mode 使用。
 - [x] Compatibility SSE event 包含 `sequence` 和 `event_id`。
 - [x] 重复 `Idempotency-Key` 不产生多个业务结果。
 
@@ -391,24 +392,24 @@ tests/
 - [x] SQLAlchemy repository 可持久化 Run、Task、Event、AuditLog，Compose 配置指向 Postgres。
 - [ ] durable Compatibility Repository 支持 assistants / threads / runs 核心调用，留到 11。
 - [x] Native Agents / AgentVersions / Deployments / Runs / Tasks 写 API 可用且具备 SQLAlchemy-backed 持久化边界。
-- [ ] Console 使用真实后端 API，不以 mock 数据作为主路径。
+- [x] Console 使用真实后端 API，不以 mock 数据作为主路径。
 - [x] TypeScript typed client 被 Console Native API 边界使用。
 - [x] OpenAPI diff check 可阻止未同步 schema。
 - [x] `dimoorun up/down/worker/logs` 可用。
 
 ### 6.3 Runtime Production Hardening 验收
 
-- [ ] Redis Queue 支持 lease、heartbeat、retry、dead letter。
-- [ ] lease reaper 可回收过期任务。
-- [ ] fencing token 可拒绝旧 Worker 写入结果。
-- [ ] Redis pub/sub cancel 可跨实例通知 Worker。
-- [ ] tenant / project / agent concurrency quota 生效。
-- [ ] queue partition 支持 tenant/project/priority/resource class。
-- [ ] Streaming 支持 Last-Event-ID reconnect、Replay Buffer、fan-out 和 backpressure。
-- [ ] Compatibility API 支持 assistants / threads / runs 核心调用。
-- [ ] Worker 崩溃后任务可恢复或进入可见失败状态。
-- [ ] Worker 可水平扩容并消化队列积压。
-- [ ] Deployment pause/resume/restart/drain/stop 语义可验证。
+- [x] Redis Queue 支持 lease、heartbeat、retry、dead letter。
+- [x] lease reaper 可回收过期任务。
+- [x] fencing token 可拒绝旧 Worker 写入结果。
+- [x] Redis pub/sub cancel 可跨实例通知 Worker。
+- [x] tenant / project / agent concurrency quota 生效。
+- [x] queue partition 支持 tenant/project/priority/resource class。
+- [x] Streaming 支持 Last-Event-ID reconnect、Replay Buffer、fan-out 和 backpressure。
+- [x] Compatibility API 支持 assistants / threads / runs 核心调用。
+- [x] Worker 崩溃后任务可恢复或进入可见失败状态。
+- [x] Worker 可水平扩容并消化队列积压。
+- [x] Deployment pause/resume/restart/drain/stop 语义可验证。
 
 ### 6.4 Phase 2 验收
 
@@ -420,12 +421,12 @@ tests/
 
 ### 6.5 Enterprise Ops 验收
 
-- [ ] Tool Gateway 支持高风险审批。
-- [ ] Model Gateway 接入 New API / OpenAI-compatible endpoint。
-- [ ] Notification / Alerting 可触发 incident。
-- [ ] Backup dry-run restore 可验证。
-- [ ] Helm chart 可 render。
-- [ ] Extension Webhook Subscription 可安全接收事件。
+- [x] Tool Gateway 支持高风险审批。
+- [x] Model Gateway 接入 New API / OpenAI-compatible endpoint。
+- [x] Notification / Alerting 可触发 incident。
+- [x] Backup dry-run restore 可验证。
+- [x] Helm chart smoke 可验证；真实 `helm template` 待具备 Helm 的环境执行。
+- [x] Extension Webhook Subscription 可安全接收事件。
 - [x] 生产 Artifact Store 和外部观测导出可配置。
 
 ## 7. 执行方式

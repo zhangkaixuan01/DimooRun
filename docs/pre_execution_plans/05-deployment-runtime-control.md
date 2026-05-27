@@ -250,7 +250,7 @@ access_log_enabled
 
 验收命令：
 
-```powershell
+```bash
 uv run pytest tests/deployments -q
 ```
 
