@@ -8,7 +8,9 @@
       </div>
     </header>
 
-    <div class="table-wrap">
+    <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && deployments.length === 0" />
+
+    <div v-if="mode !== 'offline' && !loading && !error && deployments.length > 0" class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -34,9 +36,12 @@
             <td>{{ deployment.queueBacklog }}</td>
             <td>{{ deployment.modelGateway }}</td>
             <td class="ops">
-              <button class="button" type="button" @click="openDialog('pause', deployment)">{{ t("pause") }}</button>
-              <button class="button" type="button" @click="openDialog('resume', deployment)">{{ t("resume") }}</button>
-              <button class="button danger" type="button" @click="openDialog('restart', deployment)">{{ t("restart") }}</button>
+              <button class="button" type="button" :disabled="pendingOperation === deployment.id" @click="openDialog('activate', deployment)">{{ t("activate") }}</button>
+              <button class="button" type="button" :disabled="pendingOperation === deployment.id" @click="openDialog('pause', deployment)">{{ t("pause") }}</button>
+              <button class="button" type="button" :disabled="pendingOperation === deployment.id" @click="openDialog('resume', deployment)">{{ t("resume") }}</button>
+              <button class="button" type="button" :disabled="pendingOperation === deployment.id" @click="openDialog('drain', deployment)">{{ t("drain") }}</button>
+              <button class="button danger" type="button" :disabled="pendingOperation === deployment.id" @click="openDialog('stop', deployment)">{{ t("stop") }}</button>
+              <button class="button danger" type="button" :disabled="pendingOperation === deployment.id" @click="openDialog('restart', deployment)">{{ t("restart") }}</button>
             </td>
           </tr>
         </tbody>
@@ -60,19 +65,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 
-import { consoleClient } from "../../api/client";
+import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
 import type { Deployment } from "../../api/types";
+import ApiState from "../../components/ApiState.vue";
 import ConfirmImpactDialog from "../../components/ConfirmImpactDialog.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
-const deployments = consoleClient.listDeployments().items;
+const mode = apiMode();
+const loading = ref(false);
+const error = ref<ConsoleApiError | null>(null);
+const deployments = ref<Deployment[]>([]);
 const dialogOpen = ref(false);
 const selected = ref<Deployment | null>(null);
 const operation = ref("pause");
+const pendingOperation = ref<string | null>(null);
+
+async function loadDeployments() {
+  if (mode === "offline") return;
+  loading.value = true;
+  error.value = null;
+  try {
+    deployments.value = (await consoleClient.listDeployments()).items;
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    loading.value = false;
+  }
+}
 
 function openDialog(nextOperation: string, deployment: Deployment) {
   operation.value = nextOperation;
@@ -80,9 +103,22 @@ function openDialog(nextOperation: string, deployment: Deployment) {
   dialogOpen.value = true;
 }
 
-function confirmOperation() {
+async function confirmOperation() {
+  if (!selected.value) return;
+  pendingOperation.value = selected.value.id;
+  error.value = null;
+  try {
+    const updated = await consoleClient.controlDeployment(selected.value.id, operation.value);
+    deployments.value = deployments.value.map((item) => (item.id === updated.id ? updated : item));
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    pendingOperation.value = null;
+  }
   dialogOpen.value = false;
 }
+
+onMounted(loadDeployments);
 </script>
 
 <style scoped>

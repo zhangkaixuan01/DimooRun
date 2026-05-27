@@ -13,20 +13,28 @@ def test_openapi_schema_contains_error_response_and_runtime_control_paths() -> N
     assert "/v1/deployments/{deployment_id}/activate" in schema["paths"]
     assert "/v1/deployments/{deployment_id}/instances" in schema["paths"]
     assert "/v1/human-tasks/{task_id}/approve" in schema["paths"]
+    assert "/v1/auth/login" in schema["paths"]
+    assert "/v1/identity/operators" in schema["paths"]
 
 
-def test_unimplemented_get_routes_document_501_response() -> None:
+def test_admin_get_routes_are_implemented_and_do_not_document_501_response() -> None:
     schema = create_app().openapi()
     get_paths = [
         "/v1/policies",
         "/v1/artifacts/{artifact_id}",
         "/v1/human-tasks",
         "/v1/catalog/items",
+        "/v1/identity/users",
+        "/v1/api-keys",
+        "/v1/backups/restore-jobs",
+        "/v1/webhooks/subscriptions",
+        "/v1/incidents",
     ]
 
     for path in get_paths:
         operation = schema["paths"][path]["get"]
-        assert "501" in operation["responses"], path
+        assert "200" in operation["responses"], path
+        assert "501" not in operation["responses"], path
 
 
 def test_implemented_deployment_routes_do_not_document_501_response() -> None:
@@ -40,8 +48,10 @@ def test_implemented_deployment_routes_do_not_document_501_response() -> None:
         ("/v1/agents/{agent_id}/versions/{version}", "get"),
         ("/v1/agents/{agent_id}/tasks", "post"),
         ("/v1/runs/{run_id}", "get"),
+        ("/v1/runs", "get"),
         ("/v1/runs/{run_id}/events", "get"),
         ("/v1/runs/{run_id}/attempts", "get"),
+        ("/v1/tasks", "get"),
         ("/v1/tasks/{task_id}", "get"),
         ("/v1/deployments", "get"),
         ("/v1/deployments/{deployment_id}", "get"),

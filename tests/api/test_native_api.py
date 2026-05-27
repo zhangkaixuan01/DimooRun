@@ -12,6 +12,7 @@ NATIVE_PATHS = [
     "/v1/agents/{agent_id}/invoke",
     "/v1/agents/{agent_id}/tasks",
     "/v1/agents/{agent_id}/stream",
+    "/v1/runs",
     "/v1/runs/{run_id}",
     "/v1/runs/{run_id}/events",
     "/v1/runs/{run_id}/attempts",
@@ -28,6 +29,7 @@ NATIVE_PATHS = [
     "/v1/deployments/{deployment_id}/stop",
     "/v1/deployments/{deployment_id}/restart",
     "/v1/deployments/{deployment_id}/instances",
+    "/v1/tasks",
     "/v1/tasks/{task_id}",
     "/v1/tasks/{task_id}/cancel",
 ]
@@ -101,6 +103,42 @@ def test_native_api_paths_are_registered_in_openapi() -> None:
         assert path in paths
 
 
+def test_dev_api_key_can_authenticate_in_dev_mode(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "dev")
+    monkeypatch.setenv("DIMOORUN_DEV_API_KEY", "dev-local-key")
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/v1/agents",
+        headers={
+            "Authorization": "Bearer dev-local-key",
+            "X-Request-Id": "req_dev_key",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+    )
+
+    assert response.status_code == 200
+
+
+def test_dev_api_key_is_rejected_outside_dev_mode(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
+    monkeypatch.setenv("DIMOORUN_DEV_API_KEY", "dev-local-key")
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/v1/agents",
+        headers={
+            "Authorization": "Bearer dev-local-key",
+            "X-Request-Id": "req_dev_key",
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+        },
+    )
+
+    assert response.status_code == 401
+
+
 def test_native_agent_task_run_event_flow_is_real() -> None:
     client = TestClient(create_app())
     key, _ = create_api_key()
@@ -139,6 +177,14 @@ def test_native_agent_task_run_event_flow_is_real() -> None:
     )
     assert events.status_code == 200
     assert [event["type"] for event in events.json()] == ["run.created", "task.queued"]
+
+    runs = client.get("/v1/runs", headers=auth_headers(key))
+    assert runs.status_code == 200
+    assert any(item["id"] == task_body["run_id"] for item in runs.json())
+
+    tasks = client.get("/v1/tasks", headers=auth_headers(key))
+    assert tasks.status_code == 200
+    assert any(item["id"] == task_body["task_id"] for item in tasks.json())
 
 
 def test_native_agent_task_creation_is_idempotent() -> None:

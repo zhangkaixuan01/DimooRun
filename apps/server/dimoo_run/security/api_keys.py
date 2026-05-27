@@ -146,6 +146,19 @@ class APIKeyAuthenticator:
         _ = actor_id
         self.keys[key_id].status = "disabled"
 
+    def list_keys(
+        self,
+        *,
+        owner_type: str | None = None,
+        owner_id: str | None = None,
+    ) -> list[APIKeyRecord]:
+        records = list(self.keys.values())
+        if owner_type is not None:
+            records = [record for record in records if record.owner_type == owner_type]
+        if owner_id is not None:
+            records = [record for record in records if record.owner_id == owner_id]
+        return sorted(records, key=lambda record: record.created_at, reverse=True)
+
     def _assert_owner_scope_subset(
         self,
         *,

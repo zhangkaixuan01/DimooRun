@@ -140,6 +140,30 @@ def get_run(
     return _run_to_read(run)
 
 
+@router.get("/runs", response_model=list[RunRead])
+def list_runs(
+    runtime: NativeRuntimeDep,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> list[RunRead] | JSONResponse:
+    auth = _auth(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:read",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    tenant_id, project_id = auth
+    return [
+        _run_to_read(run)
+        for run in runtime.list_runs(tenant_id=tenant_id, project_id=project_id)
+    ]
+
+
 @router.get("/runs/{run_id}/events", response_model=list[EventRead])
 def list_run_events(
     run_id: str,

@@ -35,7 +35,7 @@ export type Run = {
   adapter: string;
   version: string;
   actor: string;
-  status: "succeeded" | "failed" | "running" | "timeout";
+  status: "succeeded" | "failed" | "running" | "timeout" | "cancelled";
   latencyMs: number;
   costUsd: number;
   startedAt: string;
@@ -57,7 +57,7 @@ export type RuntimeEvent = {
 export type Task = {
   id: string;
   runId: string;
-  status: "leased" | "retrying" | "dead_letter" | "succeeded";
+  status: "queued" | "leased" | "running" | "retrying" | "dead_letter" | "succeeded" | "cancelled";
   attempt: number;
   queue: string;
   workerId: string;

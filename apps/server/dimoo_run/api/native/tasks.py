@@ -110,6 +110,37 @@ def get_task(
     return _task_to_read(task)
 
 
+@router.get("/tasks", response_model=list[TaskRead])
+def list_tasks(
+    runtime: NativeRuntimeDep,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> list[TaskRead] | JSONResponse:
+    if x_tenant_id is None or x_project_id is None:
+        return error_response(
+            status_code=400,
+            error_code="request_scope_required",
+            message="X-Tenant-Id and X-Project-Id headers are required.",
+            request_id=x_request_id,
+            details={"required_headers": ["X-Tenant-Id", "X-Project-Id"]},
+        )
+    actor = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:read",
+        request_id=x_request_id,
+    )
+    if isinstance(actor, JSONResponse):
+        return actor
+    return [
+        _task_to_read(task)
+        for task in runtime.list_tasks(tenant_id=x_tenant_id, project_id=x_project_id)
+    ]
+
+
 @router.post("/tasks/{task_id}/cancel", response_model=TaskRead)
 def cancel_task(
     task_id: str,

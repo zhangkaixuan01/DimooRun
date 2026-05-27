@@ -10,11 +10,12 @@
         <select class="select"><option>{{ t("allStatus") }}</option><option>leased</option><option>dead_letter</option></select>
       </div>
     </header>
-    <div class="table-wrap">
+    <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && tasks.length === 0" />
+    <div v-if="mode !== 'offline' && !loading && !error && tasks.length > 0" class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>{{ t("tasks") }}</th><th>{{ t("run") }}</th><th>{{ t("status") }}</th><th>{{ t("attempt") }}</th><th>{{ t("queue") }}</th><th>{{ t("worker") }}</th><th>{{ t("heartbeat") }}</th><th>{{ t("leaseUntil") }}</th><th>{{ t("fencing") }}</th><th>{{ t("retry") }}</th><th>{{ t("deadLetter") }}</th>
+            <th>{{ t("tasks") }}</th><th>{{ t("run") }}</th><th>{{ t("status") }}</th><th>{{ t("attempt") }}</th><th>{{ t("queue") }}</th><th>{{ t("worker") }}</th><th>{{ t("heartbeat") }}</th><th>{{ t("leaseUntil") }}</th><th>{{ t("fencing") }}</th><th>{{ t("retry") }}</th><th>{{ t("deadLetter") }}</th><th>{{ t("actions") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -30,6 +31,7 @@
             <td>{{ task.fencingToken }}</td>
             <td>{{ task.retryCount }}</td>
             <td>{{ task.deadLetterReason ?? "-" }}</td>
+            <td><button class="button danger" type="button" :disabled="pendingTask === task.id" @click="cancelTask(task.id)">{{ t("cancel") }}</button></td>
           </tr>
         </tbody>
       </table>
@@ -38,11 +40,47 @@
 </template>
 
 <script setup lang="ts">
-import { consoleClient } from "../../api/client";
+import { onMounted, ref } from "vue";
+
+import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
+import type { Task } from "../../api/types";
+import ApiState from "../../components/ApiState.vue";
 import ResourceLink from "../../components/ResourceLink.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
-const tasks = consoleClient.listTasks().items;
+const mode = apiMode();
+const loading = ref(false);
+const error = ref<ConsoleApiError | null>(null);
+const tasks = ref<Task[]>([]);
+const pendingTask = ref<string | null>(null);
+
+async function loadTasks() {
+  if (mode === "offline") return;
+  loading.value = true;
+  error.value = null;
+  try {
+    tasks.value = (await consoleClient.listTasks()).items;
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function cancelTask(taskId: string) {
+  pendingTask.value = taskId;
+  error.value = null;
+  try {
+    const updated = await consoleClient.cancelTask(taskId);
+    tasks.value = tasks.value.map((task) => (task.id === taskId ? updated : task));
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    pendingTask.value = null;
+  }
+}
+
+onMounted(loadTasks);
 </script>

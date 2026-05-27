@@ -26,7 +26,9 @@ defineProps<{
   gap: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-muted) 38%, transparent), transparent),
+    var(--color-surface);
   padding: 16px;
   box-shadow: var(--shadow-panel);
 }
@@ -40,7 +42,8 @@ defineProps<{
 
 .metric-value {
   display: block;
-  font-size: 25px;
+  font-size: 24px;
+  font-weight: 760;
   line-height: 1.1;
 }
 

@@ -25,24 +25,29 @@
         <div class="context">
           <label>
             {{ t("tenant") }}
-            <select class="select">
-              <option>default</option>
+            <select class="select" :value="scope.currentScope.tenant_id" @change="setTenant">
+              <option v-for="item in scope.tenantOptions" :key="item.tenant_id" :value="item.tenant_id">
+                {{ item.tenant_id }}
+              </option>
             </select>
           </label>
           <label>
             {{ t("project") }}
-            <select class="select">
-              <option>customer-support</option>
+            <select class="select" :value="scope.currentScope.project_id" @change="setProject">
+              <option v-for="item in scope.projectOptions" :key="item.project_id" :value="item.project_id">
+                {{ item.project_id }}
+              </option>
             </select>
           </label>
           <label>
             {{ t("environment") }}
-            <select class="select">
-              <option>prod</option>
-              <option>staging</option>
-              <option>dev</option>
+            <select class="select" :value="scope.currentScope.environment" @change="setEnvironment">
+              <option v-for="item in scope.environmentOptions" :key="item.environment" :value="item.environment">
+                {{ item.environment }}
+              </option>
             </select>
           </label>
+          <span class="mode-pill" :data-mode="mode">{{ t("apiMode") }}: {{ modeLabel }}</span>
         </div>
 
         <div class="actions">
@@ -68,11 +73,13 @@
           >
             {{ preferences.locale === "zh-CN" ? "EN" : "中" }}
           </button>
+          <span v-if="auth.operator" class="operator-pill">{{ auth.operator.name }}</span>
+          <button class="button" type="button" @click="logout">{{ t("logout") }}</button>
         </div>
       </header>
 
       <main ref="contentRef" class="content">
-        <RouterView />
+        <RouterView :key="`${route.fullPath}:${scopeVersion}`" />
       </main>
     </div>
   </div>
@@ -83,16 +90,25 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
 import { useRoute } from "vue-router";
 
+import { apiMode } from "../api/client";
 import { useI18n } from "../i18n/useI18n";
+import { useAuthStore } from "../stores/auth";
 import { usePreferencesStore } from "../stores/preferences";
+import { useScopeStore } from "../stores/scope";
 
 const preferences = usePreferencesStore();
+const auth = useAuthStore();
+const scope = useScopeStore();
 const { t } = useI18n();
 const route = useRoute();
 const contentRef = ref<HTMLElement | null>(null);
+const scopeVersion = ref(0);
+const mode = apiMode();
+const modeLabel = computed(() => (mode === "live" ? t("live") : mode === "demo" ? t("demo") : t("offline")));
 let ctx: gsap.Context | undefined;
 
 preferences.hydrateDocument();
+if (auth.operator) scope.initialize(auth.operator.allowed_scopes);
 
 const navGroups = computed(() => [
   {
@@ -104,8 +120,8 @@ const navGroups = computed(() => [
     items: [
       { label: t("agents"), to: "/agents", icon: "A" },
       { label: t("deployments"), to: "/deployments", icon: "D" },
-      { label: t("compatibility"), to: "/compatibility", icon: "C" },
       { label: t("publishedSurfaces"), to: "/published-surfaces", icon: "P" },
+      { label: t("ingressRoutes"), to: "/published-surfaces/ingress-routes", icon: "I" },
       { label: t("runs"), to: "/runs", icon: "R" },
       { label: t("tasks"), to: "/tasks", icon: "T" },
     ],
@@ -115,6 +131,22 @@ const navGroups = computed(() => [
     items: [
       { label: t("events"), to: "/events", icon: "E" },
       { label: t("replay"), to: "/replay", icon: "B" },
+      { label: t("auditLogs"), to: "/observability/audit-logs", icon: "L" },
+      { label: t("artifacts"), to: "/observability/artifacts", icon: "F" },
+      { label: t("datasets"), to: "/observability/datasets", icon: "D" },
+      { label: t("experiments"), to: "/observability/experiments", icon: "X" },
+      { label: t("evaluationResults"), to: "/observability/evaluations", icon: "V" },
+      { label: t("feedback"), to: "/observability/feedback", icon: "Q" },
+      { label: t("replayJobs"), to: "/observability/replay-jobs", icon: "J" },
+    ],
+  },
+  {
+    label: t("identity"),
+    items: [
+      { label: t("organizationScope"), to: "/identity/scopes", icon: "S" },
+      { label: t("operators"), to: "/identity/operators", icon: "O" },
+      { label: t("rolesPermissions"), to: "/identity/roles-permissions", icon: "R" },
+      { label: t("machineIdentity"), to: "/identity/machine-identities", icon: "M" },
     ],
   },
   {
@@ -122,12 +154,39 @@ const navGroups = computed(() => [
     items: [
       { label: t("humanTasks"), to: "/governance/human-tasks", icon: "H" },
       { label: t("policies"), to: "/governance/policies", icon: "G" },
-      { label: t("apiKeys"), to: "/governance/api-keys", icon: "K" },
+      { label: t("modelGateways"), to: "/governance/model-gateways", icon: "M" },
+      { label: t("tools"), to: "/governance/tools", icon: "T" },
+      { label: t("secrets"), to: "/governance/secrets", icon: "S" },
+      { label: t("catalogItems"), to: "/governance/catalog-items", icon: "C" },
+      { label: t("promptAssets"), to: "/governance/prompt-assets", icon: "P" },
+      { label: t("configAssets"), to: "/governance/config-assets", icon: "N" },
+      { label: t("templateAssets"), to: "/governance/template-assets", icon: "A" },
     ],
   },
   {
+    label: t("enterpriseOps"),
+    items: [
+      { label: t("backupPlans"), to: "/ops/backup-plans", icon: "B" },
+      { label: t("restoreJobs"), to: "/ops/restore-jobs", icon: "R" },
+      { label: t("webhookSubscriptions"), to: "/ops/webhooks", icon: "W" },
+      { label: t("notificationChannels"), to: "/ops/notifications", icon: "N" },
+      { label: t("alertRules"), to: "/ops/alerts", icon: "A" },
+      { label: t("incidents"), to: "/ops/incidents", icon: "I" },
+    ],
+  },
+  {
+    label: t("compatibility"),
+    items: [{ label: t("compatibility"), to: "/compatibility", icon: "C" }],
+  },
+  {
     label: t("platform"),
-    items: [{ label: t("settings"), to: "/settings", icon: "S" }],
+    items: [
+      { label: t("semanticStoreProviders"), to: "/settings/semantic-store", icon: "E" },
+      { label: t("observabilityExporters"), to: "/settings/observability-exporters", icon: "O" },
+      { label: t("sandboxPolicies"), to: "/settings/sandbox-policies", icon: "X" },
+      { label: t("containerPoolPolicies"), to: "/settings/container-pool-policies", icon: "C" },
+      { label: t("settings"), to: "/settings", icon: "S" },
+    ],
   },
 ]);
 
@@ -137,6 +196,26 @@ function toggleTheme() {
 
 function toggleLocale() {
   preferences.setLocale(preferences.locale === "zh-CN" ? "en-US" : "zh-CN");
+}
+
+async function logout() {
+  await auth.logout();
+  window.location.href = "/login";
+}
+
+function setTenant(event: Event) {
+  scope.setTenant((event.target as HTMLSelectElement).value);
+  scopeVersion.value += 1;
+}
+
+function setProject(event: Event) {
+  scope.setProject((event.target as HTMLSelectElement).value);
+  scopeVersion.value += 1;
+}
+
+function setEnvironment(event: Event) {
+  scope.setEnvironment((event.target as HTMLSelectElement).value);
+  scopeVersion.value += 1;
 }
 
 function animateContent() {
@@ -160,7 +239,7 @@ onUnmounted(() => ctx?.revert());
 .shell {
   display: grid;
   min-height: 100vh;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 272px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -169,15 +248,17 @@ onUnmounted(() => ctx?.revert());
   height: 100vh;
   overflow: auto;
   border-right: 1px solid var(--color-border);
-  background: var(--color-surface);
-  padding: 18px 14px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-muted));
+  padding: 18px 12px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  border-radius: var(--radius-md);
   color: var(--color-text);
+  padding: 7px 8px;
   text-decoration: none;
 }
 
@@ -188,7 +269,7 @@ onUnmounted(() => ctx?.revert());
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--color-accent);
-  color: #ffffff;
+  color: oklch(99% 0.004 232);
   font-weight: 800;
 }
 
@@ -205,15 +286,16 @@ onUnmounted(() => ctx?.revert());
 
 .nav {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   margin-top: 24px;
 }
 
 .nav p {
-  margin: 0 0 7px 8px;
+  margin: 0 0 6px 9px;
   color: var(--color-text-soft);
   font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
@@ -224,7 +306,7 @@ onUnmounted(() => ctx?.revert());
   gap: 9px;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
-  padding: 7px 9px;
+  padding: 7px 8px;
   text-decoration: none;
 }
 
@@ -239,10 +321,22 @@ onUnmounted(() => ctx?.revert());
   font-weight: 800;
 }
 
+.nav-item:hover {
+  background: color-mix(in srgb, var(--color-surface-muted) 76%, transparent);
+  color: var(--color-text);
+}
+
 .nav-item.router-link-active {
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
   background: var(--color-accent-soft);
   color: var(--color-text);
   font-weight: 700;
+}
+
+.nav-item.router-link-active span {
+  border-color: color-mix(in srgb, var(--color-accent) 58%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 42%, transparent);
+  color: var(--color-accent);
 }
 
 .main {
@@ -258,9 +352,9 @@ onUnmounted(() => ctx?.revert());
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-page) 88%, transparent);
-  padding: 12px 20px;
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  padding: 10px 20px;
+  backdrop-filter: blur(12px);
 }
 
 .context,
@@ -279,6 +373,35 @@ label {
   font-weight: 700;
 }
 
+.mode-pill {
+  align-self: end;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 9px;
+}
+
+.mode-pill[data-mode="live"] {
+  color: var(--color-success);
+}
+
+.mode-pill[data-mode="offline"] {
+  color: var(--color-danger);
+}
+
+.operator-pill {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 9px;
+}
+
 .search {
   width: min(330px, 28vw);
 }
@@ -288,7 +411,7 @@ label {
 }
 
 .content {
-  padding: 22px;
+  padding: 20px 22px 28px;
 }
 
 @media (max-width: 980px) {

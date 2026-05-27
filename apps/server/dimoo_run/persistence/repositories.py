@@ -4,7 +4,18 @@ from typing import Any, Generic, Protocol, TypeVar, cast
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from dimoo_run.domain.models import Agent, AgentVersion, AuditLog, Deployment, Event, Run, Task
+from dimoo_run.domain.models import (
+    Agent,
+    AgentVersion,
+    AuditLog,
+    Deployment,
+    Environment,
+    Event,
+    Project,
+    Run,
+    Task,
+    Tenant,
+)
 
 ModelT = TypeVar("ModelT", bound=Any)
 ModelT_co = TypeVar("ModelT_co", covariant=True)
@@ -100,6 +111,48 @@ class AgentRepository(
             Agent.is_deleted.is_(False),
         )
         return self.session.scalar(statement)
+
+
+class TenantRepository(
+    StatusRepositoryMixin[Tenant],
+    SoftDeleteRepositoryMixin[Tenant],
+    BaseRepository[Tenant],
+):
+    def __init__(self, session: Session) -> None:
+        super().__init__(session, Tenant)
+
+    def list_active(self, *, include_deleted: bool = False) -> list[Tenant]:
+        conditions = []
+        if not include_deleted:
+            conditions.append(Tenant.is_deleted.is_(False))
+        statement = select(Tenant).where(*conditions).order_by(Tenant.created_at.desc())
+        return list(self.session.scalars(statement))
+
+
+class ProjectRepository(
+    StatusRepositoryMixin[Project],
+    SoftDeleteRepositoryMixin[Project],
+    BaseRepository[Project],
+):
+    def __init__(self, session: Session) -> None:
+        super().__init__(session, Project)
+
+    def list_by_tenant(self, tenant_id: str, *, include_deleted: bool = False) -> list[Project]:
+        conditions = [Project.tenant_id == tenant_id]
+        if not include_deleted:
+            conditions.append(Project.is_deleted.is_(False))
+        statement = select(Project).where(*conditions).order_by(Project.created_at.desc())
+        return list(self.session.scalars(statement))
+
+
+class EnvironmentRepository(
+    StatusRepositoryMixin[Environment],
+    SoftDeleteRepositoryMixin[Environment],
+    ProjectScopedRepositoryMixin[Environment],
+    BaseRepository[Environment],
+):
+    def __init__(self, session: Session) -> None:
+        super().__init__(session, Environment)
 
 
 class AgentVersionRepository(StatusRepositoryMixin[AgentVersion], BaseRepository[AgentVersion]):

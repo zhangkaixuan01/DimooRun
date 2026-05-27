@@ -269,11 +269,25 @@ class NativeRuntimeStore:
             return None
         return run
 
+    def list_runs(self, *, tenant_id: str, project_id: str) -> list[NativeRun]:
+        return [
+            run
+            for run in self.runs.values()
+            if run.tenant_id == tenant_id and run.project_id == project_id
+        ]
+
     def get_task(self, task_id: str, *, tenant_id: str, project_id: str) -> NativeTask | None:
         task = self.tasks.get(task_id)
         if task is None or task.tenant_id != tenant_id or task.project_id != project_id:
             return None
         return task
+
+    def list_tasks(self, *, tenant_id: str, project_id: str) -> list[NativeTask]:
+        return [
+            task
+            for task in self.tasks.values()
+            if task.tenant_id == tenant_id and task.project_id == project_id
+        ]
 
     def list_run_events(self, run_id: str) -> list[AgentEvent]:
         return self.replay_buffer.replay(run_id)
@@ -538,11 +552,27 @@ class SQLAlchemyNativeRuntimeStore:
             return None
         return _run_from_model(run)
 
+    def list_runs(self, *, tenant_id: str, project_id: str) -> list[NativeRun]:
+        return [
+            _run_from_model(run)
+            for run in self.session.scalars(
+                select(Run).where(Run.tenant_id == tenant_id, Run.project_id == project_id)
+            )
+        ]
+
     def get_task(self, task_id: str, *, tenant_id: str, project_id: str) -> NativeTask | None:
         task = TaskRepository(self.session).get_by_id(task_id)
         if task is None or task.tenant_id != tenant_id or task.project_id != project_id:
             return None
         return _task_from_model(task)
+
+    def list_tasks(self, *, tenant_id: str, project_id: str) -> list[NativeTask]:
+        return [
+            _task_from_model(task)
+            for task in self.session.scalars(
+                select(Task).where(Task.tenant_id == tenant_id, Task.project_id == project_id)
+            )
+        ]
 
     def list_run_events(self, run_id: str) -> list[AgentEvent]:
         return [

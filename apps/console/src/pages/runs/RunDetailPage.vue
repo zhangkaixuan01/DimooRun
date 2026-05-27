@@ -6,10 +6,18 @@
         <h1 class="page-title">{{ currentRun?.id ?? runId }}</h1>
         <p class="page-subtitle">{{ t("runDetailCopy") }}</p>
       </div>
-      <StatusBadge v-if="currentRun" :status="currentRun.status" :label="currentRun.status" />
+      <div v-if="currentRun" class="run-actions">
+        <StatusBadge :status="currentRun.status" :label="currentRun.status" />
+        <button class="button danger" type="button" :disabled="pendingAction" @click="controlRun('cancel')">{{ t("cancel") }}</button>
+        <button class="button" type="button" :disabled="pendingAction" @click="controlRun('resume')">{{ t("resume") }}</button>
+        <button class="button" type="button" :disabled="pendingAction" @click="controlRun('retry')">{{ t("retry") }}</button>
+        <button class="button" type="button" :disabled="pendingAction" @click="controlRun('replay')">{{ t("replay") }}</button>
+      </div>
     </header>
 
-    <div class="run-grid">
+    <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && !currentRun" />
+
+    <div v-if="mode !== 'offline' && !loading && !error && currentRun" class="run-grid">
       <section class="panel">
         <div class="panel-header"><h2 class="panel-title">{{ t("eventTimeline") }}</h2></div>
         <div class="panel-body"><EventTimeline :events="events" /></div>
@@ -48,9 +56,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { onMounted, ref } from "vue";
 
-import { consoleClient } from "../../api/client";
+import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
+import type { Run, RuntimeEvent } from "../../api/types";
+import ApiState from "../../components/ApiState.vue";
 import EventTimeline from "../../components/EventTimeline.vue";
 import RunCostBreakdown from "../../components/RunCostBreakdown.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
@@ -58,8 +68,44 @@ import { useI18n } from "../../i18n/useI18n";
 
 const props = defineProps<{ runId: string }>();
 const { t } = useI18n();
-const events = consoleClient.listEvents().items;
-const currentRun = computed(() => consoleClient.getRun(props.runId) ?? consoleClient.listRuns().items[0]);
+const mode = apiMode();
+const loading = ref(false);
+const error = ref<ConsoleApiError | null>(null);
+const events = ref<RuntimeEvent[]>([]);
+const currentRun = ref<Run | null>(null);
+const pendingAction = ref(false);
+
+async function loadRun() {
+  if (mode === "offline") return;
+  loading.value = true;
+  error.value = null;
+  try {
+    const [run, eventPage] = await Promise.all([
+      consoleClient.getRun(props.runId),
+      consoleClient.listRunEvents(props.runId),
+    ]);
+    currentRun.value = run;
+    events.value = eventPage.items;
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function controlRun(operation: string) {
+  pendingAction.value = true;
+  error.value = null;
+  try {
+    currentRun.value = await consoleClient.controlRun(props.runId, operation);
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    pendingAction.value = false;
+  }
+}
+
+onMounted(loadRun);
 </script>
 
 <style scoped>
@@ -81,6 +127,14 @@ pre {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 1100px) {

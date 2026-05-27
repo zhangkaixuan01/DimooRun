@@ -46,5 +46,17 @@ class ServiceAccountRegistry:
     def get(self, service_account_id: str) -> ServiceAccountRecord:
         return self.service_accounts[service_account_id]
 
+    def list(self) -> list[ServiceAccountRecord]:
+        return sorted(
+            self.service_accounts.values(),
+            key=lambda item: item.created_at,
+            reverse=True,
+        )
+
+    def set_status(self, service_account_id: str, status: str) -> ServiceAccountRecord:
+        record = self.get(service_account_id)
+        record.status = status
+        return record
+
     def mark_used(self, service_account_id: str) -> None:
         self.service_accounts[service_account_id].last_used_at = self._now()

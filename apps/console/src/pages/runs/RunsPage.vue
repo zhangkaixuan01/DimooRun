@@ -17,7 +17,9 @@
       </div>
     </header>
 
-    <div class="table-wrap">
+    <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && runs.length === 0" />
+
+    <div v-if="mode !== 'offline' && !loading && !error && runs.length > 0" class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -51,23 +53,43 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
-import { consoleClient } from "../../api/client";
+import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
+import type { Run } from "../../api/types";
+import ApiState from "../../components/ApiState.vue";
 import ResourceLink from "../../components/ResourceLink.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
-const runs = consoleClient.listRuns().items;
+const mode = apiMode();
+const loading = ref(false);
+const error = ref<ConsoleApiError | null>(null);
+const runs = ref<Run[]>([]);
 const query = ref("");
 const status = ref("");
 
 const filteredRuns = computed(() =>
-  runs.filter((run) => {
+  runs.value.filter((run) => {
     const matchesQuery = `${run.id} ${run.agent}`.toLowerCase().includes(query.value.toLowerCase());
     const matchesStatus = status.value ? run.status === status.value : true;
     return matchesQuery && matchesStatus;
   }),
 );
+
+async function loadRuns() {
+  if (mode === "offline") return;
+  loading.value = true;
+  error.value = null;
+  try {
+    runs.value = (await consoleClient.listRuns()).items;
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(loadRuns);
 </script>
