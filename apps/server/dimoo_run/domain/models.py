@@ -52,6 +52,25 @@ class Project(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
 
 
+class Environment(IdMixin, TimestampMixin, Base):
+    __tablename__ = "environments"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "project_id",
+            "environment",
+            name="uq_environments_project_environment",
+        ),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    environment: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
@@ -84,6 +103,123 @@ class Permission(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     resource: Mapped[str] = mapped_column(String(128), nullable=False)
     action: Mapped[str] = mapped_column(String(128), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class ConsoleOperator(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_operators"
+    __table_args__ = (UniqueConstraint("email", name="uq_console_operators_email"),)
+
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConsoleOperatorCredential(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_operator_credentials"
+    __table_args__ = (
+        UniqueConstraint("operator_id", name="uq_console_operator_credentials_operator"),
+    )
+
+    operator_id: Mapped[str] = mapped_column(
+        ForeignKey("console_operators.id"), nullable=False, index=True
+    )
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConsoleOperatorSession(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_operator_sessions"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_console_sessions_token_hash"),)
+
+    operator_id: Mapped[str] = mapped_column(
+        ForeignKey("console_operators.id"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoke_reason: Mapped[str | None] = mapped_column(String(128))
+    ip_address: Mapped[str | None] = mapped_column(String(128))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+
+
+class ConsoleOperatorAllowedScope(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_operator_allowed_scopes"
+    __table_args__ = (
+        UniqueConstraint(
+            "operator_id",
+            "tenant_id",
+            "project_id",
+            "environment",
+            name="uq_console_operator_scope",
+        ),
+    )
+
+    operator_id: Mapped[str] = mapped_column(
+        ForeignKey("console_operators.id"), nullable=False, index=True
+    )
+    tenant_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    environment: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class ConsoleRole(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_roles"
+    __table_args__ = (UniqueConstraint("name", name="uq_console_roles_name"),)
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class ConsolePermission(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_permissions"
+    __table_args__ = (UniqueConstraint("code", name="uq_console_permissions_code"),)
+
+    code: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+
+
+class ConsoleOperatorRole(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_operator_roles"
+    __table_args__ = (UniqueConstraint("operator_id", "role_id", name="uq_console_operator_role"),)
+
+    operator_id: Mapped[str] = mapped_column(
+        ForeignKey("console_operators.id"), nullable=False, index=True
+    )
+    role_id: Mapped[str] = mapped_column(ForeignKey("console_roles.id"), nullable=False, index=True)
+
+
+class ConsoleRolePermission(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_role_permissions"
+    __table_args__ = (
+        UniqueConstraint("role_id", "permission_id", name="uq_console_role_permission"),
+    )
+
+    role_id: Mapped[str] = mapped_column(ForeignKey("console_roles.id"), nullable=False, index=True)
+    permission_id: Mapped[str] = mapped_column(
+        ForeignKey("console_permissions.id"), nullable=False, index=True
+    )
+
+
+class ConsoleOperatorPermission(IdMixin, TimestampMixin, Base):
+    __tablename__ = "console_operator_permissions"
+    __table_args__ = (
+        UniqueConstraint("operator_id", "permission_id", name="uq_console_operator_permission"),
+    )
+
+    operator_id: Mapped[str] = mapped_column(
+        ForeignKey("console_operators.id"), nullable=False, index=True
+    )
+    permission_id: Mapped[str] = mapped_column(
+        ForeignKey("console_permissions.id"), nullable=False, index=True
+    )
 
 
 class APIKey(IdMixin, TimestampMixin, Base):

@@ -1,0 +1,225 @@
+import os
+
+from dimoo_run.api.dependencies import reset_console_identity
+from dimoo_run.server import create_app
+from fastapi.testclient import TestClient
+
+
+def setup_function() -> None:
+    os.environ["DIMOORUN_BOOTSTRAP_ADMIN_EMAIL"] = "admin@local.dimoorun"
+    os.environ["DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD"] = "admin12345"
+    os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
+    os.environ["REDIS_URL"] = "memory://console-test"
+    os.environ["DIMOORUN_CONSOLE_ACCESS_TOKEN_TTL_SECONDS"] = "43200"
+    reset_console_identity()
+
+
+def scoped_headers(token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-Tenant-Id": "tenant_1",
+        "X-Project-Id": "project_1",
+        "X-Environment": "local",
+        "X-Request-Id": "req_auth",
+    }
+
+
+def login(client: TestClient) -> str:
+    response = client.post(
+        "/v1/auth/login",
+        json={"email": "admin@local.dimoorun", "password": "admin12345"},
+    )
+    assert response.status_code == 200
+    return str(response.json()["access_token"])
+
+
+def test_console_login_me_logout_flow() -> None:
+    client = TestClient(create_app())
+    token = login(client)
+
+    me = client.get("/v1/auth/me", headers=scoped_headers(token))
+    assert me.status_code == 200
+    assert me.json()["operator"]["email"] == "admin@local.dimoorun"
+    assert me.json()["operator"]["allowed_scopes"] == [
+        {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+    ]
+
+    logout = client.post("/v1/auth/logout", headers=scoped_headers(token))
+    assert logout.status_code == 200
+
+    after_logout = client.get("/v1/auth/me", headers=scoped_headers(token))
+    assert after_logout.status_code == 401
+
+
+def test_admin_collection_requires_console_auth() -> None:
+    client = TestClient(create_app())
+
+    denied = client.get(
+        "/v1/policies",
+        headers={
+            "X-Tenant-Id": "tenant_1",
+            "X-Project-Id": "project_1",
+            "X-Request-Id": "req_auth",
+        },
+    )
+    token = login(client)
+    allowed = client.get("/v1/policies", headers=scoped_headers(token))
+
+    assert denied.status_code == 401
+    assert allowed.status_code == 200
+
+
+def test_operator_management_and_password_reset() -> None:
+    client = TestClient(create_app())
+    token = login(client)
+
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(token),
+        json={
+            "email": "ops@local.dimoorun",
+            "name": "Ops Operator",
+            "password": "operator123",
+            "roles": ["runtime_operator"],
+            "permissions": ["agent:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    assert created.status_code == 201
+    operator_id = created.json()["item"]["id"]
+    assert created.json()["item"]["allowed_scopes"] == [
+        {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+    ]
+
+    listed = client.get("/v1/identity/operators", headers=scoped_headers(token))
+    assert listed.status_code == 200
+    assert any(item["email"] == "ops@local.dimoorun" for item in listed.json()["items"])
+
+    updated = client.patch(
+        f"/v1/identity/operators/{operator_id}",
+        headers=scoped_headers(token),
+        json={"status": "disabled"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["item"]["status"] == "disabled"
+
+    reset = client.post(
+        f"/v1/identity/operators/{operator_id}/reset-password",
+        headers=scoped_headers(token),
+        json={"new_password": "operator456"},
+    )
+    assert reset.status_code == 200
+
+
+def test_password_reset_revokes_existing_operator_sessions() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "reset@local.dimoorun",
+            "name": "Reset Operator",
+            "password": "operator123",
+            "roles": ["identity_admin"],
+            "permissions": ["admin:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    operator_id = created.json()["item"]["id"]
+    operator_token = str(
+        client.post(
+            "/v1/auth/login",
+            json={"email": "reset@local.dimoorun", "password": "operator123"},
+        ).json()["access_token"]
+    )
+
+    reset = client.post(
+        f"/v1/identity/operators/{operator_id}/reset-password",
+        headers=scoped_headers(admin_token),
+        json={"new_password": "operator456"},
+    )
+    after_reset = client.get("/v1/auth/me", headers=scoped_headers(operator_token))
+
+    assert reset.status_code == 200
+    assert after_reset.status_code == 401
+
+
+def test_disabled_operator_session_is_denied() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "disabled@local.dimoorun",
+            "name": "Disabled Operator",
+            "password": "operator123",
+            "roles": ["identity_admin"],
+            "permissions": ["admin:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    operator_id = created.json()["item"]["id"]
+    operator_token = str(
+        client.post(
+            "/v1/auth/login",
+            json={"email": "disabled@local.dimoorun", "password": "operator123"},
+        ).json()["access_token"]
+    )
+
+    disabled = client.patch(
+        f"/v1/identity/operators/{operator_id}",
+        headers=scoped_headers(admin_token),
+        json={"status": "disabled"},
+    )
+    after_disabled = client.get("/v1/auth/me", headers=scoped_headers(operator_token))
+
+    assert disabled.status_code == 200
+    assert after_disabled.status_code == 401
+
+
+def test_operator_session_is_restricted_to_allowed_scope() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "scoped@local.dimoorun",
+            "name": "Scoped Operator",
+            "password": "operator123",
+            "roles": ["runtime_operator"],
+            "permissions": ["admin:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    assert created.status_code == 201
+
+    scoped_token = str(
+        client.post(
+            "/v1/auth/login",
+            json={"email": "scoped@local.dimoorun", "password": "operator123"},
+        ).json()["access_token"]
+    )
+    denied = client.get(
+        "/v1/policies",
+        headers={
+            "Authorization": f"Bearer {scoped_token}",
+            "X-Tenant-Id": "tenant_other",
+            "X-Project-Id": "project_1",
+            "X-Environment": "local",
+        },
+    )
+
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["error_code"] == "scope_not_allowed"

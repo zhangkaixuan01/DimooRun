@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,7 +21,9 @@ class RedisConfig(BaseModel):
 
 class ConsoleConfig(BaseModel):
     enabled: bool = True
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://127.0.0.1:5173", "http://localhost:5173"]
+    )
 
 
 class ObjectStoreConfig(BaseModel):
@@ -56,6 +59,7 @@ class Settings(BaseModel):
 
     @classmethod
     def from_env(cls) -> "Settings":
+        _load_dotenv_defaults()
         return cls(
             runtime=RuntimeConfig(
                 mode=os.getenv("DIMOORUN_RUNTIME_MODE", "dev"),  # type: ignore[arg-type]
@@ -73,9 +77,7 @@ class Settings(BaseModel):
             ),
             console=ConsoleConfig(
                 enabled=os.getenv("DIMOORUN_CONSOLE_ENABLED", "true").lower() != "false",
-                cors_origins=_split_csv(
-                    os.getenv("DIMOORUN_CORS_ORIGINS", "http://localhost:5173")
-                ),
+                cors_origins=_console_cors_origins(),
             ),
             object_store=ObjectStoreConfig(
                 backend=os.getenv("OBJECT_STORE_BACKEND", ObjectStoreConfig().backend),  # type: ignore[arg-type]
@@ -105,3 +107,37 @@ class Settings(BaseModel):
 
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _console_cors_origins() -> list[str]:
+    configured = _split_csv(
+        os.getenv("DIMOORUN_CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")
+    )
+    for origin in ["http://127.0.0.1:5173", "http://localhost:5173"]:
+        if origin not in configured:
+            configured.append(origin)
+    return configured
+
+
+def _load_dotenv_defaults() -> None:
+    env_path = _find_dotenv()
+    if env_path is None:
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def _find_dotenv() -> Path | None:
+    current = Path.cwd().resolve()
+    for path in [current, *current.parents]:
+        candidate = path / ".env"
+        if candidate.exists():
+            return candidate
+    return None
