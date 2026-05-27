@@ -3,7 +3,12 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/server.Dockerfile
-    env_file: .env.example
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://dimoorun:dimoorun@postgres:5432/dimoorun
+      REDIS_URL: redis://redis:6379/0
+      OBJECT_STORE_ENDPOINT_URL: http://minio:9000
+      DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
     ports:
       - "8000:8000"
     depends_on:
@@ -23,7 +28,12 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/worker.Dockerfile
-    env_file: .env.example
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://dimoorun:dimoorun@postgres:5432/dimoorun
+      REDIS_URL: redis://redis:6379/0
+      OBJECT_STORE_ENDPOINT_URL: http://minio:9000
+      DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
     depends_on:
       server:
         condition: service_healthy
@@ -32,7 +42,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/console.Dockerfile
-    env_file: .env.example
+    env_file: .env
     ports:
       - "5173:5173"
     depends_on:
@@ -77,7 +87,11 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test:
+        [
+          "CMD-SHELL",
+          "mc alias set local http://localhost:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD >/dev/null 2>&1 && mc ready local",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -1,0 +1,33 @@
+services:
+  server:
+    volumes:
+      - ./apps/server:/app/apps/server
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./README.md:/app/README.md
+    command:
+      [
+        "sh",
+        "-c",
+        "python -m dimoo_run.ops.init_db && uvicorn dimoo_run.server:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/apps/server --reload-dir /app/migrations",
+      ]
+
+  worker:
+    volumes:
+      - ./apps/server:/app/apps/server
+      - ./apps/worker:/app/apps/worker
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./README.md:/app/README.md
+    command: ["python", "apps/worker/dimoo_run_worker/main.py"]
+
+  console:
+    volumes:
+      - ./apps/console:/app/apps/console
+      - console-node-modules:/app/apps/console/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+volumes:
+  console-node-modules:
