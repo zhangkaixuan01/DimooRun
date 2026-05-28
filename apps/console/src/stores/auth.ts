@@ -27,9 +27,9 @@ export const useAuthStore = defineStore("auth", {
       this.error = null;
       try {
         const payload = await consoleClient.login(email, password);
-        this.token = payload.access_token;
+        this.token = "cookie";
         this.operator = payload.operator;
-        localStorage.setItem(TOKEN_KEY, payload.access_token);
+        localStorage.setItem(TOKEN_KEY, "cookie");
         localStorage.setItem(OPERATOR_KEY, JSON.stringify(payload.operator));
         useScopeStore().initialize(payload.operator.allowed_scopes);
       } catch (caught) {

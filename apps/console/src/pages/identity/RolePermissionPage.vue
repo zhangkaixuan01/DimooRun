@@ -27,18 +27,30 @@
             <h2>{{ selectedRole?.name || t("roles") }}</h2>
             <p>{{ t("permissionCatalogCopy") }}</p>
           </div>
-          <button class="button primary" type="button" :disabled="!selectedRole || !canWrite || saving" @click="saveRolePermissions">
-            {{ saving ? t("loading") : t("save") }}
-          </button>
+          <div class="header-actions">
+            <button class="button" type="button" :disabled="!selectedRole || !canWrite" @click="openEditRoleDrawer">编辑</button>
+            <button class="button primary" type="button" :disabled="!selectedRole || !canWrite || saving" @click="saveRolePermissions">
+              {{ saving ? t("loading") : t("save") }}
+            </button>
+            <button class="button danger" type="button" :disabled="!selectedRole || !canWrite" @click="deleteRole">{{ t("delete") }}</button>
+          </div>
         </header>
-        <div class="permission-grid">
-          <label v-for="permission in permissions" :key="permission.id" class="permission-row">
-            <input v-model="selectedPermissionCodes" type="checkbox" :value="permission.code || permission.name" :disabled="!selectedRole || !canWrite" />
-            <span>
-              <strong class="mono">{{ permission.code || permission.name }}</strong>
-              <small>{{ permission.resource || "-" }} / {{ permission.action || "-" }}</small>
-            </span>
-          </label>
+        <div class="matrix-tools">
+          <input v-model.trim="permissionQuery" class="input" placeholder="搜索权限" />
+        </div>
+        <div class="permission-groups">
+          <section v-for="group in groupedPermissions" :key="group.resource" class="permission-group">
+            <h3>{{ group.resource }}</h3>
+            <div class="permission-grid">
+              <label v-for="permission in group.items" :key="permission.id" class="permission-row">
+                <input v-model="selectedPermissionCodes" type="checkbox" :value="permission.code || permission.name" :disabled="!selectedRole || !canWrite" />
+                <span>
+                  <strong class="mono">{{ permission.code || permission.name }}</strong>
+                  <small>{{ permission.resource || "-" }} / {{ permission.action || "-" }}</small>
+                </span>
+              </label>
+            </div>
+          </section>
         </div>
       </section>
     </div>
@@ -49,11 +61,11 @@
           <header class="drawer-header">
             <div>
               <p class="page-kicker">{{ t("rolesPermissions") }}</p>
-              <h2>{{ t("create") }} {{ t("roles") }}</h2>
+              <h2>{{ roleDrawerMode === "create" ? t("create") : "编辑" }} {{ t("roles") }}</h2>
             </div>
             <button class="button" type="button" @click="closeRoleDrawer">{{ t("cancel") }}</button>
           </header>
-          <form class="drawer-form" @submit.prevent="createRole">
+          <form class="drawer-form" @submit.prevent="saveRole">
             <label class="field">
               {{ t("name") }}
               <input v-model="roleForm.name" class="input" required placeholder="platform-operator" />
@@ -72,6 +84,7 @@
                 </span>
               </label>
             </fieldset>
+            <InlineApiError :error="mutationError" />
             <div class="drawer-actions">
               <button class="button" type="button" @click="closeRoleDrawer">{{ t("cancel") }}</button>
               <button class="button primary" type="submit" :disabled="creatingRole">{{ creatingRole ? t("creating") : t("save") }}</button>
@@ -80,6 +93,19 @@
         </aside>
       </div>
     </Teleport>
+
+    <DangerConfirmDialog
+      :open="confirmState.open"
+      title="删除角色"
+      :message="confirmState.message"
+      :items="confirmState.items"
+      :error="mutationError"
+      warning="删除角色会影响已绑定该角色的操作员权限，请确认已完成替换。"
+      :busy="saving || creatingRole"
+      confirm-label="确认删除"
+      @cancel="closeConfirm"
+      @confirm="runConfirmedDelete"
+    />
   </section>
 </template>
 
@@ -88,6 +114,8 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError } from "../../api/client";
 import ApiState from "../../components/ApiState.vue";
+import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
+import InlineApiError from "../../components/InlineApiError.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
 
@@ -102,9 +130,35 @@ const loading = ref(false);
 const saving = ref(false);
 const creatingRole = ref(false);
 const roleDrawerOpen = ref(false);
+const roleDrawerMode = ref<"create" | "edit">("create");
 const error = ref<ConsoleApiError | null>(null);
+const mutationError = ref<ConsoleApiError | null>(null);
 const roleForm = reactive({ name: "", description: "", permissions: [] as string[] });
+const confirmState = reactive({
+  open: false,
+  role: null as AdminResource | null,
+  message: "",
+  items: [] as Array<{ label: string; value: string }>,
+});
 const canWrite = computed(() => auth.can("identity:role:write"));
+const permissionQuery = ref("");
+const filteredPermissions = computed(() => {
+  const query = permissionQuery.value.toLowerCase();
+  if (!query) return permissions.value;
+  return permissions.value.filter((permission) =>
+    [permission.code, permission.name, permission.resource, permission.action]
+      .map((value) => String(value || "").toLowerCase())
+      .some((value) => value.includes(query)),
+  );
+});
+const groupedPermissions = computed(() => {
+  const groups = new Map<string, AdminResource[]>();
+  for (const permission of filteredPermissions.value) {
+    const resource = String(permission.resource || String(permission.code || permission.name).split(":")[0] || "other");
+    groups.set(resource, [...(groups.get(resource) || []), permission]);
+  }
+  return [...groups.entries()].map(([resource, items]) => ({ resource, items }));
+});
 
 async function load() {
   if (mode === "offline") return;
@@ -125,26 +179,33 @@ async function load() {
   }
 }
 
-async function createRole() {
+async function saveRole() {
   if (!canWrite.value) return;
   creatingRole.value = true;
-  error.value = null;
+  mutationError.value = null;
   try {
-    const role = await consoleClient.createAdminItem("/v1/identity/roles", {
-      name: roleForm.name,
-      description: roleForm.description || null,
-    });
+    const basePayload = { name: roleForm.name, description: roleForm.description || null };
+    const role =
+      roleDrawerMode.value === "create"
+        ? await consoleClient.createAdminItem("/v1/identity/roles", basePayload)
+        : selectedRole.value
+          ? await consoleClient.updateAdminItem("/v1/identity/roles", selectedRole.value.id, basePayload)
+          : null;
+    if (!role) return;
     const updated =
-      roleForm.permissions.length > 0
+      roleDrawerMode.value === "edit" || roleForm.permissions.length > 0
         ? await consoleClient.updateAdminItem("/v1/identity/roles", role.id, {
             permissions: roleForm.permissions,
           })
         : role;
-    roles.value = [updated, ...roles.value];
+    roles.value =
+      roleDrawerMode.value === "create"
+        ? [updated, ...roles.value]
+        : roles.value.map((item) => (item.id === updated.id ? updated : item));
     selectedRole.value = updated;
     closeRoleDrawer();
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
+    mutationError.value = toConsoleApiError(caught);
   } finally {
     creatingRole.value = false;
   }
@@ -153,7 +214,7 @@ async function createRole() {
 async function saveRolePermissions() {
   if (!selectedRole.value || !canWrite.value) return;
   saving.value = true;
-  error.value = null;
+  mutationError.value = null;
   try {
     const updated = await consoleClient.updateAdminItem("/v1/identity/roles", selectedRole.value.id, {
       permissions: selectedPermissionCodes.value,
@@ -161,7 +222,7 @@ async function saveRolePermissions() {
     roles.value = roles.value.map((role) => (role.id === updated.id ? updated : role));
     selectedRole.value = updated;
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
+    mutationError.value = toConsoleApiError(caught);
   } finally {
     saving.value = false;
   }
@@ -172,14 +233,61 @@ function permissionCount(role: AdminResource): number {
 }
 
 function openRoleDrawer() {
+  roleDrawerMode.value = "create";
   roleForm.name = "";
   roleForm.description = "";
   roleForm.permissions = [];
+  mutationError.value = null;
+  roleDrawerOpen.value = true;
+}
+
+function openEditRoleDrawer() {
+  if (!selectedRole.value) return;
+  roleDrawerMode.value = "edit";
+  roleForm.name = String(selectedRole.value.name || "");
+  roleForm.description = String(selectedRole.value.description || "");
+  roleForm.permissions = Array.isArray(selectedRole.value.permissions) ? selectedRole.value.permissions.map(String) : [];
+  mutationError.value = null;
   roleDrawerOpen.value = true;
 }
 
 function closeRoleDrawer() {
   roleDrawerOpen.value = false;
+  mutationError.value = null;
+}
+
+async function deleteRole() {
+  if (!selectedRole.value) return;
+  confirmState.role = selectedRole.value;
+  confirmState.message = `删除角色 ${selectedRole.value.name || selectedRole.value.id}。`;
+  confirmState.items = [
+    { label: t("name"), value: String(selectedRole.value.name || selectedRole.value.id) },
+    { label: t("permissions"), value: String(permissionCount(selectedRole.value)) },
+    { label: t("status"), value: String(selectedRole.value.status || "active") },
+  ];
+  mutationError.value = null;
+  confirmState.open = true;
+}
+
+function closeConfirm() {
+  confirmState.open = false;
+  confirmState.role = null;
+}
+
+async function runConfirmedDelete() {
+  if (!confirmState.role) return;
+  saving.value = true;
+  mutationError.value = null;
+  try {
+    const deleted = await consoleClient.deleteAdminItem("/v1/identity/roles", confirmState.role.id);
+    roles.value = roles.value.filter((role) => role.id !== deleted.id);
+    selectedRole.value = roles.value[0] || null;
+    closeConfirm();
+  } catch (caught) {
+    mutationError.value = toConsoleApiError(caught);
+  } finally {
+    saving.value = false;
+  }
 }
 
 watch(selectedRole, (role) => {
@@ -240,6 +348,13 @@ onMounted(load);
   padding: 14px;
 }
 
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .matrix-header h2 {
   margin: 0;
 }
@@ -249,6 +364,23 @@ onMounted(load);
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 8px;
   padding: 14px;
+}
+
+.matrix-tools {
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 14px;
+}
+
+.permission-groups {
+  display: grid;
+  gap: 4px;
+}
+
+.permission-group h3 {
+  margin: 14px 14px 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
 }
 
 .permission-row {

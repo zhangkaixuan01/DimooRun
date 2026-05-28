@@ -1,23 +1,30 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi import Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from dimoo_run.api.dependencies import (
     AuthorizationHeader,
+    ConsoleSessionCookie,
     RequestIdHeader,
     authenticate_console_operator,
     change_console_operator_password,
+    console_operator_session_to_public,
     console_operator_to_public,
     create_console_operator,
+    delete_console_operator,
     ensure_bootstrap_operator,
     get_console_operator_by_session,
+    list_console_operator_sessions,
     list_console_operators,
     require_console_actor,
+    revoke_console_operator_sessions,
     revoke_console_session,
     update_console_operator,
 )
+from dimoo_run.core.config import Settings
 from dimoo_run.identity.console import ConsoleIdentityUnavailableError
 from dimoo_run.security.api_keys import AuthenticatedActor
 
@@ -68,10 +75,17 @@ def get_bootstrap_status() -> dict[str, object]:
 @router.post("/auth/login", response_model=None)
 def login(
     payload: LoginRequest,
+    response: Response,
+    request: Request,
     x_request_id: RequestIdHeader = None,
 ) -> dict[str, object] | JSONResponse:
     try:
-        session = authenticate_console_operator(payload.email, payload.password)
+        session = authenticate_console_operator(
+            payload.email,
+            payload.password,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
     except ConsoleIdentityUnavailableError:
         return JSONResponse(
             status_code=503,
@@ -94,6 +108,15 @@ def login(
         )
     operator = get_console_operator_by_session(session.token)
     assert operator is not None
+    settings = Settings.from_env()
+    response.set_cookie(
+        "dimoorun_console_session",
+        session.token,
+        httponly=True,
+        secure=settings.runtime.mode != "dev",
+        samesite="lax",
+        expires=session.expires_at,
+    )
     return {
         "access_token": session.token,
         "token_type": "bearer",
@@ -138,9 +161,16 @@ def me(
 
 
 @router.post("/auth/logout", response_model=None)
-def logout(authorization: AuthorizationHeader = None) -> dict[str, object]:
+def logout(
+    response: Response,
+    authorization: AuthorizationHeader = None,
+    console_session: ConsoleSessionCookie = None,
+) -> dict[str, object]:
     if authorization and authorization.startswith("Bearer "):
         revoke_console_session(authorization.removeprefix("Bearer ").strip())
+    elif console_session:
+        revoke_console_session(console_session.strip())
+    response.delete_cookie("dimoorun_console_session", httponly=True, samesite="lax")
     return {"ok": True}
 
 
@@ -281,6 +311,58 @@ def reset_operator_password(
     return {"ok": True, "request_id": x_request_id}
 
 
+@router.post("/identity/operators/{operator_id}/revoke-sessions", response_model=None)
+def revoke_operator_sessions(
+    operator_id: str,
+    actor: ConsoleActorDep,
+    x_request_id: RequestIdHeader = None,
+) -> dict[str, object] | JSONResponse:
+    if isinstance(actor, JSONResponse):
+        return actor
+    denied = _require_console_permission(actor, "identity:operator:write", x_request_id)
+    if denied is not None:
+        return denied
+    revoked = revoke_console_operator_sessions(operator_id, reason="admin_revoked")
+    if not revoked:
+        return _operator_not_found(operator_id, x_request_id)
+    return {"ok": True, "request_id": x_request_id}
+
+
+@router.get("/identity/operators/{operator_id}/sessions", response_model=None)
+def list_operator_sessions(
+    operator_id: str,
+    actor: ConsoleActorDep,
+    x_request_id: RequestIdHeader = None,
+) -> dict[str, object] | JSONResponse:
+    if isinstance(actor, JSONResponse):
+        return actor
+    sessions = list_console_operator_sessions(operator_id)
+    if sessions is None:
+        return _operator_not_found(operator_id, x_request_id)
+    return {
+        "items": [console_operator_session_to_public(session) for session in sessions],
+        "count": len(sessions),
+        "request_id": x_request_id,
+    }
+
+
+@router.delete("/identity/operators/{operator_id}", response_model=None)
+def delete_operator(
+    operator_id: str,
+    actor: ConsoleActorDep,
+    x_request_id: RequestIdHeader = None,
+) -> dict[str, object] | JSONResponse:
+    if isinstance(actor, JSONResponse):
+        return actor
+    denied = _require_console_permission(actor, "identity:operator:write", x_request_id)
+    if denied is not None:
+        return denied
+    operator = delete_console_operator(operator_id)
+    if operator is None:
+        return _operator_not_found(operator_id, x_request_id)
+    return {"item": console_operator_to_public(operator), "request_id": x_request_id}
+
+
 def _require_console_permission(
     actor: AuthenticatedActor,
     permission: str,
@@ -295,5 +377,17 @@ def _require_console_permission(
             "message": "Console write permission is required.",
             "request_id": request_id,
             "details": {"required_scope": permission},
+        },
+    )
+
+
+def _operator_not_found(operator_id: str, request_id: str | None) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error_code": "operator_not_found",
+            "message": "Operator was not found.",
+            "request_id": request_id,
+            "details": {"operator_id": operator_id},
         },
     )

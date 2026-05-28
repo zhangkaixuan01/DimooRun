@@ -1,8 +1,23 @@
 import os
 from uuid import uuid4
 
+from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
+from dimoo_run.domain.models import (
+    Agent,
+    AgentVersion,
+    AlertRule,
+    Deployment,
+    HumanTask,
+    IngressRoute,
+    ObservabilityExporter,
+    Policy,
+    PublishedSurface,
+    SandboxPolicy,
+)
+from dimoo_run.persistence.database import Base, create_session_factory
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
 
 ADMIN_PATHS = [
     "/v1/policies",
@@ -53,6 +68,7 @@ ADMIN_PATHS = [
 def setup_function() -> None:
     os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
     os.environ["DIMOORUN_DEV_API_KEY"] = "dev-local-key"
+    reset_api_key_authenticator()
 
 
 def admin_headers(request_id: str = "req_admin") -> dict[str, str]:
@@ -63,6 +79,20 @@ def admin_headers(request_id: str = "req_admin") -> dict[str, str]:
         "X-Environment": "local",
         "X-Request-Id": request_id,
     }
+
+
+def scoped_admin_headers(
+    request_id: str,
+    *,
+    tenant_id: str = "tenant_1",
+    project_id: str = "project_1",
+    environment: str = "local",
+) -> dict[str, str]:
+    headers = admin_headers(request_id)
+    headers["X-Tenant-Id"] = tenant_id
+    headers["X-Project-Id"] = project_id
+    headers["X-Environment"] = environment
+    return headers
 
 
 def test_admin_api_paths_are_registered_in_openapi() -> None:
@@ -119,6 +149,316 @@ def test_admin_collection_api_supports_minimal_create_and_list() -> None:
     assert updated.json()["item"]["status"] == "disabled"
     assert deleted.status_code == 200
     assert deleted.json()["item"]["status"] == "deleted"
+
+
+def test_admin_collections_are_isolated_by_request_scope() -> None:
+    client = TestClient(create_app())
+    name = f"scoped-policy-{uuid4().hex[:8]}"
+
+    created = client.post(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_scoped_create"),
+        json={"name": name, "metadata": {"scope": "local"}},
+    )
+    assert created.status_code == 201
+    item = created.json()["item"]
+    resource_id = item["id"]
+    assert item["tenant_id"] == "tenant_1"
+    assert item["project_id"] == "project_1"
+    assert item["environment"] == "local"
+
+    same_scope = client.get(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_scoped_same"),
+    )
+    other_tenant = client.get(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_scoped_tenant", tenant_id="tenant_other"),
+    )
+    other_project = client.get(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_scoped_project", project_id="project_other"),
+    )
+    other_environment = client.get(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_scoped_environment", environment="prod"),
+    )
+
+    assert any(record["id"] == resource_id for record in same_scope.json()["items"])
+    assert all(record["id"] != resource_id for record in other_tenant.json()["items"])
+    assert all(record["id"] != resource_id for record in other_project.json()["items"])
+    assert all(record["id"] != resource_id for record in other_environment.json()["items"])
+
+    blocked_update = client.patch(
+        f"/v1/policies/{resource_id}",
+        headers=scoped_admin_headers("req_scoped_update", environment="prod"),
+        json={"name": "should-not-update"},
+    )
+    blocked_delete = client.delete(
+        f"/v1/policies/{resource_id}",
+        headers=scoped_admin_headers("req_scoped_delete", project_id="project_other"),
+    )
+
+    assert blocked_update.status_code == 404
+    assert blocked_delete.status_code == 404
+
+
+def test_policies_admin_collection_persists_to_database(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    database_url = f"sqlite:///{tmp_path / 'admin.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    client = TestClient(create_app())
+    policy_name = f"persisted-policy-{uuid4().hex[:8]}"
+
+    created = client.post(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_policy_persist"),
+        json={"name": policy_name, "metadata": {"source": "admin-api"}},
+    )
+
+    assert created.status_code == 201
+    session = create_session_factory(database_url)()
+    try:
+        record = session.get(Policy, created.json()["item"]["id"])
+        assert record is not None
+        assert record.tenant_id == "tenant_1"
+        assert record.project_id == "project_1"
+        assert record.metadata_json["name"] == policy_name
+        assert record.metadata_json["source"] == "admin-api"
+    finally:
+        session.close()
+
+
+def test_admin_artifact_reads_are_isolated_by_request_scope() -> None:
+    client = TestClient(create_app())
+    created = client.post(
+        "/v1/artifacts",
+        headers=scoped_admin_headers("req_artifact_create"),
+        json={"name": f"artifact-{uuid4().hex[:8]}"},
+    )
+    assert created.status_code == 201
+    artifact_id = created.json()["item"]["id"]
+
+    visible = client.get(
+        f"/v1/artifacts/{artifact_id}",
+        headers=scoped_admin_headers("req_artifact_visible"),
+    )
+    hidden = client.get(
+        f"/v1/artifacts/{artifact_id}",
+        headers=scoped_admin_headers("req_artifact_hidden", environment="prod"),
+    )
+
+    assert visible.status_code == 200
+    assert hidden.status_code == 404
+    assert hidden.json()["error_code"] == "resource_not_found"
+
+
+def test_incident_decision_actions_update_persisted_admin_record() -> None:
+    client = TestClient(create_app())
+    created = client.post(
+        "/v1/incidents",
+        headers=scoped_admin_headers("req_incident_create"),
+        json={"name": f"incident-{uuid4().hex[:8]}"},
+    )
+    assert created.status_code == 201
+    incident_id = created.json()["item"]["id"]
+
+    acknowledged = client.post(
+        f"/v1/incidents/{incident_id}/acknowledge",
+        headers=scoped_admin_headers("req_incident_ack"),
+        json={"decision_payload": {"acknowledged_by": "console"}},
+    )
+    listed = client.get("/v1/incidents", headers=scoped_admin_headers("req_incident_list"))
+
+    assert acknowledged.status_code == 200
+    assert acknowledged.json()["item"]["status"] == "acknowledged"
+    persisted = next(item for item in listed.json()["items"] if item["id"] == incident_id)
+    assert persisted["status"] == "acknowledged"
+    assert persisted["metadata"]["decision_payload"] == {"acknowledged_by": "console"}
+
+
+def test_human_task_decision_actions_update_persisted_admin_record(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    database_url = f"sqlite:///{tmp_path / 'admin-human-tasks.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    client = TestClient(create_app())
+
+    created = client.post(
+        "/v1/human-tasks/task_review_1/approve",
+        headers=scoped_admin_headers("req_human_task_approve"),
+        json={"decision_payload": {"approved": True}},
+    )
+    listed = client.get("/v1/human-tasks", headers=scoped_admin_headers("req_human_task_list"))
+
+    assert created.status_code == 200
+    assert created.json()["item"]["status"] == "approved"
+    assert created.json()["audit_required"] is True
+    assert any(item["id"] == "task_review_1" for item in listed.json()["items"])
+    session = create_session_factory(database_url)()
+    try:
+        record = session.get(HumanTask, "task_review_1")
+        assert record is not None
+        assert record.status == "approved"
+        assert record.decision_ref == "inline:decision"
+    finally:
+        session.close()
+
+
+def test_platform_setting_collections_persist_to_database(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    database_url = f"sqlite:///{tmp_path / 'admin-platform-settings.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    client = TestClient(create_app())
+
+    exporter = client.post(
+        "/v1/observability/exporters",
+        headers=scoped_admin_headers("req_exporter_create"),
+        json={"name": "otel-dev", "exporter_type": "otlp", "target_ref": "http://otel:4318"},
+    )
+    sandbox = client.post(
+        "/v1/sandbox/policies",
+        headers=scoped_admin_headers("req_sandbox_create"),
+        json={"name": "locked-down", "network_policy": "deny_all"},
+    )
+
+    assert exporter.status_code == 201
+    assert sandbox.status_code == 201
+    session = create_session_factory(database_url)()
+    try:
+        exporter_record = session.get(ObservabilityExporter, exporter.json()["item"]["id"])
+        sandbox_record = session.get(SandboxPolicy, sandbox.json()["item"]["id"])
+        assert exporter_record is not None
+        assert exporter_record.name == "otel-dev"
+        assert exporter_record.exporter_type == "otlp"
+        assert sandbox_record is not None
+        assert sandbox_record.name == "locked-down"
+        assert sandbox_record.network_policy == "deny_all"
+    finally:
+        session.close()
+
+
+def test_strong_parent_admin_collection_rejects_missing_parent_field() -> None:
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/v1/alerts/rules",
+        headers=scoped_admin_headers("req_alert_missing_parent"),
+        json={"name": f"alert-{uuid4().hex[:8]}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "invalid_admin_resource"
+    assert response.json()["details"]["missing_fields"] == ["channel_id"]
+
+
+def test_alert_rule_admin_collection_persists_with_parent_channel(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    database_url = f"sqlite:///{tmp_path / 'admin-alerts.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    client = TestClient(create_app())
+
+    channel = client.post(
+        "/v1/notifications/channels",
+        headers=scoped_admin_headers("req_channel_create"),
+        json={"name": "ops-webhook", "type": "webhook", "target_ref": "https://hooks.example.test"},
+    )
+    assert channel.status_code == 201
+
+    alert = client.post(
+        "/v1/alerts/rules",
+        headers=scoped_admin_headers("req_alert_create"),
+        json={
+            "name": "error-rate",
+            "channel_id": channel.json()["item"]["id"],
+            "signal": "runtime.error_rate",
+            "threshold": "2.5",
+        },
+    )
+
+    assert alert.status_code == 201
+    session = create_session_factory(database_url)()
+    try:
+        record = session.get(AlertRule, alert.json()["item"]["id"])
+        assert record is not None
+        assert record.channel_id == channel.json()["item"]["id"]
+        assert record.threshold == 2.5
+    finally:
+        session.close()
+
+
+def test_published_surface_and_ingress_route_persist_with_parent_resources(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    database_url = f"sqlite:///{tmp_path / 'admin-surfaces.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    client = TestClient(create_app())
+    client.get("/v1/identity/tenants", headers=scoped_admin_headers("req_seed_scope"))
+
+    session = create_session_factory(database_url)()
+    try:
+        agent = Agent(
+            id=f"agent_{uuid4().hex[:8]}",
+            tenant_id="tenant_1",
+            project_id="project_1",
+            name=f"surface-agent-{uuid4().hex[:8]}",
+            status="active",
+        )
+        version = AgentVersion(
+            id=f"agent_version_{uuid4().hex[:8]}",
+            agent_id=agent.id,
+            version="1.0.0",
+            package_uri="file://agent",
+            framework="langgraph",
+            adapter="python",
+            entrypoint="agent:app",
+            capabilities_json={},
+            manifest_json={},
+            status="ready",
+        )
+        deployment = Deployment(
+            id=f"deployment_{uuid4().hex[:8]}",
+            tenant_id="tenant_1",
+            project_id="project_1",
+            agent_id=agent.id,
+            agent_version_id=version.id,
+            environment="local",
+            desired_status="running",
+            runtime_status="running",
+            replicas=1,
+            config_json={},
+        )
+        session.add_all([agent, version, deployment])
+        session.commit()
+        deployment_id = deployment.id
+    finally:
+        session.close()
+
+    surface = client.post(
+        "/v1/published-surfaces",
+        headers=scoped_admin_headers("req_surface_create"),
+        json={"name": "public-support", "deployment_id": deployment_id, "type": "http"},
+    )
+    assert surface.status_code == 201
+
+    route = client.post(
+        "/v1/ingress-routes",
+        headers=scoped_admin_headers("req_route_create"),
+        json={
+            "name": "support-route",
+            "surface_id": surface.json()["item"]["id"],
+            "path": "/support",
+            "auth_mode": "api_key",
+        },
+    )
+    assert route.status_code == 201
+
+    session = create_session_factory(database_url)()
+    try:
+        persisted_surface = session.get(PublishedSurface, surface.json()["item"]["id"])
+        persisted_route = session.get(IngressRoute, route.json()["item"]["id"])
+        assert persisted_surface is not None
+        assert persisted_surface.deployment_id == deployment_id
+        assert persisted_route is not None
+        assert persisted_route.surface_id == persisted_surface.id
+        assert persisted_route.path == "/support"
+    finally:
+        session.close()
 
 
 def test_scope_management_collections_are_seeded() -> None:
@@ -236,6 +576,123 @@ def test_machine_identity_service_account_api_key_lifecycle() -> None:
         },
     )
     assert rejected.status_code == 401
+
+    audit_logs = client.get("/v1/audit-logs", headers=admin_headers("req_audit_logs"))
+    actions = [item.get("action") for item in audit_logs.json()["items"]]
+    assert "identity.service_account.create" in actions
+    assert "identity.api_key.create" in actions
+    assert "identity.api_key.disable" in actions
+
+
+def test_machine_identity_service_account_update_and_delete() -> None:
+    client = TestClient(create_app())
+
+    service_account = client.post(
+        "/v1/identity/service-accounts",
+        headers=admin_headers("req_sa_update_create"),
+        json={
+            "name": "editable-sa",
+            "tenant_id": "tenant_1",
+            "project_id": "project_1",
+            "permissions": ["agent:read", "run:read"],
+        },
+    )
+    assert service_account.status_code == 201
+    service_account_id = service_account.json()["item"]["id"]
+
+    updated = client.patch(
+        f"/v1/identity/service-accounts/{service_account_id}",
+        headers=admin_headers("req_sa_update"),
+        json={"name": "edited-sa", "permissions": ["agent:read"], "status": "active"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["item"]["name"] == "edited-sa"
+    assert updated.json()["item"]["permissions"] == ["agent:read"]
+
+    deleted = client.delete(
+        f"/v1/identity/service-accounts/{service_account_id}",
+        headers=admin_headers("req_sa_delete"),
+    )
+    listed = client.get("/v1/identity/service-accounts", headers=admin_headers("req_sa_list"))
+
+    assert deleted.status_code == 200
+    assert deleted.json()["item"]["status"] == "deleted"
+    assert all(item["id"] != service_account_id for item in listed.json()["items"])
+
+
+def test_service_account_permission_reduction_disables_excessive_api_keys() -> None:
+    client = TestClient(create_app())
+
+    service_account = client.post(
+        "/v1/identity/service-accounts",
+        headers=admin_headers("req_sa_reduce_create"),
+        json={
+            "name": "reduced-sa",
+            "tenant_id": "tenant_1",
+            "project_id": "project_1",
+            "permissions": ["agent:read", "run:read"],
+        },
+    )
+    service_account_id = service_account.json()["item"]["id"]
+    key = client.post(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys",
+        headers=admin_headers("req_sa_reduce_key"),
+        json={"name": "run-key", "scopes": ["run:read"]},
+    )
+    assert key.status_code == 201
+
+    updated = client.patch(
+        f"/v1/identity/service-accounts/{service_account_id}",
+        headers=admin_headers("req_sa_reduce"),
+        json={"permissions": ["agent:read"]},
+    )
+    listed_keys = client.get(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys",
+        headers=admin_headers("req_sa_reduce_keys"),
+    )
+
+    assert updated.status_code == 200
+    assert listed_keys.json()["items"][0]["status"] == "disabled"
+
+
+def test_machine_identity_rejects_payload_scope_outside_actor_scope() -> None:
+    client = TestClient(create_app())
+    authenticator = default_api_key_authenticator()
+    permissions = {"admin:read", "identity:service-account:write"}
+    service_account = authenticator.service_accounts.create(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        name="limited-admin",
+        permissions=permissions,
+        created_by="test",
+    )
+    plain_key, _ = authenticator.create_key(
+        tenant_id="tenant_1",
+        project_id="project_1",
+        name="limited-admin-key",
+        owner_type="service_account",
+        owner_id=service_account.id,
+        scopes=permissions,
+        created_by="test",
+    )
+    headers = {
+        **admin_headers("req_scope_denied"),
+        "Authorization": f"Bearer {plain_key}",
+    }
+
+    response = client.post(
+        "/v1/identity/service-accounts",
+        headers=headers,
+        json={
+            "name": "cross-scope",
+            "tenant_id": "tenant_other",
+            "project_id": "project_1",
+            "permissions": ["agent:read"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error_code"] == "scope_not_allowed"
 
 
 def test_admin_artifact_read_returns_stable_not_found_response() -> None:

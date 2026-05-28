@@ -116,6 +116,7 @@ export class DimooRunApiError extends Error {
 async function request<T>(options: ClientOptions, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${options.baseUrl.replace(/\/$/, "")}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       ...options.headers,
       ...init?.headers,

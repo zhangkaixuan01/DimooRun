@@ -149,6 +149,122 @@ def test_password_reset_revokes_existing_operator_sessions() -> None:
     assert after_reset.status_code == 401
 
 
+def test_revoke_operator_sessions_endpoint_invalidates_existing_sessions() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "revoke@local.dimoorun",
+            "name": "Revoke Operator",
+            "password": "operator123",
+            "roles": ["identity_admin"],
+            "permissions": ["admin:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    operator_id = created.json()["item"]["id"]
+    operator_token = str(
+        client.post(
+            "/v1/auth/login",
+            json={"email": "revoke@local.dimoorun", "password": "operator123"},
+        ).json()["access_token"]
+    )
+
+    revoked = client.post(
+        f"/v1/identity/operators/{operator_id}/revoke-sessions",
+        headers=scoped_headers(admin_token),
+    )
+    after_revoke = client.get("/v1/auth/me", headers=scoped_headers(operator_token))
+
+    assert revoked.status_code == 200
+    assert after_revoke.status_code == 401
+
+
+def test_list_operator_sessions_hides_token_hash_and_reports_status() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "sessions@local.dimoorun",
+            "name": "Sessions Operator",
+            "password": "operator123",
+            "roles": ["identity_admin"],
+            "permissions": ["admin:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    operator_id = created.json()["item"]["id"]
+    client.post(
+        "/v1/auth/login",
+        headers={"User-Agent": "DimooRun Test Browser"},
+        json={"email": "sessions@local.dimoorun", "password": "operator123"},
+    )
+
+    listed = client.get(
+        f"/v1/identity/operators/{operator_id}/sessions",
+        headers=scoped_headers(admin_token),
+    )
+
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["count"] == 1
+    session = body["items"][0]
+    assert session["operator_id"] == operator_id
+    assert session["status"] == "active"
+    assert session["last_used_at"]
+    assert session["expires_at"]
+    assert session["revoked_at"] is None
+    assert session["revoke_reason"] is None
+    assert "token_hash" not in session
+    assert "DimooRun Test Browser" in session["user_agent"]
+
+
+def test_delete_operator_soft_deletes_and_revokes_sessions() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "delete@local.dimoorun",
+            "name": "Delete Operator",
+            "password": "operator123",
+            "roles": ["identity_admin"],
+            "permissions": ["admin:read"],
+            "allowed_scopes": [
+                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+            ],
+        },
+    )
+    operator_id = created.json()["item"]["id"]
+    operator_token = str(
+        client.post(
+            "/v1/auth/login",
+            json={"email": "delete@local.dimoorun", "password": "operator123"},
+        ).json()["access_token"]
+    )
+
+    deleted = client.delete(
+        f"/v1/identity/operators/{operator_id}",
+        headers=scoped_headers(admin_token),
+    )
+    listed = client.get("/v1/identity/operators", headers=scoped_headers(admin_token))
+    after_delete = client.get("/v1/auth/me", headers=scoped_headers(operator_token))
+
+    assert deleted.status_code == 200
+    assert deleted.json()["item"]["status"] == "deleted"
+    assert all(item["id"] != operator_id for item in listed.json()["items"])
+    assert after_delete.status_code == 401
+
+
 def test_disabled_operator_session_is_denied() -> None:
     client = TestClient(create_app())
     admin_token = login(client)

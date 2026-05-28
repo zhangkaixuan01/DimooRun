@@ -62,6 +62,21 @@ class ConsoleSession:
     expires_at: datetime
 
 
+@dataclass(frozen=True)
+class ConsoleOperatorSessionRecord:
+    id: str
+    operator_id: str
+    status: str
+    last_used_at: datetime
+    expires_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    revoked_at: datetime | None
+    revoke_reason: str | None
+    ip_address: str | None
+    user_agent: str | None
+
+
 class SessionCache(Protocol):
     def get(self, token_hash: str) -> dict[str, Any] | None: ...
     def set(self, token_hash: str, payload: dict[str, Any], ttl_seconds: int) -> None: ...
@@ -186,7 +201,14 @@ class ConsoleIdentityService:
             session.commit()
             return self._hydrate_operator(session, operator)
 
-    def authenticate(self, email: str, password: str) -> ConsoleSession | None:
+    def authenticate(
+        self,
+        email: str,
+        password: str,
+        *,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> ConsoleSession | None:
         self.ensure_bootstrap_operator()
         with self._session_factory() as session:
             operator = self._operator_by_email(session, email)
@@ -217,6 +239,8 @@ class ConsoleIdentityService:
                 token_hash=token_hash,
                 last_used_at=now,
                 expires_at=expires_at,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 created_at=now,
                 updated_at=now,
             )
@@ -401,6 +425,48 @@ class ConsoleIdentityService:
             session.commit()
             return True
 
+    def revoke_operator_sessions(self, operator_id: str, *, reason: str = "admin_revoked") -> bool:
+        self.ensure_bootstrap_operator()
+        with self._session_factory() as session:
+            operator = session.get(ConsoleOperatorModel, operator_id)
+            if operator is None or operator.is_deleted:
+                return False
+            self._revoke_operator_sessions(session, operator_id, reason=reason)
+            operator.updated_at = _now()
+            session.commit()
+            return True
+
+    def list_operator_sessions(self, operator_id: str) -> list[ConsoleOperatorSessionRecord] | None:
+        self.ensure_bootstrap_operator()
+        with self._session_factory() as session:
+            operator = session.get(ConsoleOperatorModel, operator_id)
+            if operator is None or operator.is_deleted:
+                return None
+            rows = list(
+                session.scalars(
+                    select(ConsoleOperatorSessionModel)
+                    .where(ConsoleOperatorSessionModel.operator_id == operator_id)
+                    .order_by(ConsoleOperatorSessionModel.created_at.desc())
+                )
+            )
+            return [self._hydrate_session_record(row) for row in rows]
+
+    def delete_operator(self, operator_id: str) -> ConsoleOperator | None:
+        self.ensure_bootstrap_operator()
+        with self._session_factory() as session:
+            operator = session.get(ConsoleOperatorModel, operator_id)
+            if operator is None or operator.is_deleted:
+                return None
+            now = _now()
+            operator.status = "deleted"
+            operator.is_deleted = True
+            operator.deleted_at = now
+            operator.updated_at = now
+            self._revoke_operator_sessions(session, operator_id, reason="operator_deleted")
+            hydrated = self._hydrate_operator(session, operator)
+            session.commit()
+            return hydrated
+
     def can_access_scope(
         self,
         operator: ConsoleOperator,
@@ -451,6 +517,27 @@ class ConsoleIdentityService:
         if _as_utc(session_model.expires_at) <= _now():
             return False
         return True
+
+    def _hydrate_session_record(
+        self,
+        session_model: ConsoleOperatorSessionModel,
+    ) -> ConsoleOperatorSessionRecord:
+        expires_at = _as_utc(session_model.expires_at)
+        revoked_at = _as_utc(session_model.revoked_at) if session_model.revoked_at else None
+        status = "revoked" if revoked_at is not None else "expired" if expires_at <= _now() else "active"
+        return ConsoleOperatorSessionRecord(
+            id=session_model.id,
+            operator_id=session_model.operator_id,
+            status=status,
+            last_used_at=_as_utc(session_model.last_used_at),
+            expires_at=expires_at,
+            created_at=_as_utc(session_model.created_at),
+            updated_at=_as_utc(session_model.updated_at or session_model.created_at),
+            revoked_at=revoked_at,
+            revoke_reason=session_model.revoke_reason,
+            ip_address=session_model.ip_address,
+            user_agent=session_model.user_agent,
+        )
 
     def _operator_by_email(self, session: Session, email: str) -> ConsoleOperatorModel | None:
         return session.scalar(
@@ -655,6 +742,8 @@ class ConsoleIdentityService:
                 "identity:role:write",
                 "identity:permission:write",
                 "identity:scope:write",
+                "identity:service-account:write",
+                "identity:api-key:write",
             ],
         }
         for role_name, permission_codes in role_permissions.items():
@@ -731,6 +820,22 @@ def console_operator_to_public(operator: ConsoleOperator) -> dict[str, Any]:
         "password_changed_at": (
             operator.password_changed_at.isoformat() if operator.password_changed_at else None
         ),
+    }
+
+
+def console_operator_session_to_public(session: ConsoleOperatorSessionRecord) -> dict[str, Any]:
+    return {
+        "id": session.id,
+        "operator_id": session.operator_id,
+        "status": session.status,
+        "last_used_at": session.last_used_at.isoformat(),
+        "expires_at": session.expires_at.isoformat(),
+        "created_at": session.created_at.isoformat(),
+        "updated_at": session.updated_at.isoformat(),
+        "revoked_at": session.revoked_at.isoformat() if session.revoked_at else None,
+        "revoke_reason": session.revoke_reason,
+        "ip_address": session.ip_address,
+        "user_agent": session.user_agent,
     }
 
 

@@ -23,30 +23,32 @@
     <div class="main">
       <header class="topbar">
         <div class="context">
-          <label>
-            {{ t("tenant") }}
-            <select class="select" :value="scope.currentScope.tenant_id" @change="setTenant">
-              <option v-for="item in scope.tenantOptions" :key="item.tenant_id" :value="item.tenant_id">
-                {{ item.tenant_id }}
-              </option>
-            </select>
-          </label>
-          <label>
-            {{ t("project") }}
-            <select class="select" :value="scope.currentScope.project_id" @change="setProject">
-              <option v-for="item in scope.projectOptions" :key="item.project_id" :value="item.project_id">
-                {{ item.project_id }}
-              </option>
-            </select>
-          </label>
-          <label>
-            {{ t("environment") }}
-            <select class="select" :value="scope.currentScope.environment" @change="setEnvironment">
-              <option v-for="item in scope.environmentOptions" :key="item.environment" :value="item.environment">
-                {{ item.environment }}
-              </option>
-            </select>
-          </label>
+          <div v-if="showScopeSelector" class="scope-selectors" :aria-label="t('organizationScope')">
+            <label>
+              {{ t("tenant") }}
+              <select class="select" :value="scope.currentScope.tenant_id" @change="setTenant">
+                <option v-for="item in scope.tenantOptions" :key="item.tenant_id" :value="item.tenant_id">
+                  {{ item.tenant_id }}
+                </option>
+              </select>
+            </label>
+            <label>
+              {{ t("project") }}
+              <select class="select" :value="scope.currentScope.project_id" @change="setProject">
+                <option v-for="item in scope.projectOptions" :key="item.project_id" :value="item.project_id">
+                  {{ item.project_id }}
+                </option>
+              </select>
+            </label>
+            <label>
+              {{ t("environment") }}
+              <select class="select" :value="scope.currentScope.environment" @change="setEnvironment">
+                <option v-for="item in scope.environmentOptions" :key="item.environment" :value="item.environment">
+                  {{ item.environment }}
+                </option>
+              </select>
+            </label>
+          </div>
           <span class="mode-pill" :data-mode="mode">{{ t("apiMode") }}: {{ modeLabel }}</span>
         </div>
 
@@ -105,6 +107,12 @@ const contentRef = ref<HTMLElement | null>(null);
 const scopeVersion = ref(0);
 const mode = apiMode();
 const modeLabel = computed(() => (mode === "live" ? t("live") : mode === "demo" ? t("demo") : t("offline")));
+const showScopeSelector = computed(() => {
+  const path = route.path;
+  if (path.startsWith("/identity")) return false;
+  if (path === "/settings") return false;
+  return true;
+});
 let ctx: gsap.Context | undefined;
 
 preferences.hydrateDocument();
@@ -365,6 +373,13 @@ onUnmounted(() => ctx?.revert());
   gap: 10px;
 }
 
+.scope-selectors {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
 label {
   display: grid;
   gap: 4px;
@@ -436,6 +451,7 @@ label {
   }
 
   .context,
+  .scope-selectors,
   .actions {
     flex-wrap: wrap;
   }

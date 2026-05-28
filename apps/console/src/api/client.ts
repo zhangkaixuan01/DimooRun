@@ -11,7 +11,7 @@ import {
   type ConsoleLoginResponse,
   type ConsoleOperatorRead,
 } from "./generated/dimoorun";
-import { readCurrentScope, SCOPE_KEY } from "./scope";
+import { readCurrentScope, SCOPE_KEY, type ConsoleScope } from "./scope";
 
 export type CursorPage<T> = {
   items: T[];
@@ -51,6 +51,16 @@ export type AdminResource = Record<string, unknown> & {
 
 export type ConsoleOperator = ConsoleOperatorRead;
 export type ConsoleLogin = ConsoleLoginResponse;
+export type ConsoleOperatorSession = AdminResource & {
+  operator_id: string;
+  status: string;
+  last_used_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+};
 export type MachineApiKeyCreate = {
   item: AdminResource;
   plain_key: string;
@@ -105,8 +115,8 @@ export function toConsoleApiError(error: unknown): ConsoleApiError {
   };
 }
 
-function nativeHeaders(idempotencyKey?: string): HeadersInit {
-  const scope = readCurrentScope();
+function nativeHeaders(idempotencyKey?: string, scopeOverride?: Partial<ConsoleScope>): HeadersInit {
+  const scope = { ...readCurrentScope(), ...scopeOverride };
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Request-Id": crypto.randomUUID(),
@@ -115,19 +125,19 @@ function nativeHeaders(idempotencyKey?: string): HeadersInit {
     "X-Environment": scope.environment,
   };
   const sessionToken = localStorage.getItem(TOKEN_KEY);
-  if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
+  if (sessionToken?.startsWith("sess_")) headers.Authorization = `Bearer ${sessionToken}`;
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   return headers;
 }
 
-function nativeClient(idempotencyKey?: string) {
+function nativeClient(idempotencyKey?: string, scopeOverride?: Partial<ConsoleScope>) {
   const baseUrl = apiBaseUrl();
   if (!baseUrl) {
     throw new Error("DimooRun API base URL is not configured.");
   }
   return withUnauthorizedHandling(createDimooRunClient({
     baseUrl,
-    headers: nativeHeaders(idempotencyKey),
+    headers: nativeHeaders(idempotencyKey, scopeOverride),
   }));
 }
 
@@ -413,7 +423,8 @@ export const demoConsoleClient = {
     task.status = decision === "approve" ? "approved" : "rejected";
     return task;
   },
-  async listAdminCollection(path: string) {
+  async listAdminCollection(path: string, scopeOverride?: Partial<ConsoleScope>) {
+    void scopeOverride;
     return page([{ id: `${path.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "")}_demo`, status: "active" }]);
   },
   async createAdminItem(path: string, payload: Record<string, unknown>) {
@@ -425,11 +436,41 @@ export const demoConsoleClient = {
   async deleteAdminItem(path: string, resourceId: string) {
     return { id: resourceId, status: "deleted", path, deleted_at: new Date().toISOString() };
   },
+  async revokeOperatorSessions() {
+    return undefined;
+  },
+  async listOperatorSessions(operatorId: string) {
+    return page<ConsoleOperatorSession>([
+      {
+        id: "session_demo",
+        operator_id: operatorId,
+        status: "active",
+        last_used_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        revoked_at: null,
+        revoke_reason: null,
+        ip_address: "127.0.0.1",
+        user_agent: "Demo Browser",
+      },
+    ]);
+  },
+  async resetOperatorPassword() {
+    return undefined;
+  },
+  async deleteOperator(operatorId: string) {
+    return { id: operatorId, status: "deleted" };
+  },
   async listServiceAccounts() {
     return page([{ id: "sa_demo", name: "demo-ci", status: "active", permissions: ["agent:read"] }]);
   },
   async createServiceAccount(payload: Record<string, unknown>) {
     return { id: `sa_demo_${Date.now()}`, status: "active", ...payload };
+  },
+  async updateServiceAccount(serviceAccountId: string, payload: Record<string, unknown>) {
+    return { id: serviceAccountId, status: "active", ...payload };
+  },
+  async deleteServiceAccount(serviceAccountId: string) {
+    return { id: serviceAccountId, status: "deleted" };
   },
   async listServiceAccountApiKeys(serviceAccountId: string) {
     return page([{ id: "key_demo", owner_id: serviceAccountId, name: "demo-key", status: "active", scopes: ["agent:read"] }]);
@@ -540,8 +581,8 @@ export const liveConsoleClient = {
     );
     return mapAdminHumanTask(payload.item);
   },
-  async listAdminCollection(path: string): Promise<CursorPage<AdminResource>> {
-    const payload = await nativeClient().listAdminCollection<AdminResource>(path);
+  async listAdminCollection(path: string, scopeOverride?: Partial<ConsoleScope>): Promise<CursorPage<AdminResource>> {
+    const payload = await nativeClient(undefined, scopeOverride).listAdminCollection<AdminResource>(path);
     return page(payload.items);
   },
   async createAdminItem(path: string, payload: Record<string, unknown>): Promise<AdminResource> {
@@ -556,11 +597,33 @@ export const liveConsoleClient = {
     const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>(path, resourceId);
     return response.item;
   },
+  async revokeOperatorSessions(operatorId: string): Promise<void> {
+    await nativeClient(crypto.randomUUID()).postAdminAction(`/v1/identity/operators/${operatorId}/revoke-sessions`);
+  },
+  async listOperatorSessions(operatorId: string): Promise<CursorPage<ConsoleOperatorSession>> {
+    const payload = await nativeClient().listAdminCollection<ConsoleOperatorSession>(`/v1/identity/operators/${operatorId}/sessions`);
+    return page(payload.items);
+  },
+  async resetOperatorPassword(operatorId: string, newPassword: string): Promise<void> {
+    await nativeClient(crypto.randomUUID()).postAdminAction(`/v1/identity/operators/${operatorId}/reset-password`, {
+      new_password: newPassword,
+    });
+  },
+  async deleteOperator(operatorId: string): Promise<AdminResource> {
+    const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>("/v1/identity/operators", operatorId);
+    return response.item;
+  },
   async listServiceAccounts(): Promise<CursorPage<AdminResource>> {
     return this.listAdminCollection("/v1/identity/service-accounts");
   },
   async createServiceAccount(payload: Record<string, unknown>): Promise<AdminResource> {
     return this.createAdminItem("/v1/identity/service-accounts", payload);
+  },
+  async updateServiceAccount(serviceAccountId: string, payload: Record<string, unknown>): Promise<AdminResource> {
+    return this.updateAdminItem("/v1/identity/service-accounts", serviceAccountId, payload);
+  },
+  async deleteServiceAccount(serviceAccountId: string): Promise<AdminResource> {
+    return this.deleteAdminItem("/v1/identity/service-accounts", serviceAccountId);
   },
   async listServiceAccountApiKeys(serviceAccountId: string): Promise<CursorPage<AdminResource>> {
     return this.listAdminCollection(`/v1/identity/service-accounts/${serviceAccountId}/api-keys`);

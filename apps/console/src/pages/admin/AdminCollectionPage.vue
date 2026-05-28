@@ -216,13 +216,15 @@ function newItemPayloadFromForm(): Record<string, unknown> {
   const scope = readCurrentScope();
   const name = formValue("name");
   if (props.resourcePath === "/v1/identity/tenants") {
-    return { name, id: formValue("id") || undefined, slug: formValue("slug") || name };
+    const slug = slugify(name);
+    return { name, slug: slug || undefined };
   }
   if (props.resourcePath === "/v1/identity/projects") {
+    const slug = slugify(name);
     return {
       name,
       tenant_id: formValue("tenant_id") || scope.tenant_id,
-      slug: formValue("slug") || name,
+      slug: slug || undefined,
     };
   }
   if (props.resourcePath === "/v1/identity/environments") {
@@ -250,7 +252,14 @@ function newItemPayloadFromForm(): Record<string, unknown> {
       project_id: scope.project_id,
     };
   }
-  return { name };
+  const payload: Record<string, unknown> = {};
+  for (const field of createFields.value) {
+    const value = formValue(field.key);
+    if (!value) continue;
+    payload[field.key] = parseFieldValue(field.key, value);
+  }
+  if (name && !payload.name) payload.name = name;
+  return payload;
 }
 
 function formValue(key: string): string {
@@ -285,17 +294,12 @@ function fieldsForPath(path: string): Array<{
 }> {
   const scope = readCurrentScope();
   if (path === "/v1/identity/tenants") {
-    return [
-      { key: "name", label: t("name"), required: true, placeholder: "Acme" },
-      { key: "id", label: t("id"), placeholder: "tenant_acme" },
-      { key: "slug", label: t("slug"), placeholder: "acme" },
-    ];
+    return [{ key: "name", label: t("name"), required: true, placeholder: "Acme" }];
   }
   if (path === "/v1/identity/projects") {
     return [
       { key: "name", label: t("name"), required: true, placeholder: "Support Platform" },
       { key: "tenant_id", label: t("tenant"), required: true, defaultValue: scope.tenant_id },
-      { key: "slug", label: t("slug"), placeholder: "support-platform" },
     ];
   }
   if (path === "/v1/identity/environments") {
@@ -319,7 +323,125 @@ function fieldsForPath(path: string): Array<{
       { key: "description", label: t("description") },
     ];
   }
+  if (path === "/v1/published-surfaces") {
+    return [
+      { key: "name", label: t("name"), required: true, placeholder: "Public API" },
+      { key: "deployment_id", label: "Deployment ID", required: true, placeholder: "deployment_..." },
+      { key: "type", label: "Type", defaultValue: "http" },
+    ];
+  }
+  if (path === "/v1/ingress-routes") {
+    return [
+      { key: "name", label: t("name"), required: true, placeholder: "Public route" },
+      { key: "surface_id", label: "Surface ID", required: true, placeholder: "published_surface_..." },
+      { key: "path", label: "Path", required: true, placeholder: "/api/support" },
+      { key: "auth_mode", label: "Auth mode", defaultValue: "api_key" },
+    ];
+  }
+  if (path === "/v1/artifacts") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "artifact_type", label: "Artifact type", defaultValue: "file" },
+      { key: "mime_type", label: "MIME type", defaultValue: "application/octet-stream" },
+      { key: "storage_uri", label: "Storage URI", required: true, placeholder: "minio://bucket/key" },
+      { key: "checksum", label: "Checksum", required: true },
+      { key: "size_bytes", label: "Size bytes", defaultValue: "0" },
+      { key: "run_id", label: "Run ID" },
+    ];
+  }
+  if (path === "/v1/dataset-items") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "dataset_id", label: "Dataset ID", required: true, placeholder: "dataset_..." },
+      { key: "input_ref", label: "Input ref", required: true },
+      { key: "output_ref", label: "Output ref" },
+      { key: "expected_ref", label: "Expected ref" },
+    ];
+  }
+  if (path === "/v1/experiments") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "agent_id", label: "Agent ID", required: true },
+      { key: "candidate_agent_version_id", label: "Candidate version ID", required: true },
+      { key: "dataset_id", label: "Dataset ID", required: true },
+      { key: "baseline_agent_version_id", label: "Baseline version ID" },
+    ];
+  }
+  if (path === "/v1/evaluations/results") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "experiment_run_id", label: "Experiment run ID", required: true },
+      { key: "evaluator_name", label: "Evaluator", required: true },
+      { key: "score", label: "Score", required: true, defaultValue: "1" },
+      { key: "passed", label: "Passed", required: true, defaultValue: "true" },
+    ];
+  }
+  if (path === "/v1/feedback") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "run_id", label: "Run ID", required: true },
+      { key: "source", label: "Source", defaultValue: "console" },
+      { key: "rating", label: "Rating" },
+      { key: "comment", label: "Comment" },
+    ];
+  }
+  if (path === "/v1/replay-jobs") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "source_run_id", label: "Source run ID", required: true },
+      { key: "candidate_agent_version_id", label: "Candidate version ID", required: true },
+      { key: "source_agent_version_id", label: "Source version ID" },
+    ];
+  }
+  if (path === "/v1/alerts/rules") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "channel_id", label: "Channel ID", required: true, placeholder: "notification_channel_..." },
+      { key: "signal", label: "Signal", defaultValue: "runtime.error_rate" },
+      { key: "threshold", label: "Threshold", defaultValue: "1" },
+    ];
+  }
+  if (path === "/v1/observability/exporters") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "exporter_type", label: "Exporter type", defaultValue: "otlp" },
+      { key: "target_ref", label: "Target ref", required: true, placeholder: "http://otel:4318" },
+    ];
+  }
+  if (path === "/v1/sandbox/policies") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "isolation_level", label: "Isolation", defaultValue: "process" },
+      { key: "network_policy", label: "Network", defaultValue: "deny_all" },
+      { key: "filesystem_policy", label: "Filesystem", defaultValue: "read_only" },
+    ];
+  }
+  if (path === "/v1/container-pool/policies") {
+    return [
+      { key: "name", label: t("name"), required: true },
+      { key: "max_containers", label: "Max containers", defaultValue: "10" },
+      { key: "cpu_limit", label: "CPU limit", defaultValue: "1000m" },
+      { key: "memory_limit", label: "Memory limit", defaultValue: "1Gi" },
+      { key: "idle_timeout_seconds", label: "Idle timeout seconds", defaultValue: "300" },
+    ];
+  }
   return [{ key: "name", label: t("name"), required: true }];
+}
+
+function parseFieldValue(key: string, value: string): unknown {
+  if (["size_bytes", "threshold", "score", "max_containers", "idle_timeout_seconds"].includes(key)) return Number(value);
+  if (key === "passed" || key === "access_log_enabled") {
+    return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+  }
+  return value;
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function metadataPreview(item: AdminResource): string {

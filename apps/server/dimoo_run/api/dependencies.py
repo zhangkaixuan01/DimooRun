@@ -2,21 +2,27 @@ import json
 import os
 from typing import Annotated, Any
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Cookie, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import delete, inspect, text
 
 from dimoo_run.domain.schemas import ErrorResponse
+from dimoo_run.core.config import Settings
+from dimoo_run.domain.models import APIKey, ServiceAccount
 from dimoo_run.identity.console import (
     ConsoleIdentityUnavailableError,
     ConsoleOperator,
+    ConsoleOperatorSessionRecord,
     ConsoleSession,
     default_console_identity_service,
     reset_default_console_identity_service,
 )
 from dimoo_run.identity.console import (
+    console_operator_session_to_public as _console_operator_session_to_public,
     console_operator_to_public as _console_operator_to_public,
 )
-from dimoo_run.identity.service_accounts import ServiceAccountRegistry
+from dimoo_run.identity.service_accounts import SQLAlchemyServiceAccountRegistry
+from dimoo_run.persistence.database import Base, create_session_factory
 from dimoo_run.security.api_keys import (
     APIKeyAuthenticator,
     APIKeyDisabledError,
@@ -28,12 +34,12 @@ from dimoo_run.security.api_keys import (
 RequestIdHeader = Annotated[str | None, Header(alias="X-Request-Id")]
 IdempotencyKeyHeader = Annotated[str | None, Header(alias="Idempotency-Key")]
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
+ConsoleSessionCookie = Annotated[str | None, Cookie(alias="dimoorun_console_session")]
 TenantIdHeader = Annotated[str | None, Header(alias="X-Tenant-Id")]
 ProjectIdHeader = Annotated[str | None, Header(alias="X-Project-Id")]
 EnvironmentHeader = Annotated[str | None, Header(alias="X-Environment")]
 
-_default_service_accounts = ServiceAccountRegistry()
-_default_api_key_authenticator = APIKeyAuthenticator(service_accounts=_default_service_accounts)
+_default_api_key_authenticator: APIKeyAuthenticator | None = None
 
 
 def reset_console_identity() -> None:
@@ -46,8 +52,19 @@ def ensure_bootstrap_operator() -> ConsoleOperator:
     return default_console_identity_service().ensure_bootstrap_operator()
 
 
-def authenticate_console_operator(email: str, password: str) -> ConsoleSession | None:
-    return default_console_identity_service().authenticate(email, password)
+def authenticate_console_operator(
+    email: str,
+    password: str,
+    *,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> ConsoleSession | None:
+    return default_console_identity_service().authenticate(
+        email,
+        password,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
 
 
 def get_console_operator_by_session(token: str) -> ConsoleOperator | None:
@@ -115,18 +132,55 @@ def change_console_operator_password(
     )
 
 
+def revoke_console_operator_sessions(operator_id: str, *, reason: str = "admin_revoked") -> bool:
+    return default_console_identity_service().revoke_operator_sessions(operator_id, reason=reason)
+
+
+def list_console_operator_sessions(operator_id: str) -> list[ConsoleOperatorSessionRecord] | None:
+    return default_console_identity_service().list_operator_sessions(operator_id)
+
+
+def delete_console_operator(operator_id: str) -> ConsoleOperator | None:
+    return default_console_identity_service().delete_operator(operator_id)
+
+
 def console_operator_to_public(operator: ConsoleOperator) -> dict[str, Any]:
     return _console_operator_to_public(operator)
 
 
+def console_operator_session_to_public(session: ConsoleOperatorSessionRecord) -> dict[str, Any]:
+    return _console_operator_session_to_public(session)
+
+
 def default_api_key_authenticator() -> APIKeyAuthenticator:
+    global _default_api_key_authenticator
+    if _default_api_key_authenticator is None:
+        settings = Settings.from_env()
+        session_factory = create_session_factory(settings.database.url)
+        if settings.runtime.mode == "dev":
+            with session_factory() as session:
+                Base.metadata.create_all(session.get_bind())
+                _ensure_machine_identity_columns(session)
+        service_accounts = SQLAlchemyServiceAccountRegistry(session_factory)
+        _default_api_key_authenticator = APIKeyAuthenticator(
+            service_accounts=service_accounts,  # type: ignore[arg-type]
+            session_factory=session_factory,
+        )
     return _default_api_key_authenticator
 
 
 def reset_api_key_authenticator() -> None:
-    global _default_service_accounts, _default_api_key_authenticator
-    _default_service_accounts = ServiceAccountRegistry()
-    _default_api_key_authenticator = APIKeyAuthenticator(service_accounts=_default_service_accounts)
+    global _default_api_key_authenticator
+    settings = Settings.from_env()
+    session_factory = create_session_factory(settings.database.url)
+    if settings.runtime.mode == "dev":
+        with session_factory() as session:
+            Base.metadata.create_all(session.get_bind())
+            _ensure_machine_identity_columns(session)
+            session.execute(delete(APIKey))
+            session.execute(delete(ServiceAccount))
+            session.commit()
+    _default_api_key_authenticator = None
 
 
 def authenticate_api_key(
@@ -136,9 +190,12 @@ def authenticate_api_key(
     project_id: str | None,
     required_scope: str,
     request_id: str | None,
+    console_session: str | None = None,
     environment: str | None = None,
     authenticator: APIKeyAuthenticator | None = None,
 ) -> AuthenticatedActor | JSONResponse:
+    if authorization is None and console_session:
+        authorization = f"Bearer {console_session.strip()}"
     if authorization is None or not authorization.startswith("Bearer "):
         return error_response(
             status_code=401,
@@ -243,6 +300,7 @@ def _operator_can_access_scope(
 
 def require_console_actor(
     authorization: AuthorizationHeader = None,
+    console_session: ConsoleSessionCookie = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_environment: EnvironmentHeader = None,
@@ -258,6 +316,7 @@ def require_console_actor(
         )
     actor = authenticate_api_key(
         authorization=authorization,
+        console_session=console_session,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
         environment=x_environment,
@@ -280,6 +339,7 @@ def require_console_actor(
 def enforce_console_actor(
     request: Request,
     authorization: AuthorizationHeader = None,
+    console_session: ConsoleSessionCookie = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_environment: EnvironmentHeader = None,
@@ -287,6 +347,7 @@ def enforce_console_actor(
 ) -> AuthenticatedActor:
     actor = require_console_actor(
         authorization=authorization,
+        console_session=console_session,
         x_tenant_id=x_tenant_id,
         x_project_id=x_project_id,
         x_environment=x_environment,
@@ -326,6 +387,10 @@ def _required_console_permission(method: str, path: str) -> str | None:
         or "/v1/identity/environments" in path
     ):
         return "identity:scope:write"
+    if "/v1/identity/service-accounts" in path:
+        if "/api-keys" in path:
+            return "identity:api-key:write"
+        return "identity:service-account:write"
     return "admin:write"
 
 
@@ -369,3 +434,15 @@ def error_response(
             details=details,
         ).model_dump(mode="json"),
     )
+
+
+def _ensure_machine_identity_columns(session: Any) -> None:
+    bind = session.get_bind()
+    inspector = inspect(bind)
+    service_account_columns = {column["name"] for column in inspector.get_columns("service_accounts")}
+    api_key_columns = {column["name"] for column in inspector.get_columns("api_keys")}
+    if "permissions_json" not in service_account_columns:
+        session.execute(text("ALTER TABLE service_accounts ADD COLUMN permissions_json JSON NOT NULL DEFAULT '[]'"))
+    if "key_prefix" not in api_key_columns:
+        session.execute(text("ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(32) NOT NULL DEFAULT ''"))
+    session.commit()

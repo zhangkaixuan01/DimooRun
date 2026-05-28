@@ -7,6 +7,9 @@ from uuid import uuid4
 
 from dimoo_run.identity.service_accounts import ServiceAccountRegistry
 from dimoo_run.policy.engine import AuditRecord, AuditSink, InMemoryAuditSink
+from dimoo_run.domain.models import APIKey
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
 
 
 class APIKeyError(PermissionError):
@@ -30,6 +33,7 @@ class APIKeyRecord:
     owner_type: str
     owner_id: str
     key_hash: str
+    key_prefix: str
     scopes: set[str]
     status: str
     created_by: str
@@ -55,10 +59,12 @@ class APIKeyAuthenticator:
         service_accounts: ServiceAccountRegistry,
         audit_sink: AuditSink | None = None,
         now: Callable[[], datetime] | None = None,
+        session_factory: sessionmaker[Session] | None = None,
     ) -> None:
         self.service_accounts = service_accounts
         self.audit_sink = audit_sink or InMemoryAuditSink()
         self._now = now or (lambda: datetime.now(UTC))
+        self._session_factory = session_factory
         self.keys: dict[str, APIKeyRecord] = {}
 
     def create_key(
@@ -81,6 +87,7 @@ class APIKeyAuthenticator:
             scopes=scopes,
         )
         plain_key = f"dr_{secrets.token_urlsafe(24)}"
+        key_prefix = plain_key[:12]
         record = APIKeyRecord(
             id=str(uuid4()),
             tenant_id=tenant_id,
@@ -89,12 +96,18 @@ class APIKeyAuthenticator:
             owner_type=owner_type,
             owner_id=owner_id,
             key_hash=self._hash(plain_key),
+            key_prefix=key_prefix,
             scopes=set(scopes),
             status="active",
             created_by=created_by,
             created_at=self._now(),
             expires_at=expires_at,
         )
+        if self._session_factory is not None:
+            with self._session_factory() as session:
+                session.add(_model_from_record(record))
+                session.commit()
+            return plain_key, record
         self.keys[record.id] = record
         return plain_key, record
 
@@ -143,7 +156,16 @@ class APIKeyAuthenticator:
         )
 
     def disable_key(self, key_id: str, *, actor_id: str) -> None:
-        _ = actor_id
+        if self._session_factory is not None:
+            with self._session_factory() as session:
+                model = session.get(APIKey, key_id)
+                if model is None:
+                    raise KeyError(key_id)
+                model.status = "disabled"
+                model.updated_by = actor_id
+                model.updated_at = self._now()
+                session.commit()
+            return
         self.keys[key_id].status = "disabled"
 
     def list_keys(
@@ -152,6 +174,15 @@ class APIKeyAuthenticator:
         owner_type: str | None = None,
         owner_id: str | None = None,
     ) -> list[APIKeyRecord]:
+        if self._session_factory is not None:
+            with self._session_factory() as session:
+                conditions = [APIKey.is_deleted.is_(False)]
+                if owner_type is not None:
+                    conditions.append(APIKey.owner_type == owner_type)
+                if owner_id is not None:
+                    conditions.append(APIKey.owner_id == owner_id)
+                statement = select(APIKey).where(*conditions).order_by(APIKey.created_at.desc())
+                return [_record_from_model(model) for model in session.scalars(statement)]
         records = list(self.keys.values())
         if owner_type is not None:
             records = [record for record in records if record.owner_type == owner_type]
@@ -180,6 +211,23 @@ class APIKeyAuthenticator:
             raise APIKeyScopeError("api_key_scope_exceeds_owner")
 
     def _find_by_hash(self, key_hash: str) -> APIKeyRecord:
+        if self._session_factory is not None:
+            with self._session_factory() as session:
+                model = session.scalar(
+                    select(APIKey).where(
+                        APIKey.key_hash == key_hash,
+                        APIKey.is_deleted.is_(False),
+                    )
+                )
+                if model is None:
+                    raise APIKeyError("api_key_not_found")
+                record = _record_from_model(model)
+                if record.status == "active":
+                    model.last_used_at = self._now()
+                    model.updated_at = model.last_used_at
+                    session.commit()
+                    record.last_used_at = model.last_used_at
+                return record
         for record in self.keys.values():
             if record.key_hash == key_hash:
                 return record
@@ -187,3 +235,42 @@ class APIKeyAuthenticator:
 
     def _hash(self, plain_key: str) -> str:
         return hashlib.sha256(plain_key.encode("utf-8")).hexdigest()
+
+
+def _model_from_record(record: APIKeyRecord) -> APIKey:
+    return APIKey(
+        id=record.id,
+        tenant_id=record.tenant_id,
+        project_id=record.project_id,
+        name=record.name,
+        owner_type=record.owner_type,
+        owner_id=record.owner_id,
+        key_hash=record.key_hash,
+        key_prefix=record.key_prefix,
+        scopes_json=sorted(record.scopes),
+        status=record.status,
+        created_by=record.created_by,
+        updated_by=record.created_by,
+        created_at=record.created_at,
+        updated_at=record.created_at,
+        expires_at=record.expires_at,
+    )
+
+
+def _record_from_model(model: APIKey) -> APIKeyRecord:
+    return APIKeyRecord(
+        id=model.id,
+        tenant_id=model.tenant_id,
+        project_id=model.project_id,
+        name=model.name,
+        owner_type=model.owner_type,
+        owner_id=model.owner_id,
+        key_hash=model.key_hash,
+        key_prefix=model.key_prefix,
+        scopes=set(model.scopes_json or []),
+        status=model.status,
+        created_by=model.created_by or "system",
+        created_at=model.created_at,
+        last_used_at=model.last_used_at,
+        expires_at=model.expires_at,
+    )

@@ -85,6 +85,7 @@ class ServiceAccount(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    permissions_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -234,6 +235,7 @@ class APIKey(IdMixin, TimestampMixin, Base):
     owner_type: Mapped[str] = mapped_column(String(64), nullable=False)
     owner_id: Mapped[str] = mapped_column(String(64), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
     scopes_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -918,6 +920,39 @@ class SemanticStoreProvider(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     embedding_gateway_id: Mapped[str | None] = mapped_column(ForeignKey("model_gateways.id"))
     connection_ref: Mapped[str] = mapped_column(String(512), nullable=False)
     retention_policy_id: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ObservabilityExporter(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "observability_exporters"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    exporter_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class SandboxPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "sandbox_policies"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    isolation_level: Mapped[str] = mapped_column(String(64), default="process", nullable=False)
+    network_policy: Mapped[str] = mapped_column(String(128), default="deny_all", nullable=False)
+    filesystem_policy: Mapped[str] = mapped_column(String(128), default="read_only", nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ContainerPoolPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "container_pool_policies"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    max_containers: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    cpu_limit: Mapped[str] = mapped_column(String(64), default="1000m", nullable=False)
+    memory_limit: Mapped[str] = mapped_column(String(64), default="1Gi", nullable=False)
+    idle_timeout_seconds: Mapped[int] = mapped_column(Integer, default=300, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
