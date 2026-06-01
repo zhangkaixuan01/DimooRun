@@ -1,7 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
-from fastapi import Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -48,14 +47,14 @@ class OperatorCreateRequest(BaseModel):
     password: str = Field(min_length=8)
     roles: list[str] = Field(default_factory=lambda: ["runtime_operator"])
     permissions: list[str] = Field(default_factory=lambda: ["agent:read", "run:read"])
-    allowed_scopes: list[dict[str, str]] = Field(default_factory=list)
+    allowed_scopes: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class OperatorUpdateRequest(BaseModel):
     name: str | None = None
     roles: list[str] | None = None
     permissions: list[str] | None = None
-    allowed_scopes: list[dict[str, str]] | None = None
+    allowed_scopes: list[dict[str, Any]] | None = None
     status: str | None = None
 
 
@@ -234,7 +233,9 @@ def create_operator(
             permissions=set(payload.permissions),
             allowed_scopes=payload.allowed_scopes or None,
         )
-    except ValueError:
+    except ValueError as exc:
+        if str(exc).startswith("scope_"):
+            return _scope_validation_error(str(exc), x_request_id)
         return JSONResponse(
             status_code=409,
             content={
@@ -249,7 +250,7 @@ def create_operator(
 
 @router.patch("/identity/operators/{operator_id}", response_model=None)
 def update_operator(
-    operator_id: str,
+    operator_id: int,
     payload: OperatorUpdateRequest,
     actor: ConsoleActorDep,
     x_request_id: RequestIdHeader = None,
@@ -259,14 +260,19 @@ def update_operator(
     denied = _require_console_permission(actor, "identity:operator:write", x_request_id)
     if denied is not None:
         return denied
-    operator = update_console_operator(
-        operator_id,
-        name=payload.name,
-        roles=payload.roles,
-        permissions=set(payload.permissions) if payload.permissions is not None else None,
-        allowed_scopes=payload.allowed_scopes,
-        status=payload.status,
-    )
+    try:
+        operator = update_console_operator(
+            operator_id,
+            name=payload.name,
+            roles=payload.roles,
+            permissions=set(payload.permissions) if payload.permissions is not None else None,
+            allowed_scopes=payload.allowed_scopes,
+            status=payload.status,
+        )
+    except ValueError as exc:
+        if str(exc).startswith("scope_"):
+            return _scope_validation_error(str(exc), x_request_id)
+        raise
     if operator is None:
         return JSONResponse(
             status_code=404,
@@ -282,7 +288,7 @@ def update_operator(
 
 @router.post("/identity/operators/{operator_id}/reset-password", response_model=None)
 def reset_operator_password(
-    operator_id: str,
+    operator_id: int,
     payload: OperatorPasswordResetRequest,
     actor: ConsoleActorDep,
     x_request_id: RequestIdHeader = None,
@@ -313,7 +319,7 @@ def reset_operator_password(
 
 @router.post("/identity/operators/{operator_id}/revoke-sessions", response_model=None)
 def revoke_operator_sessions(
-    operator_id: str,
+    operator_id: int,
     actor: ConsoleActorDep,
     x_request_id: RequestIdHeader = None,
 ) -> dict[str, object] | JSONResponse:
@@ -330,7 +336,7 @@ def revoke_operator_sessions(
 
 @router.get("/identity/operators/{operator_id}/sessions", response_model=None)
 def list_operator_sessions(
-    operator_id: str,
+    operator_id: int,
     actor: ConsoleActorDep,
     x_request_id: RequestIdHeader = None,
 ) -> dict[str, object] | JSONResponse:
@@ -348,7 +354,7 @@ def list_operator_sessions(
 
 @router.delete("/identity/operators/{operator_id}", response_model=None)
 def delete_operator(
-    operator_id: str,
+    operator_id: int,
     actor: ConsoleActorDep,
     x_request_id: RequestIdHeader = None,
 ) -> dict[str, object] | JSONResponse:
@@ -381,7 +387,7 @@ def _require_console_permission(
     )
 
 
-def _operator_not_found(operator_id: str, request_id: str | None) -> JSONResponse:
+def _operator_not_found(operator_id: int, request_id: str | None) -> JSONResponse:
     return JSONResponse(
         status_code=404,
         content={
@@ -389,5 +395,17 @@ def _operator_not_found(operator_id: str, request_id: str | None) -> JSONRespons
             "message": "Operator was not found.",
             "request_id": request_id,
             "details": {"operator_id": operator_id},
+        },
+    )
+
+
+def _scope_validation_error(error_code: str, request_id: str | None) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error_code": error_code,
+            "message": "Operator scope must reference an existing tenant and project.",
+            "request_id": request_id,
+            "details": {},
         },
     )

@@ -4,11 +4,11 @@ from typing import Annotated, Any
 
 from fastapi import Cookie, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import delete, inspect, text
+from sqlalchemy import delete, inspect, select, text
 
-from dimoo_run.domain.schemas import ErrorResponse
 from dimoo_run.core.config import Settings
-from dimoo_run.domain.models import APIKey, ServiceAccount
+from dimoo_run.domain.models import APIKey, Environment, Project, ServiceAccount, Tenant
+from dimoo_run.domain.schemas import ErrorResponse
 from dimoo_run.identity.console import (
     ConsoleIdentityUnavailableError,
     ConsoleOperator,
@@ -19,6 +19,8 @@ from dimoo_run.identity.console import (
 )
 from dimoo_run.identity.console import (
     console_operator_session_to_public as _console_operator_session_to_public,
+)
+from dimoo_run.identity.console import (
     console_operator_to_public as _console_operator_to_public,
 )
 from dimoo_run.identity.service_accounts import SQLAlchemyServiceAccountRegistry
@@ -35,8 +37,8 @@ RequestIdHeader = Annotated[str | None, Header(alias="X-Request-Id")]
 IdempotencyKeyHeader = Annotated[str | None, Header(alias="Idempotency-Key")]
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
 ConsoleSessionCookie = Annotated[str | None, Cookie(alias="dimoorun_console_session")]
-TenantIdHeader = Annotated[str | None, Header(alias="X-Tenant-Id")]
-ProjectIdHeader = Annotated[str | None, Header(alias="X-Project-Id")]
+TenantIdHeader = Annotated[int | None, Header(alias="X-Tenant-Id")]
+ProjectIdHeader = Annotated[int | None, Header(alias="X-Project-Id")]
 EnvironmentHeader = Annotated[str | None, Header(alias="X-Environment")]
 
 _default_api_key_authenticator: APIKeyAuthenticator | None = None
@@ -86,7 +88,7 @@ def create_console_operator(
     password: str,
     roles: list[str] | None = None,
     permissions: set[str] | None = None,
-    allowed_scopes: list[dict[str, str]] | None = None,
+    allowed_scopes: list[dict[str, Any]] | None = None,
 ) -> ConsoleOperator:
     return default_console_identity_service().create_operator(
         email=email,
@@ -99,12 +101,12 @@ def create_console_operator(
 
 
 def update_console_operator(
-    operator_id: str,
+    operator_id: int,
     *,
     name: str | None = None,
     roles: list[str] | None = None,
     permissions: set[str] | None = None,
-    allowed_scopes: list[dict[str, str]] | None = None,
+    allowed_scopes: list[dict[str, Any]] | None = None,
     status: str | None = None,
 ) -> ConsoleOperator | None:
     return default_console_identity_service().update_operator(
@@ -118,7 +120,7 @@ def update_console_operator(
 
 
 def change_console_operator_password(
-    operator_id: str,
+    operator_id: int,
     *,
     current_password: str | None,
     new_password: str,
@@ -132,15 +134,15 @@ def change_console_operator_password(
     )
 
 
-def revoke_console_operator_sessions(operator_id: str, *, reason: str = "admin_revoked") -> bool:
+def revoke_console_operator_sessions(operator_id: int, *, reason: str = "admin_revoked") -> bool:
     return default_console_identity_service().revoke_operator_sessions(operator_id, reason=reason)
 
 
-def list_console_operator_sessions(operator_id: str) -> list[ConsoleOperatorSessionRecord] | None:
+def list_console_operator_sessions(operator_id: int) -> list[ConsoleOperatorSessionRecord] | None:
     return default_console_identity_service().list_operator_sessions(operator_id)
 
 
-def delete_console_operator(operator_id: str) -> ConsoleOperator | None:
+def delete_console_operator(operator_id: int) -> ConsoleOperator | None:
     return default_console_identity_service().delete_operator(operator_id)
 
 
@@ -161,6 +163,7 @@ def default_api_key_authenticator() -> APIKeyAuthenticator:
             with session_factory() as session:
                 Base.metadata.create_all(session.get_bind())
                 _ensure_machine_identity_columns(session)
+                _ensure_default_scope_resources(session)
         service_accounts = SQLAlchemyServiceAccountRegistry(session_factory)
         _default_api_key_authenticator = APIKeyAuthenticator(
             service_accounts=service_accounts,  # type: ignore[arg-type]
@@ -177,6 +180,7 @@ def reset_api_key_authenticator() -> None:
         with session_factory() as session:
             Base.metadata.create_all(session.get_bind())
             _ensure_machine_identity_columns(session)
+            _ensure_default_scope_resources(session)
             session.execute(delete(APIKey))
             session.execute(delete(ServiceAccount))
             session.commit()
@@ -186,8 +190,8 @@ def reset_api_key_authenticator() -> None:
 def authenticate_api_key(
     *,
     authorization: str | None,
-    tenant_id: str,
-    project_id: str | None,
+    tenant_id: int,
+    project_id: int | None,
     required_scope: str,
     request_id: str | None,
     console_session: str | None = None,
@@ -236,9 +240,9 @@ def authenticate_api_key(
                 tenant_id=tenant_id,
                 project_id=project_id,
                 actor_type="operator",
-                actor_id=operator.id,
+                actor_id=str(operator.id),
                 scopes=frozenset(operator.permissions),
-                api_key_id="console_session",
+                api_key_id=None,
             )
     dev_key = os.getenv("DIMOORUN_DEV_API_KEY")
     runtime_mode = os.getenv("DIMOORUN_RUNTIME_MODE", "dev")
@@ -249,7 +253,7 @@ def authenticate_api_key(
             actor_type="service_account",
             actor_id="dev_console",
             scopes=frozenset({"*"}),
-            api_key_id="dev_console_key",
+            api_key_id=None,
         )
     try:
         return (authenticator or default_api_key_authenticator()).authenticate(
@@ -286,8 +290,8 @@ def authenticate_api_key(
 
 def _operator_can_access_scope(
     operator: ConsoleOperator,
-    tenant_id: str,
-    project_id: str | None,
+    tenant_id: int,
+    project_id: int | None,
     environment: str | None,
 ) -> bool:
     return default_console_identity_service().can_access_scope(
@@ -439,10 +443,68 @@ def error_response(
 def _ensure_machine_identity_columns(session: Any) -> None:
     bind = session.get_bind()
     inspector = inspect(bind)
-    service_account_columns = {column["name"] for column in inspector.get_columns("service_accounts")}
+    service_account_columns = {
+        column["name"] for column in inspector.get_columns("service_accounts")
+    }
     api_key_columns = {column["name"] for column in inspector.get_columns("api_keys")}
     if "permissions_json" not in service_account_columns:
-        session.execute(text("ALTER TABLE service_accounts ADD COLUMN permissions_json JSON NOT NULL DEFAULT '[]'"))
+        session.execute(
+            text(
+                "ALTER TABLE service_accounts "
+                "ADD COLUMN permissions_json JSON NOT NULL DEFAULT '[]'"
+            )
+        )
     if "key_prefix" not in api_key_columns:
-        session.execute(text("ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(32) NOT NULL DEFAULT ''"))
+        session.execute(
+            text(
+                "ALTER TABLE api_keys "
+                "ADD COLUMN key_prefix VARCHAR(32) NOT NULL DEFAULT ''"
+            )
+        )
+    session.commit()
+
+
+def _ensure_default_scope_resources(session: Any) -> None:
+    tenant_slug = os.getenv("DIMOORUN_DEFAULT_TENANT_SLUG", "default-tenant")
+    project_slug = os.getenv("DIMOORUN_DEFAULT_PROJECT_SLUG", "default-project")
+    environment_name = os.getenv("DIMOORUN_DEFAULT_ENVIRONMENT", "local")
+    tenant = session.scalar(select(Tenant).where(Tenant.slug == tenant_slug))
+    if tenant is None:
+        tenant = Tenant(
+            name=os.getenv("DIMOORUN_DEFAULT_TENANT_NAME", "Default Tenant"),
+            slug=tenant_slug,
+            status="active",
+        )
+        session.add(tenant)
+        session.flush()
+    project = session.scalar(
+        select(Project).where(Project.tenant_id == tenant.id, Project.slug == project_slug)
+    )
+    if project is None:
+        project = Project(
+            tenant_id=tenant.id,
+            name=os.getenv("DIMOORUN_DEFAULT_PROJECT_NAME", "Default Project"),
+            slug=project_slug,
+            status="active",
+        )
+        session.add(project)
+        session.flush()
+    existing_environment = session.scalar(
+        select(Environment).where(
+            Environment.tenant_id == tenant.id,
+            Environment.project_id == project.id,
+            Environment.environment == environment_name,
+        )
+    )
+    if existing_environment is None:
+        session.add(
+            Environment(
+                tenant_id=tenant.id,
+                project_id=project.id,
+                name=environment_name,
+                environment=environment_name,
+                status="active",
+                metadata_json={"seeded": True},
+            )
+        )
     session.commit()

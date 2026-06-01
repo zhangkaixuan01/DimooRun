@@ -27,6 +27,9 @@ from dimoo_run.domain.models import (
     ConsolePermission,
     ConsoleRole,
     ConsoleRolePermission,
+    Environment,
+    Project,
+    Tenant,
 )
 from dimoo_run.domain.models import (
     ConsoleOperatorSession as ConsoleOperatorSessionModel,
@@ -40,12 +43,12 @@ class ConsoleIdentityUnavailableError(RuntimeError):
 
 @dataclass(frozen=True)
 class ConsoleOperator:
-    id: str
+    id: int
     email: str
     name: str
     roles: list[str]
     permissions: set[str]
-    allowed_scopes: list[dict[str, str]]
+    allowed_scopes: list[dict[str, Any]]
     status: str
     created_at: datetime
     updated_at: datetime
@@ -56,7 +59,7 @@ class ConsoleOperator:
 @dataclass(frozen=True)
 class ConsoleSession:
     token: str
-    operator_id: str
+    operator_id: int
     created_at: datetime
     last_used_at: datetime
     expires_at: datetime
@@ -64,8 +67,8 @@ class ConsoleSession:
 
 @dataclass(frozen=True)
 class ConsoleOperatorSessionRecord:
-    id: str
-    operator_id: str
+    id: int
+    operator_id: int
     status: str
     last_used_at: datetime
     expires_at: datetime
@@ -171,12 +174,16 @@ class ConsoleIdentityService:
         name = os.getenv("DIMOORUN_BOOTSTRAP_ADMIN_NAME", "Bootstrap Admin")
         with self._session_factory() as session:
             self._seed_builtin_permissions(session)
+            default_scope = self._default_operator_scope(session)
             existing = self._operator_by_email(session, email)
             if existing is not None:
+                if not self._operator_has_scope(session, existing.id, default_scope):
+                    self._add_operator_scope(session, existing.id, default_scope)
+                self._canonicalize_operator_scopes(session, existing.id)
+                session.commit()
                 return self._hydrate_operator(session, existing)
             now = _now()
             operator = ConsoleOperatorModel(
-                id="operator_bootstrap_admin",
                 email=email,
                 name=name,
                 status="active",
@@ -184,9 +191,9 @@ class ConsoleIdentityService:
                 updated_at=now,
             )
             session.add(operator)
+            session.flush()
             session.add(
                 ConsoleOperatorCredential(
-                    id=_id("credential"),
                     operator_id=operator.id,
                     password_hash=hash_password(password),
                     password_changed_at=now,
@@ -197,7 +204,7 @@ class ConsoleIdentityService:
             )
             self._replace_operator_roles(session, operator.id, ["platform_admin"])
             self._replace_operator_permissions(session, operator.id, {"*"})
-            self._replace_operator_scopes(session, operator.id, [_default_scope()])
+            self._replace_operator_scopes(session, operator.id, [default_scope])
             session.commit()
             return self._hydrate_operator(session, operator)
 
@@ -234,7 +241,6 @@ class ConsoleIdentityService:
             token_hash = hash_token(token)
             expires_at = now + timedelta(seconds=_session_ttl_seconds())
             session_model = ConsoleOperatorSessionModel(
-                id=_id("session"),
                 operator_id=operator.id,
                 token_hash=token_hash,
                 last_used_at=now,
@@ -278,7 +284,7 @@ class ConsoleIdentityService:
                     self._cache.delete(token_hash)
                     return None
                 assert session_model is not None
-                operator = session.get(ConsoleOperatorModel, str(cached["operator_id"]))
+                operator = session.get(ConsoleOperatorModel, cached["operator_id"])
                 if operator is None or operator.status != "active" or operator.is_deleted:
                     self._cache.delete(token_hash)
                     return None
@@ -321,7 +327,7 @@ class ConsoleIdentityService:
         password: str,
         roles: list[str] | None = None,
         permissions: set[str] | None = None,
-        allowed_scopes: list[dict[str, str]] | None = None,
+        allowed_scopes: list[dict[str, Any]] | None = None,
     ) -> ConsoleOperator:
         self.ensure_bootstrap_operator()
         with self._session_factory() as session:
@@ -329,7 +335,6 @@ class ConsoleIdentityService:
                 raise ValueError("operator_email_exists")
             now = _now()
             operator = ConsoleOperatorModel(
-                id=_id("operator"),
                 email=email,
                 name=name,
                 status="active",
@@ -337,9 +342,9 @@ class ConsoleIdentityService:
                 updated_at=now,
             )
             session.add(operator)
+            session.flush()
             session.add(
                 ConsoleOperatorCredential(
-                    id=_id("credential"),
                     operator_id=operator.id,
                     password_hash=hash_password(password),
                     password_changed_at=now,
@@ -355,19 +360,19 @@ class ConsoleIdentityService:
             self._replace_operator_scopes(
                 session,
                 operator.id,
-                allowed_scopes or [_default_scope()],
+                allowed_scopes or [self._default_operator_scope(session)],
             )
             session.commit()
             return self._hydrate_operator(session, operator)
 
     def update_operator(
         self,
-        operator_id: str,
+        operator_id: int,
         *,
         name: str | None = None,
         roles: list[str] | None = None,
         permissions: set[str] | None = None,
-        allowed_scopes: list[dict[str, str]] | None = None,
+        allowed_scopes: list[dict[str, Any]] | None = None,
         status: str | None = None,
     ) -> ConsoleOperator | None:
         self.ensure_bootstrap_operator()
@@ -393,7 +398,7 @@ class ConsoleIdentityService:
 
     def change_password(
         self,
-        operator_id: str,
+        operator_id: int,
         *,
         current_password: str | None,
         new_password: str,
@@ -425,7 +430,7 @@ class ConsoleIdentityService:
             session.commit()
             return True
 
-    def revoke_operator_sessions(self, operator_id: str, *, reason: str = "admin_revoked") -> bool:
+    def revoke_operator_sessions(self, operator_id: int, *, reason: str = "admin_revoked") -> bool:
         self.ensure_bootstrap_operator()
         with self._session_factory() as session:
             operator = session.get(ConsoleOperatorModel, operator_id)
@@ -436,7 +441,7 @@ class ConsoleIdentityService:
             session.commit()
             return True
 
-    def list_operator_sessions(self, operator_id: str) -> list[ConsoleOperatorSessionRecord] | None:
+    def list_operator_sessions(self, operator_id: int) -> list[ConsoleOperatorSessionRecord] | None:
         self.ensure_bootstrap_operator()
         with self._session_factory() as session:
             operator = session.get(ConsoleOperatorModel, operator_id)
@@ -451,7 +456,7 @@ class ConsoleIdentityService:
             )
             return [self._hydrate_session_record(row) for row in rows]
 
-    def delete_operator(self, operator_id: str) -> ConsoleOperator | None:
+    def delete_operator(self, operator_id: int) -> ConsoleOperator | None:
         self.ensure_bootstrap_operator()
         with self._session_factory() as session:
             operator = session.get(ConsoleOperatorModel, operator_id)
@@ -470,14 +475,22 @@ class ConsoleIdentityService:
     def can_access_scope(
         self,
         operator: ConsoleOperator,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         environment: str | None,
     ) -> bool:
-        for scope in operator.allowed_scopes:
-            tenant_ok = scope.get("tenant_id") in {"*", tenant_id}
-            project_ok = project_id is None or scope.get("project_id") in {"*", project_id}
-            environment_ok = environment is None or scope.get("environment") in {"*", environment}
+        scopes = operator.allowed_scopes
+        if not scopes:
+            with self._session_factory() as session:
+                scopes = self._operator_scope_records(session, operator.id)
+        for scope in scopes:
+            tenant_ok = self._scope_value_matches(scope.get("tenant_id"), str(tenant_id))
+            project_ok = project_id is None or self._scope_value_matches(
+                scope.get("project_id"), str(project_id)
+            )
+            environment_ok = environment is None or self._scope_value_matches(
+                scope.get("environment"), environment
+            )
             if tenant_ok and project_ok and environment_ok:
                 return True
         return False
@@ -524,7 +537,11 @@ class ConsoleIdentityService:
     ) -> ConsoleOperatorSessionRecord:
         expires_at = _as_utc(session_model.expires_at)
         revoked_at = _as_utc(session_model.revoked_at) if session_model.revoked_at else None
-        status = "revoked" if revoked_at is not None else "expired" if expires_at <= _now() else "active"
+        status = (
+            "revoked"
+            if revoked_at is not None
+            else "expired" if expires_at <= _now() else "active"
+        )
         return ConsoleOperatorSessionRecord(
             id=session_model.id,
             operator_id=session_model.operator_id,
@@ -554,13 +571,8 @@ class ConsoleIdentityService:
     ) -> ConsoleOperator:
         roles = self._operator_roles(session, operator.id)
         permissions = self._operator_permissions(session, operator.id)
-        scopes = [
-            {
-                "tenant_id": scope.tenant_id,
-                "project_id": scope.project_id,
-                "environment": scope.environment,
-            }
-            for scope in session.scalars(
+        scope_rows = list(
+            session.scalars(
                 select(ConsoleOperatorAllowedScopeModel)
                 .where(
                     ConsoleOperatorAllowedScopeModel.operator_id == operator.id,
@@ -568,7 +580,54 @@ class ConsoleIdentityService:
                 )
                 .order_by(ConsoleOperatorAllowedScopeModel.created_at)
             )
-        ]
+        )
+        tenant_ids = {scope.tenant_id for scope in scope_rows if scope.tenant_id is not None}
+        project_ids = {scope.project_id for scope in scope_rows if scope.project_id is not None}
+        tenants = (
+            {
+                tenant.id: tenant
+                for tenant in session.scalars(select(Tenant).where(Tenant.id.in_(tenant_ids)))
+            }
+            if tenant_ids
+            else {}
+        )
+        projects = (
+            {
+                project.id: project
+                for project in session.scalars(
+                    select(Project).where(Project.id.in_(project_ids))
+                )
+            }
+            if project_ids
+            else {}
+        )
+        scopes: list[dict[str, Any]] = []
+        for scope in scope_rows:
+            tenant = tenants.get(scope.tenant_id) if scope.tenant_id is not None else None
+            project = projects.get(scope.project_id) if scope.project_id is not None else None
+            environment = self._environment_for_scope(session, scope)
+            scopes.append(
+                {
+                    "tenant_id": "*" if scope.tenant_id is None else scope.tenant_id,
+                    "tenant_name": (
+                        "All tenants"
+                        if scope.tenant_id is None
+                        else tenant.name if tenant else None
+                    ),
+                    "project_id": "*" if scope.project_id is None else scope.project_id,
+                    "project_name": (
+                        "All projects"
+                        if scope.project_id is None
+                        else project.name if project else None
+                    ),
+                    "environment": scope.environment,
+                    "environment_name": (
+                        "All environments"
+                        if scope.environment == "*"
+                        else environment.name if environment else scope.environment
+                    ),
+                }
+            )
         credential = session.scalar(
             select(ConsoleOperatorCredential).where(
                 ConsoleOperatorCredential.operator_id == operator.id
@@ -592,7 +651,7 @@ class ConsoleIdentityService:
             ),
         )
 
-    def _operator_roles(self, session: Session, operator_id: str) -> list[str]:
+    def _operator_roles(self, session: Session, operator_id: int) -> list[str]:
         statement = (
             select(ConsoleRole.name)
             .join(ConsoleOperatorRole, ConsoleOperatorRole.role_id == ConsoleRole.id)
@@ -606,7 +665,7 @@ class ConsoleIdentityService:
         )
         return list(session.scalars(statement))
 
-    def _operator_permissions(self, session: Session, operator_id: str) -> set[str]:
+    def _operator_permissions(self, session: Session, operator_id: int) -> set[str]:
         direct = set(
             session.scalars(
                 select(ConsolePermission.code)
@@ -644,7 +703,22 @@ class ConsoleIdentityService:
         )
         return direct | via_roles
 
-    def _replace_operator_roles(self, session: Session, operator_id: str, roles: list[str]) -> None:
+    @staticmethod
+    def _environment_for_scope(
+        session: Session,
+        scope: ConsoleOperatorAllowedScopeModel,
+    ) -> Environment | None:
+        if scope.tenant_id is None or scope.project_id is None or scope.environment == "*":
+            return None
+        return session.scalar(
+            select(Environment).where(
+                Environment.tenant_id == scope.tenant_id,
+                Environment.project_id == scope.project_id,
+                Environment.environment == scope.environment,
+            )
+        )
+
+    def _replace_operator_roles(self, session: Session, operator_id: int, roles: list[str]) -> None:
         session.execute(
             delete(ConsoleOperatorRole).where(ConsoleOperatorRole.operator_id == operator_id)
         )
@@ -652,7 +726,6 @@ class ConsoleIdentityService:
             role = self._ensure_role(session, role_name)
             session.add(
                 ConsoleOperatorRole(
-                    id=_id("operator_role"),
                     operator_id=operator_id,
                     role_id=role.id,
                     created_at=_now(),
@@ -661,7 +734,7 @@ class ConsoleIdentityService:
             )
 
     def _replace_operator_permissions(
-        self, session: Session, operator_id: str, permissions: set[str]
+        self, session: Session, operator_id: int, permissions: set[str]
     ) -> None:
         session.execute(
             delete(ConsoleOperatorPermission).where(
@@ -672,7 +745,6 @@ class ConsoleIdentityService:
             permission = self._ensure_permission(session, permission_code)
             session.add(
                 ConsoleOperatorPermission(
-                    id=_id("operator_permission"),
                     operator_id=operator_id,
                     permission_id=permission.id,
                     created_at=_now(),
@@ -681,7 +753,7 @@ class ConsoleIdentityService:
             )
 
     def _replace_operator_scopes(
-        self, session: Session, operator_id: str, scopes: list[dict[str, str]]
+        self, session: Session, operator_id: int, scopes: list[dict[str, Any]]
     ) -> None:
         session.execute(
             delete(ConsoleOperatorAllowedScopeModel).where(
@@ -689,19 +761,182 @@ class ConsoleIdentityService:
             )
         )
         for scope in scopes:
-            session.add(
-                ConsoleOperatorAllowedScopeModel(
-                    id=_id("operator_scope"),
-                    operator_id=operator_id,
-                    tenant_id=str(scope.get("tenant_id") or "*"),
-                    project_id=str(scope.get("project_id") or "*"),
-                    environment=str(scope.get("environment") or "*"),
-                    created_at=_now(),
-                    updated_at=_now(),
+            self._add_operator_scope(session, operator_id, self._normalize_scope(session, scope))
+
+    def _add_operator_scope(
+        self,
+        session: Session,
+        operator_id: int,
+        scope: dict[str, Any],
+    ) -> None:
+        session.add(
+            ConsoleOperatorAllowedScopeModel(
+                operator_id=operator_id,
+                tenant_id=self._scope_selector_to_id(scope.get("tenant_id")),
+                project_id=self._scope_selector_to_id(scope.get("project_id")),
+                environment=str(scope.get("environment") or "*"),
+                created_at=_now(),
+                updated_at=_now(),
+            )
+        )
+
+    def _operator_scope_records(self, session: Session, operator_id: int) -> list[dict[str, str]]:
+        return [
+            {
+                "tenant_id": "*" if scope.tenant_id is None else str(scope.tenant_id),
+                "project_id": "*" if scope.project_id is None else str(scope.project_id),
+                "environment": scope.environment,
+            }
+            for scope in session.scalars(
+                select(ConsoleOperatorAllowedScopeModel)
+                .where(
+                    ConsoleOperatorAllowedScopeModel.operator_id == operator_id,
+                    ConsoleOperatorAllowedScopeModel.is_deleted.is_(False),
+                )
+                .order_by(ConsoleOperatorAllowedScopeModel.created_at)
+            )
+        ]
+
+    def _canonicalize_operator_scopes(self, session: Session, operator_id: int) -> None:
+        normalized_scopes: list[dict[str, str]] = []
+        seen = set()
+        for scope in self._operator_scope_records(session, operator_id):
+            try:
+                normalized = self._normalize_scope(session, scope)
+            except ValueError:
+                continue
+            key = (
+                normalized["tenant_id"],
+                normalized["project_id"],
+                normalized["environment"],
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized_scopes.append(normalized)
+        self._replace_operator_scopes(session, operator_id, normalized_scopes)
+
+    def _operator_has_scope(
+        self,
+        session: Session,
+        operator_id: int,
+        scope: dict[str, Any],
+    ) -> bool:
+        return (
+            session.scalar(
+                select(ConsoleOperatorAllowedScopeModel).where(
+                    ConsoleOperatorAllowedScopeModel.operator_id == operator_id,
+                    ConsoleOperatorAllowedScopeModel.tenant_id
+                    == self._scope_selector_to_id(scope.get("tenant_id")),
+                    ConsoleOperatorAllowedScopeModel.project_id
+                    == self._scope_selector_to_id(scope.get("project_id")),
+                    ConsoleOperatorAllowedScopeModel.environment
+                    == str(scope.get("environment") or "*"),
+                    ConsoleOperatorAllowedScopeModel.is_deleted.is_(False),
                 )
             )
+            is not None
+        )
 
-    def _revoke_operator_sessions(self, session: Session, operator_id: str, *, reason: str) -> None:
+    @staticmethod
+    def _scope_value_matches(scope_value: object, requested_value: str) -> bool:
+        return scope_value == "*" or str(scope_value) == requested_value
+
+    @staticmethod
+    def _scope_selector_to_id(value: str | None) -> int | None:
+        text = str(value or "*")
+        return None if text == "*" else int(text)
+
+    def _default_operator_scope(self, session: Session) -> dict[str, str]:
+        tenant, project, environment = self._ensure_default_scope_resources(session)
+        return {
+            "tenant_id": str(tenant.id),
+            "project_id": str(project.id),
+            "environment": environment.environment,
+        }
+
+    def _normalize_scope(self, session: Session, scope: dict[str, Any]) -> dict[str, str]:
+        tenant_value = str(scope.get("tenant_id") or "*")
+        project_value = str(scope.get("project_id") or "*")
+        environment_value = str(scope.get("environment") or "*")
+        if tenant_value == "*":
+            return {
+                "tenant_id": "*",
+                "project_id": "*" if project_value == "*" else project_value,
+                "environment": environment_value,
+            }
+        tenant = session.get(Tenant, int(tenant_value))
+        if tenant is None:
+            raise ValueError("scope_tenant_not_found")
+        if project_value == "*":
+            return {
+                "tenant_id": str(tenant.id),
+                "project_id": "*",
+                "environment": environment_value,
+            }
+        project = session.get(Project, int(project_value))
+        if project is None:
+            raise ValueError("scope_project_not_found")
+        return {
+            "tenant_id": str(tenant.id),
+            "project_id": str(project.id),
+            "environment": environment_value,
+        }
+
+    def _ensure_default_scope_resources(
+        self, session: Session
+    ) -> tuple[Tenant, Project, Environment]:
+        tenant_slug, project_slug, environment_name = _configured_default_scope()
+        tenant = self._tenant_by_slug(session, tenant_slug)
+        if tenant is None:
+            tenant = Tenant(
+                name=os.getenv("DIMOORUN_DEFAULT_TENANT_NAME", "Default Tenant"),
+                slug=tenant_slug,
+                status="active",
+            )
+            session.add(tenant)
+            session.flush()
+        project = self._project_by_slug(session, project_slug, tenant.id)
+        if project is None:
+            project = Project(
+                tenant_id=tenant.id,
+                name=os.getenv("DIMOORUN_DEFAULT_PROJECT_NAME", "Default Project"),
+                slug=project_slug,
+                status="active",
+            )
+            session.add(project)
+            session.flush()
+        environment = session.scalar(
+            select(Environment).where(
+                Environment.tenant_id == tenant.id,
+                Environment.project_id == project.id,
+                Environment.environment == environment_name,
+            )
+        )
+        if environment is None:
+            environment = Environment(
+                tenant_id=tenant.id,
+                project_id=project.id,
+                name=environment_name,
+                environment=environment_name,
+                status="active",
+                metadata_json={"seeded": True},
+            )
+            session.add(environment)
+            session.flush()
+        return tenant, project, environment
+
+    @staticmethod
+    def _tenant_by_slug(session: Session, slug: str) -> Tenant | None:
+        return session.scalar(select(Tenant).where(Tenant.slug == slug))
+
+    @staticmethod
+    def _project_by_slug(session: Session, slug: str, tenant_id: int) -> Project | None:
+        return session.scalar(
+            select(Project).where(Project.tenant_id == tenant_id, Project.slug == slug)
+        )
+
+    def _revoke_operator_sessions(self, session: Session, operator_id: int, *, reason: str) -> None:
         now = _now()
         sessions = list(
             session.scalars(
@@ -755,7 +990,6 @@ class ConsoleIdentityService:
                 permission = self._ensure_permission(session, code)
                 session.add(
                     ConsoleRolePermission(
-                        id=_id("role_permission"),
                         role_id=role.id,
                         permission_id=permission.id,
                         created_at=_now(),
@@ -768,7 +1002,6 @@ class ConsoleIdentityService:
         if role is not None:
             return role
         role = ConsoleRole(
-            id=_id("role"),
             name=role_name,
             description=None,
             status="active",
@@ -785,7 +1018,6 @@ class ConsoleIdentityService:
             return permission
         resource, action = _permission_parts(code)
         permission = ConsolePermission(
-            id=_id("permission"),
             code=code,
             resource=resource,
             action=action,
@@ -917,12 +1149,12 @@ def _session_ttl_seconds() -> int:
     return int(os.getenv("DIMOORUN_CONSOLE_ACCESS_TOKEN_TTL_SECONDS", str(12 * 60 * 60)))
 
 
-def _default_scope() -> dict[str, str]:
-    return {
-        "tenant_id": os.getenv("DIMOORUN_DEFAULT_TENANT_ID", "tenant_1"),
-        "project_id": os.getenv("DIMOORUN_DEFAULT_PROJECT_ID", "project_1"),
-        "environment": os.getenv("DIMOORUN_DEFAULT_ENVIRONMENT", "local"),
-    }
+def _configured_default_scope() -> tuple[str, str, str]:
+    return (
+        os.getenv("DIMOORUN_DEFAULT_TENANT_SLUG", "default-tenant"),
+        os.getenv("DIMOORUN_DEFAULT_PROJECT_SLUG", "default-project"),
+        os.getenv("DIMOORUN_DEFAULT_ENVIRONMENT", "local"),
+    )
 
 
 def _permission_parts(code: str) -> tuple[str, str]:

@@ -23,7 +23,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("status", sa.String(length=64), nullable=False),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("status", sa.String(length=64), nullable=False),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -58,7 +58,7 @@ def upgrade() -> None:
         sa.Column("action", sa.String(length=128), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("status", sa.String(length=64), nullable=False),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -71,12 +71,12 @@ def upgrade() -> None:
     )
     op.create_table(
         "console_operator_credentials",
-        sa.Column("operator_id", sa.String(length=64), nullable=False),
+        sa.Column("operator_id", sa.BigInteger(), nullable=False),
         sa.Column("password_hash", sa.String(length=512), nullable=False),
         sa.Column("password_changed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("failed_login_count", sa.Integer(), nullable=False),
         sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -95,7 +95,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "console_operator_sessions",
-        sa.Column("operator_id", sa.String(length=64), nullable=False),
+        sa.Column("operator_id", sa.BigInteger(), nullable=False),
         sa.Column("token_hash", sa.String(length=128), nullable=False),
         sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
@@ -103,7 +103,7 @@ def upgrade() -> None:
         sa.Column("revoke_reason", sa.String(length=128), nullable=True),
         sa.Column("ip_address", sa.String(length=128), nullable=True),
         sa.Column("user_agent", sa.String(length=512), nullable=True),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -127,11 +127,11 @@ def upgrade() -> None:
     )
     op.create_table(
         "console_operator_allowed_scopes",
-        sa.Column("operator_id", sa.String(length=64), nullable=False),
-        sa.Column("tenant_id", sa.String(length=128), nullable=False),
-        sa.Column("project_id", sa.String(length=128), nullable=False),
+        sa.Column("operator_id", sa.BigInteger(), nullable=False),
+        sa.Column("tenant_id", sa.BigInteger(), nullable=True),
+        sa.Column("project_id", sa.BigInteger(), nullable=True),
         sa.Column("environment", sa.String(length=128), nullable=False),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -140,6 +140,8 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deleted_by", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(["operator_id"], ["console_operators.id"]),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "operator_id",
@@ -156,9 +158,9 @@ def upgrade() -> None:
     )
     op.create_table(
         "console_operator_roles",
-        sa.Column("operator_id", sa.String(length=64), nullable=False),
-        sa.Column("role_id", sa.String(length=64), nullable=False),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("operator_id", sa.BigInteger(), nullable=False),
+        sa.Column("role_id", sa.BigInteger(), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -179,9 +181,9 @@ def upgrade() -> None:
     op.create_index("ix_console_operator_roles_role_id", "console_operator_roles", ["role_id"])
     op.create_table(
         "console_role_permissions",
-        sa.Column("role_id", sa.String(length=64), nullable=False),
-        sa.Column("permission_id", sa.String(length=64), nullable=False),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("role_id", sa.BigInteger(), nullable=False),
+        sa.Column("permission_id", sa.BigInteger(), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
@@ -202,9 +204,9 @@ def upgrade() -> None:
     op.create_index("ix_console_role_permissions_role_id", "console_role_permissions", ["role_id"])
     op.create_table(
         "console_operator_permissions",
-        sa.Column("operator_id", sa.String(length=64), nullable=False),
-        sa.Column("permission_id", sa.String(length=64), nullable=False),
-        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("operator_id", sa.BigInteger(), nullable=False),
+        sa.Column("permission_id", sa.BigInteger(), nullable=False),
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_by", sa.String(length=64), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),

@@ -58,7 +58,7 @@ const mode = apiMode();
 const loading = ref(false);
 const creating = ref(false);
 const error = ref<ConsoleApiError | null>(null);
-const pendingAgent = ref<string | null>(null);
+const pendingAgent = ref<number | null>(null);
 const agents = ref<Agent[]>([]);
 
 async function loadAgents() {
@@ -87,7 +87,7 @@ async function createAgent() {
   }
 }
 
-async function archiveAgent(agentId: string) {
+async function archiveAgent(agentId: number) {
   pendingAgent.value = agentId;
   error.value = null;
   try {

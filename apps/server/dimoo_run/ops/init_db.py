@@ -3,6 +3,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import select
 
 from dimoo_run.api.dependencies import ensure_bootstrap_operator
 from dimoo_run.core.config import Settings
@@ -24,32 +25,41 @@ def run() -> None:
 def _seed_default_scope() -> None:
     settings = Settings.from_env()
     session_factory = create_session_factory(settings.database.url)
-    tenant_id = os.getenv("DIMOORUN_DEFAULT_TENANT_ID", "tenant_1")
+    tenant_slug = os.getenv("DIMOORUN_DEFAULT_TENANT_SLUG", "default-tenant")
     tenant_name = os.getenv("DIMOORUN_DEFAULT_TENANT_NAME", "Default Tenant")
-    project_id = os.getenv("DIMOORUN_DEFAULT_PROJECT_ID", "project_1")
+    project_slug = os.getenv("DIMOORUN_DEFAULT_PROJECT_SLUG", "default-project")
     project_name = os.getenv("DIMOORUN_DEFAULT_PROJECT_NAME", "Default Project")
     environment = os.getenv("DIMOORUN_DEFAULT_ENVIRONMENT", "local")
     with session_factory() as session:
-        if session.get(Tenant, tenant_id) is None:
-            session.add(Tenant(id=tenant_id, name=tenant_name, slug=tenant_id, status="active"))
+        tenant = session.scalar(select(Tenant).where(Tenant.slug == tenant_slug))
+        if tenant is None:
+            tenant = Tenant(name=tenant_name, slug=tenant_slug, status="active")
+            session.add(tenant)
             session.flush()
-        if session.get(Project, project_id) is None:
-            session.add(
-                Project(
-                    id=project_id,
-                    tenant_id=tenant_id,
-                    name=project_name,
-                    slug=project_id,
-                    status="active",
-                )
+        project = session.scalar(
+            select(Project).where(Project.tenant_id == tenant.id, Project.slug == project_slug)
+        )
+        if project is None:
+            project = Project(
+                tenant_id=tenant.id,
+                name=project_name,
+                slug=project_slug,
+                status="active",
             )
+            session.add(project)
             session.flush()
-        if session.get(Environment, environment) is None:
+        existing_environment = session.scalar(
+            select(Environment).where(
+                Environment.tenant_id == tenant.id,
+                Environment.project_id == project.id,
+                Environment.environment == environment,
+            )
+        )
+        if existing_environment is None:
             session.add(
                 Environment(
-                    id=environment,
-                    tenant_id=tenant_id,
-                    project_id=project_id,
+                    tenant_id=tenant.id,
+                    project_id=project.id,
                     name=environment,
                     environment=environment,
                     status="active",

@@ -1,5 +1,5 @@
 import { agents, deployments, events, humanTasks, runs, tasks } from "./mockData";
-import type { Agent, Deployment, HumanTask, Run, RuntimeEvent, Task } from "./types";
+import type { Agent, Deployment, HumanTask, ResourceId, Run, RuntimeEvent, Task } from "./types";
 import {
   createDimooRunClient,
   DimooRunApiError,
@@ -42,7 +42,7 @@ export type DashboardSummary = {
 };
 
 export type AdminResource = Record<string, unknown> & {
-  id: string;
+  id: ResourceId;
   status?: string;
   name?: string;
   created_at?: string;
@@ -52,7 +52,7 @@ export type AdminResource = Record<string, unknown> & {
 export type ConsoleOperator = ConsoleOperatorRead;
 export type ConsoleLogin = ConsoleLoginResponse;
 export type ConsoleOperatorSession = AdminResource & {
-  operator_id: string;
+  operator_id: ResourceId;
   status: string;
   last_used_at: string;
   expires_at: string;
@@ -120,8 +120,8 @@ function nativeHeaders(idempotencyKey?: string, scopeOverride?: Partial<ConsoleS
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Request-Id": crypto.randomUUID(),
-    "X-Tenant-Id": scope.tenant_id,
-    "X-Project-Id": scope.project_id,
+    "X-Tenant-Id": String(scope.tenant_id),
+    "X-Project-Id": String(scope.project_id),
     "X-Environment": scope.environment,
   };
   const sessionToken = localStorage.getItem(TOKEN_KEY);
@@ -189,10 +189,10 @@ function mapNativeRun(run: NativeRunRead): Run {
   const status = run.status === "pending" ? "running" : run.status;
   return {
     id: run.id,
-    agent: run.agent_id,
+    agent: String(run.agent_id),
     framework: "LangGraph",
     adapter: "native",
-    version: run.agent_version_id,
+    version: String(run.agent_version_id),
     actor: "api",
     status: ["succeeded", "failed", "running", "timeout", "cancelled"].includes(status)
       ? (status as Run["status"])
@@ -201,8 +201,8 @@ function mapNativeRun(run: NativeRunRead): Run {
     costUsd: 0,
     startedAt: new Date().toISOString(),
     trigger: "api",
-    deployment: run.deployment_id || "direct",
-    traceId: run.thread_id || run.id,
+    deployment: run.deployment_id ? String(run.deployment_id) : "direct",
+    traceId: run.thread_id || String(run.id),
   };
 }
 
@@ -253,9 +253,9 @@ function mapNativeDeployment(deployment: NativeDeploymentRead): Deployment {
         : (deployment.desired_status as Deployment["desiredStatus"]);
   return {
     id: deployment.id,
-    agent: deployment.agent_id,
+    agent: String(deployment.agent_id),
     environment: deployment.environment,
-    version: deployment.agent_version_id,
+    version: String(deployment.agent_version_id),
     desiredStatus,
     runtimeStatus,
     instances: deployment.replicas,
@@ -292,7 +292,7 @@ export const demoConsoleClient = {
       expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
       request_id: null,
       operator: {
-        id: "operator_demo",
+        id: 1,
         email,
         name: "Demo Operator",
         roles: ["platform_admin"],
@@ -304,9 +304,12 @@ export const demoConsoleClient = {
         password_changed_at: new Date().toISOString(),
         allowed_scopes: [
           {
-            tenant_id: "tenant_1",
-            project_id: "project_1",
+            tenant_id: 1,
+            tenant_name: "Default Tenant",
+            project_id: 1,
+            project_name: "Default Project",
             environment: "local",
+            environment_name: "Local",
           },
         ],
       },
@@ -314,7 +317,7 @@ export const demoConsoleClient = {
   },
   async me(): Promise<ConsoleOperator> {
     return {
-      id: "operator_demo",
+      id: 1,
       email: "demo@local.dimoorun",
       name: "Demo Operator",
       roles: ["platform_admin"],
@@ -326,9 +329,12 @@ export const demoConsoleClient = {
       password_changed_at: new Date().toISOString(),
       allowed_scopes: [
         {
-          tenant_id: "tenant_1",
-          project_id: "project_1",
+          tenant_id: 1,
+          tenant_name: "Default Tenant",
+          project_id: 1,
+          project_name: "Default Project",
           environment: "local",
+          environment_name: "Local",
         },
       ],
     };
@@ -359,7 +365,7 @@ export const demoConsoleClient = {
   },
   async createAgent(payload: Record<string, unknown>) {
     const agent: Agent = {
-      id: `agent_demo_${Date.now()}`,
+      id: Date.now(),
       name: String(payload.name || "demo-agent"),
       framework: "LangGraph",
       adapter: "native",
@@ -372,7 +378,7 @@ export const demoConsoleClient = {
     agents.unshift(agent);
     return agent;
   },
-  async archiveAgent(agentId: string) {
+  async archiveAgent(agentId: ResourceId) {
     const agent = agents.find((item) => item.id === agentId);
     if (!agent) throw new Error("Agent not found.");
     agent.lastRunStatus = "archived";
@@ -381,7 +387,7 @@ export const demoConsoleClient = {
   async listDeployments() {
     return page(deployments);
   },
-  async controlDeployment(deploymentId: string, operation: string) {
+  async controlDeployment(deploymentId: ResourceId, operation: string) {
     const deployment = deployments.find((item) => item.id === deploymentId);
     if (!deployment) throw new Error("Deployment not found.");
     deployment.desiredStatus = operation === "resume" || operation === "activate" ? "active" : operation as Deployment["desiredStatus"];
@@ -390,10 +396,10 @@ export const demoConsoleClient = {
   async listRuns() {
     return page(runs);
   },
-  async getRun(runId: string) {
+  async getRun(runId: ResourceId) {
     return runs.find((run) => run.id === runId) ?? null;
   },
-  async controlRun(runId: string, operation: string) {
+  async controlRun(runId: ResourceId, operation: string) {
     const run = runs.find((item) => item.id === runId);
     if (!run) throw new Error("Run not found.");
     if (operation === "cancel") run.status = "cancelled";
@@ -405,7 +411,7 @@ export const demoConsoleClient = {
   async listTasks() {
     return page(tasks);
   },
-  async cancelTask(taskId: string) {
+  async cancelTask(taskId: ResourceId) {
     const task = tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Task not found.");
     task.status = "cancelled";
@@ -417,7 +423,7 @@ export const demoConsoleClient = {
   async listHumanTasks() {
     return page(humanTasks);
   },
-  async decideHumanTask(taskId: string, decision: "approve" | "reject") {
+  async decideHumanTask(taskId: ResourceId, decision: "approve" | "reject") {
     const task = humanTasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Human task not found.");
     task.status = decision === "approve" ? "approved" : "rejected";
@@ -425,24 +431,24 @@ export const demoConsoleClient = {
   },
   async listAdminCollection(path: string, scopeOverride?: Partial<ConsoleScope>) {
     void scopeOverride;
-    return page([{ id: `${path.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "")}_demo`, status: "active" }]);
+    return page([{ id: 1, status: "active" }]);
   },
   async createAdminItem(path: string, payload: Record<string, unknown>) {
-    return { id: String(payload.id || `${path.replace(/[^a-z0-9]+/gi, "_")}_${Date.now()}`), status: "active", ...payload };
+    return { id: Number(payload.id || Date.now()), status: "active", ...payload };
   },
-  async updateAdminItem(path: string, resourceId: string, payload: Record<string, unknown>) {
+  async updateAdminItem(path: string, resourceId: ResourceId, payload: Record<string, unknown>) {
     return { id: resourceId, status: "active", path, ...payload };
   },
-  async deleteAdminItem(path: string, resourceId: string) {
+  async deleteAdminItem(path: string, resourceId: ResourceId) {
     return { id: resourceId, status: "deleted", path, deleted_at: new Date().toISOString() };
   },
   async revokeOperatorSessions() {
     return undefined;
   },
-  async listOperatorSessions(operatorId: string) {
+  async listOperatorSessions(operatorId: ResourceId) {
     return page<ConsoleOperatorSession>([
       {
-        id: "session_demo",
+        id: 1,
         operator_id: operatorId,
         status: "active",
         last_used_at: new Date().toISOString(),
@@ -457,33 +463,39 @@ export const demoConsoleClient = {
   async resetOperatorPassword() {
     return undefined;
   },
-  async deleteOperator(operatorId: string) {
+  async deleteOperator(operatorId: ResourceId) {
     return { id: operatorId, status: "deleted" };
   },
   async listServiceAccounts() {
-    return page([{ id: "sa_demo", name: "demo-ci", status: "active", permissions: ["agent:read"] }]);
+    return page([{ id: 1, name: "demo-ci", status: "active", permissions: ["agent:read"] }]);
   },
   async createServiceAccount(payload: Record<string, unknown>) {
-    return { id: `sa_demo_${Date.now()}`, status: "active", ...payload };
+    return { id: Date.now(), status: "active", ...payload };
   },
-  async updateServiceAccount(serviceAccountId: string, payload: Record<string, unknown>) {
+  async updateServiceAccount(serviceAccountId: ResourceId, payload: Record<string, unknown>) {
     return { id: serviceAccountId, status: "active", ...payload };
   },
-  async deleteServiceAccount(serviceAccountId: string) {
+  async deleteServiceAccount(serviceAccountId: ResourceId) {
     return { id: serviceAccountId, status: "deleted" };
   },
-  async listServiceAccountApiKeys(serviceAccountId: string) {
-    return page([{ id: "key_demo", owner_id: serviceAccountId, name: "demo-key", status: "active", scopes: ["agent:read"] }]);
+  async listServiceAccountApiKeys(serviceAccountId: ResourceId) {
+    return page([{ id: 1, owner_id: serviceAccountId, name: "demo-key", status: "active", scopes: ["agent:read"] }]);
   },
-  async createServiceAccountApiKey(serviceAccountId: string, payload: Record<string, unknown>): Promise<MachineApiKeyCreate> {
+  async createServiceAccountApiKey(serviceAccountId: ResourceId, payload: Record<string, unknown>): Promise<MachineApiKeyCreate> {
     return {
-      item: { id: `key_demo_${Date.now()}`, owner_id: serviceAccountId, status: "active", ...payload },
+      item: { id: Date.now(), owner_id: serviceAccountId, status: "active", ...payload },
       plain_key: "dr_demo_key_shown_once",
       request_id: null,
     };
   },
-  async disableServiceAccountApiKey(serviceAccountId: string, keyId: string) {
+  async disableServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId) {
     return { id: keyId, owner_id: serviceAccountId, status: "disabled" };
+  },
+  async enableServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId) {
+    return { id: keyId, owner_id: serviceAccountId, status: "active" };
+  },
+  async deleteServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId) {
+    return { id: keyId, owner_id: serviceAccountId, status: "deleted" };
   },
 };
 
@@ -531,7 +543,7 @@ export const liveConsoleClient = {
     const created = await nativeClient(crypto.randomUUID()).createAgent(payload);
     return mapNativeAgent(created);
   },
-  async archiveAgent(agentId: string): Promise<Agent> {
+  async archiveAgent(agentId: ResourceId): Promise<Agent> {
     const archived = await nativeClient(crypto.randomUUID()).archiveAgent(agentId);
     return mapNativeAgent(archived);
   },
@@ -539,7 +551,7 @@ export const liveConsoleClient = {
     const payload = await nativeClient().listDeployments();
     return page(payload.map(mapNativeDeployment));
   },
-  async controlDeployment(deploymentId: string, operation: string): Promise<Deployment> {
+  async controlDeployment(deploymentId: ResourceId, operation: string): Promise<Deployment> {
     const payload = await nativeClient(crypto.randomUUID()).controlDeployment(deploymentId, operation);
     return mapNativeDeployment(payload);
   },
@@ -547,15 +559,15 @@ export const liveConsoleClient = {
     const payload = await nativeClient().listRuns();
     return page(payload.map(mapNativeRun));
   },
-  async getRun(runId: string): Promise<Run | null> {
+  async getRun(runId: ResourceId): Promise<Run | null> {
     const payload = await nativeClient().getRun(runId);
     return mapNativeRun(payload);
   },
-  async controlRun(runId: string, operation: string): Promise<Run> {
+  async controlRun(runId: ResourceId, operation: string): Promise<Run> {
     const payload = await nativeClient(crypto.randomUUID()).controlRun(runId, operation);
     return mapNativeRun(payload);
   },
-  async listRunEvents(runId: string): Promise<CursorPage<RuntimeEvent>> {
+  async listRunEvents(runId: ResourceId): Promise<CursorPage<RuntimeEvent>> {
     const payload = await nativeClient().listRunEvents(runId);
     return page(payload.map(mapNativeEvent));
   },
@@ -563,7 +575,7 @@ export const liveConsoleClient = {
     const payload = await nativeClient().listTasks();
     return page(payload.map(mapNativeTask));
   },
-  async cancelTask(taskId: string): Promise<Task> {
+  async cancelTask(taskId: ResourceId): Promise<Task> {
     const payload = await nativeClient(crypto.randomUUID()).cancelTask(taskId);
     return mapNativeTask(payload as NativeTaskRead);
   },
@@ -574,7 +586,7 @@ export const liveConsoleClient = {
     const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/human-tasks");
     return page(payload.items.map(mapAdminHumanTask));
   },
-  async decideHumanTask(taskId: string, decision: "approve" | "reject"): Promise<HumanTask> {
+  async decideHumanTask(taskId: ResourceId, decision: "approve" | "reject"): Promise<HumanTask> {
     const payload = await nativeClient(crypto.randomUUID()).postAdminAction<AdminResource>(
       `/v1/human-tasks/${taskId}/${decision}`,
       { decision_payload: { source: "console" } },
@@ -589,27 +601,27 @@ export const liveConsoleClient = {
     const response = await nativeClient(crypto.randomUUID()).createAdminItem<AdminResource>(path, payload);
     return response.item;
   },
-  async updateAdminItem(path: string, resourceId: string, payload: Record<string, unknown>): Promise<AdminResource> {
+  async updateAdminItem(path: string, resourceId: ResourceId, payload: Record<string, unknown>): Promise<AdminResource> {
     const response = await nativeClient(crypto.randomUUID()).updateAdminItem<AdminResource>(path, resourceId, payload);
     return response.item;
   },
-  async deleteAdminItem(path: string, resourceId: string): Promise<AdminResource> {
+  async deleteAdminItem(path: string, resourceId: ResourceId): Promise<AdminResource> {
     const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>(path, resourceId);
     return response.item;
   },
-  async revokeOperatorSessions(operatorId: string): Promise<void> {
+  async revokeOperatorSessions(operatorId: ResourceId): Promise<void> {
     await nativeClient(crypto.randomUUID()).postAdminAction(`/v1/identity/operators/${operatorId}/revoke-sessions`);
   },
-  async listOperatorSessions(operatorId: string): Promise<CursorPage<ConsoleOperatorSession>> {
+  async listOperatorSessions(operatorId: ResourceId): Promise<CursorPage<ConsoleOperatorSession>> {
     const payload = await nativeClient().listAdminCollection<ConsoleOperatorSession>(`/v1/identity/operators/${operatorId}/sessions`);
     return page(payload.items);
   },
-  async resetOperatorPassword(operatorId: string, newPassword: string): Promise<void> {
+  async resetOperatorPassword(operatorId: ResourceId, newPassword: string): Promise<void> {
     await nativeClient(crypto.randomUUID()).postAdminAction(`/v1/identity/operators/${operatorId}/reset-password`, {
       new_password: newPassword,
     });
   },
-  async deleteOperator(operatorId: string): Promise<AdminResource> {
+  async deleteOperator(operatorId: ResourceId): Promise<AdminResource> {
     const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>("/v1/identity/operators", operatorId);
     return response.item;
   },
@@ -619,24 +631,37 @@ export const liveConsoleClient = {
   async createServiceAccount(payload: Record<string, unknown>): Promise<AdminResource> {
     return this.createAdminItem("/v1/identity/service-accounts", payload);
   },
-  async updateServiceAccount(serviceAccountId: string, payload: Record<string, unknown>): Promise<AdminResource> {
+  async updateServiceAccount(serviceAccountId: ResourceId, payload: Record<string, unknown>): Promise<AdminResource> {
     return this.updateAdminItem("/v1/identity/service-accounts", serviceAccountId, payload);
   },
-  async deleteServiceAccount(serviceAccountId: string): Promise<AdminResource> {
+  async deleteServiceAccount(serviceAccountId: ResourceId): Promise<AdminResource> {
     return this.deleteAdminItem("/v1/identity/service-accounts", serviceAccountId);
   },
-  async listServiceAccountApiKeys(serviceAccountId: string): Promise<CursorPage<AdminResource>> {
+  async listServiceAccountApiKeys(serviceAccountId: ResourceId): Promise<CursorPage<AdminResource>> {
     return this.listAdminCollection(`/v1/identity/service-accounts/${serviceAccountId}/api-keys`);
   },
-  async createServiceAccountApiKey(serviceAccountId: string, payload: Record<string, unknown>): Promise<MachineApiKeyCreate> {
+  async createServiceAccountApiKey(serviceAccountId: ResourceId, payload: Record<string, unknown>): Promise<MachineApiKeyCreate> {
     return nativeClient(crypto.randomUUID()).createAdminItem<MachineApiKeyCreate["item"]>(
       `/v1/identity/service-accounts/${serviceAccountId}/api-keys`,
       payload,
     ) as Promise<MachineApiKeyCreate>;
   },
-  async disableServiceAccountApiKey(serviceAccountId: string, keyId: string): Promise<AdminResource> {
+  async disableServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId): Promise<AdminResource> {
     const response = await nativeClient(crypto.randomUUID()).postAdminAction<AdminResource>(
       `/v1/identity/service-accounts/${serviceAccountId}/api-keys/${keyId}/disable`,
+    );
+    return response.item;
+  },
+  async enableServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId): Promise<AdminResource> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<AdminResource>(
+      `/v1/identity/service-accounts/${serviceAccountId}/api-keys/${keyId}/enable`,
+    );
+    return response.item;
+  },
+  async deleteServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId): Promise<AdminResource> {
+    const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>(
+      `/v1/identity/service-accounts/${serviceAccountId}/api-keys`,
+      keyId,
     );
     return response.item;
   },

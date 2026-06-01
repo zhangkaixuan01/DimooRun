@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -11,9 +10,9 @@ from dimoo_run.domain.models import Project, ServiceAccount, Tenant
 
 @dataclass
 class ServiceAccountRecord:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     name: str
     permissions: set[str]
     created_by: str
@@ -25,19 +24,20 @@ class ServiceAccountRecord:
 class ServiceAccountRegistry:
     def __init__(self, *, now: Callable[[], datetime] | None = None) -> None:
         self._now = now or (lambda: datetime.now(UTC))
-        self.service_accounts: dict[str, ServiceAccountRecord] = {}
+        self.service_accounts: dict[int, ServiceAccountRecord] = {}
+        self._next_id = 1
 
     def create(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         name: str,
         permissions: set[str],
         created_by: str,
     ) -> ServiceAccountRecord:
         record = ServiceAccountRecord(
-            id=str(uuid4()),
+            id=self._next_id,
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
@@ -45,10 +45,11 @@ class ServiceAccountRegistry:
             created_by=created_by,
             created_at=self._now(),
         )
+        self._next_id += 1
         self.service_accounts[record.id] = record
         return record
 
-    def get(self, service_account_id: str) -> ServiceAccountRecord:
+    def get(self, service_account_id: int) -> ServiceAccountRecord:
         return self.service_accounts[service_account_id]
 
     def list(self) -> list[ServiceAccountRecord]:
@@ -58,14 +59,14 @@ class ServiceAccountRegistry:
             reverse=True,
         )
 
-    def set_status(self, service_account_id: str, status: str) -> ServiceAccountRecord:
+    def set_status(self, service_account_id: int, status: str) -> ServiceAccountRecord:
         record = self.get(service_account_id)
         record.status = status
         return record
 
     def update(
         self,
-        service_account_id: str,
+        service_account_id: int,
         *,
         name: str | None = None,
         permissions: set[str] | None = None,
@@ -80,12 +81,12 @@ class ServiceAccountRegistry:
             record.status = status
         return record
 
-    def delete(self, service_account_id: str) -> ServiceAccountRecord:
+    def delete(self, service_account_id: int) -> ServiceAccountRecord:
         record = self.get(service_account_id)
         record.status = "deleted"
         return record
 
-    def mark_used(self, service_account_id: str) -> None:
+    def mark_used(self, service_account_id: int) -> None:
         self.service_accounts[service_account_id].last_used_at = self._now()
 
 
@@ -102,30 +103,25 @@ class SQLAlchemyServiceAccountRegistry:
     def create(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         name: str,
         permissions: set[str],
         created_by: str,
     ) -> ServiceAccountRecord:
         now = self._now()
         with self._session_factory() as session:
-            if session.get(Tenant, tenant_id) is None:
-                session.add(Tenant(id=tenant_id, name=tenant_id, slug=tenant_id, status="active"))
-            if project_id is not None and session.get(Project, project_id) is None:
-                session.add(
-                    Project(
-                        id=project_id,
-                        tenant_id=tenant_id,
-                        name=project_id,
-                        slug=project_id,
-                        status="active",
-                    )
-                )
+            tenant = session.get(Tenant, tenant_id)
+            if tenant is None:
+                raise KeyError(tenant_id)
+            project = None
+            if project_id is not None:
+                project = session.get(Project, project_id)
+                if project is None:
+                    raise KeyError(project_id)
             model = ServiceAccount(
-                id=str(uuid4()),
-                tenant_id=tenant_id,
-                project_id=project_id,
+                tenant_id=tenant.id,
+                project_id=project.id if project is not None else None,
                 name=name,
                 description=None,
                 permissions_json=sorted(permissions),
@@ -136,10 +132,11 @@ class SQLAlchemyServiceAccountRegistry:
                 updated_at=now,
             )
             session.add(model)
+            session.flush()
             session.commit()
             return _record_from_model(model)
 
-    def get(self, service_account_id: str) -> ServiceAccountRecord:
+    def get(self, service_account_id: int) -> ServiceAccountRecord:
         with self._session_factory() as session:
             model = session.get(ServiceAccount, service_account_id)
             if model is None or model.is_deleted:
@@ -155,7 +152,7 @@ class SQLAlchemyServiceAccountRegistry:
             )
             return [_record_from_model(model) for model in session.scalars(statement)]
 
-    def set_status(self, service_account_id: str, status: str) -> ServiceAccountRecord:
+    def set_status(self, service_account_id: int, status: str) -> ServiceAccountRecord:
         with self._session_factory() as session:
             model = session.get(ServiceAccount, service_account_id)
             if model is None or model.is_deleted:
@@ -167,7 +164,7 @@ class SQLAlchemyServiceAccountRegistry:
 
     def update(
         self,
-        service_account_id: str,
+        service_account_id: int,
         *,
         name: str | None = None,
         permissions: set[str] | None = None,
@@ -187,7 +184,7 @@ class SQLAlchemyServiceAccountRegistry:
             session.commit()
             return _record_from_model(model)
 
-    def delete(self, service_account_id: str) -> ServiceAccountRecord:
+    def delete(self, service_account_id: int) -> ServiceAccountRecord:
         with self._session_factory() as session:
             model = session.get(ServiceAccount, service_account_id)
             if model is None or model.is_deleted:
@@ -199,7 +196,7 @@ class SQLAlchemyServiceAccountRegistry:
             session.commit()
             return _record_from_model(model)
 
-    def mark_used(self, service_account_id: str) -> None:
+    def mark_used(self, service_account_id: int) -> None:
         with self._session_factory() as session:
             model = session.get(ServiceAccount, service_account_id)
             if model is None:

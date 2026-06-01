@@ -2,7 +2,17 @@ from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, create_engine
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 
@@ -15,7 +25,11 @@ def utcnow() -> datetime:
 
 
 class IdMixin:
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
 
 
 class AuditMixin:
@@ -37,8 +51,8 @@ class TimestampMixin(AuditMixin):
 
 
 class TenantProjectMixin:
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str | None] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int | None] = mapped_column(
         ForeignKey("projects.id"), nullable=True, index=True
     )
 

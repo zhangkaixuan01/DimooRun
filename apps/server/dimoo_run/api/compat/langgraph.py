@@ -28,7 +28,7 @@ router = APIRouter(prefix="/langgraph", tags=["compat-langgraph"])
 
 class AssistantCreate(BaseModel):
     name: str
-    deployment_id: str
+    deployment_id: int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -50,7 +50,9 @@ class CompatRuntime:
     replay_buffer: ReplayBuffer
     assistants: dict[str, dict[str, Any]]
     threads: dict[str, dict[str, Any]]
-    runs: dict[str, dict[str, Any]]
+    runs: dict[int, dict[str, Any]]
+    next_agent_id: int = 1
+    next_agent_version_id: int = 1
 
     @classmethod
     def create(cls) -> "CompatRuntime":
@@ -92,8 +94,8 @@ def reset_compat_runtime() -> None:
 def _guard(
     response: Response,
     authorization: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     request_id: str | None,
 ) -> AuthenticatedActor | JSONResponse:
     return require_compat_api_key(response, authorization, tenant_id, project_id, request_id)
@@ -133,7 +135,7 @@ def _assistant_not_found(assistant_id: str, request_id: str | None) -> JSONRespo
     )
 
 
-def _deployment_not_found(deployment_id: str, request_id: str | None) -> JSONResponse:
+def _deployment_not_found(deployment_id: int, request_id: str | None) -> JSONResponse:
     return error_response(
         status_code=404,
         error_code="deployment_not_found",
@@ -156,7 +158,7 @@ def _policy_denied(exc: PolicyDeniedError, request_id: str | None) -> JSONRespon
 def _deployment_exists(
     *,
     runtime: CompatRuntime,
-    deployment_id: str,
+    deployment_id: int,
 ) -> bool:
     return deployment_id in runtime.deployment_control.deployments.deployments
 
@@ -164,12 +166,13 @@ def _deployment_exists(
 def _validate_existing_deployment_binding(
     *,
     runtime: CompatRuntime,
-    deployment_id: str,
-    tenant_id: str,
-    project_id: str | None,
-    agent_id: str,
+    deployment_id: int | None,
+    tenant_id: int,
+    project_id: int | None,
     request_id: str | None,
 ) -> JSONResponse | None:
+    if deployment_id is None:
+        return None
     if not _deployment_exists(runtime=runtime, deployment_id=deployment_id):
         return None
     try:
@@ -178,14 +181,6 @@ def _validate_existing_deployment_binding(
         return _deployment_not_found(deployment_id, request_id)
     if deployment.tenant_id != tenant_id or deployment.project_id != project_id:
         return _deployment_not_found(deployment_id, request_id)
-    if deployment.agent_id != agent_id or deployment.agent_version_id != "compat-langgraph":
-        return error_response(
-            status_code=409,
-            error_code="deployment_agent_version_mismatch",
-            message="Deployment does not match the compatibility assistant binding.",
-            request_id=request_id,
-            details={"deployment_id": deployment_id},
-        )
     return None
 
 
@@ -233,7 +228,7 @@ def _lookup_run(
     *,
     runtime: CompatRuntime,
     thread_id: str,
-    run_id: str,
+    run_id: int,
     request_id: str | None,
 ) -> dict[str, Any] | JSONResponse:
     run = runtime.runs.get(run_id)
@@ -251,7 +246,7 @@ def _lookup_run(
 def _run_body(
     *,
     runtime_run: RuntimeRun,
-    task_id: str,
+    task_id: int,
     thread_id: str,
     assistant_id: str,
     payload: RunCreate,
@@ -284,18 +279,18 @@ async def _create_run(
 ) -> dict[str, Any]:
     assistant = runtime.assistants[payload.assistant_id]
     mapping = assistant["metadata"]["dimoorun_mapping"]
-    compat_run_id = f"run_{uuid4().hex[:12]}"
-    compat_task_id = f"task_{uuid4().hex[:12]}"
     deployment_id = mapping["deployment_id"]
     manager_deployment_id = (
         deployment_id if _deployment_exists(runtime=runtime, deployment_id=deployment_id) else None
     )
+    if actor.project_id is None:
+        raise RuntimeError("project_scope_required")
     try:
         runtime_run, task_id = await runtime.run_manager.create_run_task(
             tenant_id=actor.tenant_id,
-            project_id=actor.project_id or "default",
-            agent_id=assistant["name"],
-            agent_version_id="compat-langgraph",
+            project_id=actor.project_id,
+            agent_id=mapping["agent_id"],
+            agent_version_id=mapping["agent_version_id"],
             deployment_id=manager_deployment_id,
             input_data=payload.input,
             override_config={
@@ -304,12 +299,9 @@ async def _create_run(
                 "deployment_id": deployment_id,
             },
             thread_id=thread_id,
-            run_id=compat_run_id,
-            task_id=compat_task_id,
         )
     except PolicyDeniedError as exc:
         raise exc
-    assert task_id == compat_task_id
     body = _run_body(
         runtime_run=runtime_run,
         task_id=task_id,
@@ -387,15 +379,28 @@ def create_assistant(
         deployment_id=payload.deployment_id,
         tenant_id=auth.tenant_id,
         project_id=auth.project_id,
-        agent_id=payload.name,
         request_id=x_request_id,
     )
     if denied is not None:
         return denied
+    if payload.deployment_id is not None and _deployment_exists(
+        runtime=runtime,
+        deployment_id=payload.deployment_id,
+    ):
+        deployment = runtime.deployment_control.deployments.get(payload.deployment_id)
+        agent_id = deployment.agent_id
+        agent_version_id = deployment.agent_version_id
+    else:
+        agent_id = runtime.next_agent_id
+        runtime.next_agent_id += 1
+        agent_version_id = runtime.next_agent_version_id
+        runtime.next_agent_version_id += 1
     assistant_id = f"assistant_{uuid4().hex[:12]}"
     body = _assistant_body(assistant_id, payload)
     body["metadata"]["dimoorun_mapping"]["tenant_id"] = auth.tenant_id
     body["metadata"]["dimoorun_mapping"]["project_id"] = auth.project_id
+    body["metadata"]["dimoorun_mapping"]["agent_id"] = agent_id
+    body["metadata"]["dimoorun_mapping"]["agent_version_id"] = agent_version_id
     runtime.assistants[assistant_id] = body
     return body
 
@@ -525,7 +530,7 @@ async def create_run(
 @router.get("/threads/{thread_id}/runs/{run_id}", response_model=None)
 def get_run(
     thread_id: str,
-    run_id: str,
+    run_id: int,
     response: Response,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -550,7 +555,7 @@ def get_run(
 @router.post("/threads/{thread_id}/runs/{run_id}/cancel", response_model=None)
 async def cancel_run(
     thread_id: str,
-    run_id: str,
+    run_id: int,
     response: Response,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -598,7 +603,7 @@ async def cancel_run(
 @router.post("/threads/{thread_id}/runs/{run_id}/join", response_model=None)
 def join_run(
     thread_id: str,
-    run_id: str,
+    run_id: int,
     response: Response,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,

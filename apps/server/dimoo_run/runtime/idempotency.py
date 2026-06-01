@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 
 @dataclass(frozen=True)
 class IdempotencyReservation:
-    record_id: str
+    record_id: int
     is_replay: bool
     response: dict[str, Any] | None = None
 
@@ -16,7 +15,7 @@ class IdempotencyConflictError(RuntimeError):
 
 @dataclass
 class IdempotencyRecord:
-    record_id: str
+    record_id: int
     request_hash: str
     status: str = "pending"
     response: dict[str, Any] | None = None
@@ -24,13 +23,14 @@ class IdempotencyRecord:
 
 class IdempotencyStore:
     def __init__(self) -> None:
-        self._records: dict[tuple[str, str | None, str, str], IdempotencyRecord] = {}
+        self._records: dict[tuple[int, int | None, str, str], IdempotencyRecord] = {}
+        self._next_id = 1
 
     def reserve(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         endpoint: str,
         idempotency_key: str,
         request_hash: str,
@@ -45,11 +45,12 @@ class IdempotencyStore:
                 is_replay=True,
                 response=existing.response,
             )
-        record = IdempotencyRecord(record_id=str(uuid4()), request_hash=request_hash)
+        record = IdempotencyRecord(record_id=self._next_id, request_hash=request_hash)
+        self._next_id += 1
         self._records[scope] = record
         return IdempotencyReservation(record_id=record.record_id, is_replay=False)
 
-    def complete(self, record_id: str, response: dict[str, Any]) -> None:
+    def complete(self, record_id: int, response: dict[str, Any]) -> None:
         for record in self._records.values():
             if record.record_id == record_id:
                 record.status = "completed"

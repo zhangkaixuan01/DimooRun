@@ -22,7 +22,7 @@ ModelT_co = TypeVar("ModelT_co", covariant=True)
 
 
 class SupportsGetById(Protocol[ModelT_co]):
-    def get_by_id(self, entity_id: str, *, include_deleted: bool = False) -> ModelT_co | None: ...
+    def get_by_id(self, entity_id: int, *, include_deleted: bool = False) -> ModelT_co | None: ...
 
 
 class BaseRepository(Generic[ModelT]):
@@ -32,9 +32,10 @@ class BaseRepository(Generic[ModelT]):
 
     def create(self, instance: ModelT) -> ModelT:
         self.session.add(instance)
+        self.session.flush()
         return instance
 
-    def get_by_id(self, entity_id: str, *, include_deleted: bool = False) -> ModelT | None:
+    def get_by_id(self, entity_id: int, *, include_deleted: bool = False) -> ModelT | None:
         instance = self.session.get(self.model, entity_id)
         if instance is None:
             return None
@@ -49,8 +50,8 @@ class ProjectScopedRepositoryMixin(Generic[ModelT]):
 
     def list_by_project(
         self,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         *,
         include_deleted: bool = False,
     ) -> list[ModelT]:
@@ -65,7 +66,7 @@ class ProjectScopedRepositoryMixin(Generic[ModelT]):
 
 
 class StatusRepositoryMixin(Generic[ModelT]):
-    def update_status(self, entity_id: str, status: str) -> ModelT:
+    def update_status(self, entity_id: int, status: str) -> ModelT:
         repository = cast(SupportsGetById[ModelT], self)
         instance = repository.get_by_id(entity_id)
         if instance is None:
@@ -75,7 +76,7 @@ class StatusRepositoryMixin(Generic[ModelT]):
 
 
 class SoftDeleteRepositoryMixin(Generic[ModelT]):
-    def soft_delete(self, entity_id: str, actor_id: str | None = None) -> ModelT:
+    def soft_delete(self, entity_id: int, actor_id: str | None = None) -> ModelT:
         repository = cast(SupportsGetById[ModelT], self)
         instance = repository.get_by_id(entity_id)
         if instance is None:
@@ -87,7 +88,7 @@ class SoftDeleteRepositoryMixin(Generic[ModelT]):
 
 
 class ArchivableRepositoryMixin(StatusRepositoryMixin[ModelT], SoftDeleteRepositoryMixin[ModelT]):
-    def soft_delete_or_archive(self, entity_id: str, actor_id: str | None = None) -> ModelT:
+    def soft_delete_or_archive(self, entity_id: int, actor_id: str | None = None) -> ModelT:
         instance = self.update_status(entity_id, "archived")
         instance.is_deleted = True
         instance.deleted_at = datetime.now(UTC)
@@ -103,7 +104,7 @@ class AgentRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session, Agent)
 
-    def get_by_name(self, tenant_id: str, project_id: str, name: str) -> Agent | None:
+    def get_by_name(self, tenant_id: int, project_id: int, name: str) -> Agent | None:
         statement = select(Agent).where(
             Agent.tenant_id == tenant_id,
             Agent.project_id == project_id,
@@ -137,7 +138,7 @@ class ProjectRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session, Project)
 
-    def list_by_tenant(self, tenant_id: str, *, include_deleted: bool = False) -> list[Project]:
+    def list_by_tenant(self, tenant_id: int, *, include_deleted: bool = False) -> list[Project]:
         conditions = [Project.tenant_id == tenant_id]
         if not include_deleted:
             conditions.append(Project.is_deleted.is_(False))
@@ -159,14 +160,14 @@ class AgentVersionRepository(StatusRepositoryMixin[AgentVersion], BaseRepository
     def __init__(self, session: Session) -> None:
         super().__init__(session, AgentVersion)
 
-    def list_by_agent(self, agent_id: str) -> list[AgentVersion]:
+    def list_by_agent(self, agent_id: int) -> list[AgentVersion]:
         statement = select(AgentVersion).where(
             AgentVersion.agent_id == agent_id,
             AgentVersion.is_deleted.is_(False),
         )
         return list(self.session.scalars(statement))
 
-    def get_by_agent_version(self, agent_id: str, version: str) -> AgentVersion | None:
+    def get_by_agent_version(self, agent_id: int, version: str) -> AgentVersion | None:
         statement = select(AgentVersion).where(
             AgentVersion.agent_id == agent_id,
             AgentVersion.version == version,
@@ -185,11 +186,11 @@ class DeploymentRepository(
 
     def get_by_environment(
         self,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         *,
         environment: str,
-        agent_id: str,
+        agent_id: int,
     ) -> Deployment | None:
         statement = select(Deployment).where(
             Deployment.tenant_id == tenant_id,
@@ -202,7 +203,7 @@ class DeploymentRepository(
 
     def transition(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         desired_status: str | None = None,
         runtime_status: str | None = None,
@@ -227,7 +228,7 @@ class RunRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session, Run)
 
-    def transition(self, run_id: str, status: str, *, error: str | None = None) -> Run:
+    def transition(self, run_id: int, status: str, *, error: str | None = None) -> Run:
         run = self.get_by_id(run_id)
         if run is None:
             raise KeyError(run_id)
@@ -249,7 +250,7 @@ class TaskRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session, Task)
 
-    def list_by_run(self, run_id: str) -> list[Task]:
+    def list_by_run(self, run_id: int) -> list[Task]:
         statement = select(Task).where(
             Task.run_id == run_id,
             Task.is_deleted.is_(False),
@@ -258,7 +259,7 @@ class TaskRepository(
 
     def transition(
         self,
-        task_id: str,
+        task_id: int,
         status: str,
         *,
         worker_id: str | None = None,
@@ -285,7 +286,7 @@ class EventRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session, Event)
 
-    def next_sequence(self, run_id: str) -> int:
+    def next_sequence(self, run_id: int) -> int:
         events = self.list_by_run(run_id)
         if not events:
             return 1
@@ -295,18 +296,17 @@ class EventRepository(
         self,
         *,
         event_id: str,
-        run_id: str,
-        tenant_id: str,
-        project_id: str,
+        run_id: int,
+        tenant_id: int,
+        project_id: int,
         type: str,
         payload: dict[str, Any] | None = None,
-        attempt_id: str | None = None,
+        attempt_id: int | None = None,
         framework: str | None = None,
         visibility_level: str = "internal",
     ) -> Event:
         sequence = self.next_sequence(run_id)
         event = Event(
-            id=event_id,
             run_id=run_id,
             attempt_id=attempt_id,
             tenant_id=tenant_id,
@@ -320,7 +320,7 @@ class EventRepository(
         )
         return self.create(event)
 
-    def list_by_run(self, run_id: str) -> list[Event]:
+    def list_by_run(self, run_id: int) -> list[Event]:
         statement = (
             select(Event)
             .where(Event.run_id == run_id, Event.is_deleted.is_(False))
@@ -336,12 +336,11 @@ class AuditLogRepository(BaseRepository[AuditLog]):
     def append(
         self,
         *,
-        audit_id: str,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         action: str,
         resource_type: str,
-        resource_id: str | None,
+        resource_id: int | None,
         result: str,
         actor_id: str | None = None,
         actor_type: str = "system",
@@ -350,7 +349,6 @@ class AuditLogRepository(BaseRepository[AuditLog]):
     ) -> AuditLog:
         return self.create(
             AuditLog(
-                id=audit_id,
                 tenant_id=tenant_id,
                 project_id=project_id,
                 actor_id=actor_id,
@@ -364,6 +362,6 @@ class AuditLogRepository(BaseRepository[AuditLog]):
             )
         )
 
-    def soft_delete_or_archive(self, entity_id: str, actor_id: str | None = None) -> AuditLog:
+    def soft_delete_or_archive(self, entity_id: int, actor_id: str | None = None) -> AuditLog:
         _ = entity_id, actor_id
         raise TypeError("AuditLog is immutable and cannot be soft deleted.")

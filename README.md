@@ -24,6 +24,20 @@ Business logic is a black box.
 Runtime behavior is a white box.
 ```
 
+## Identity And ID Model
+
+DimooRun treats a new database as the source of truth. Internal managed
+resources use numeric auto-increment IDs from day one: tenants, projects,
+environments, operators, roles, permissions, service accounts, API keys, agents,
+versions, deployments, runs, attempts, tasks, events, policies, audit logs, and
+other platform metadata all use `BIGINT` primary / foreign keys.
+
+String identifiers are reserved for protocol and external boundaries such as
+`thread_id`, `assistant_id`, `checkpoint_id`, `request_id`, `event_id`,
+`trace_id`, `worker_id`, idempotency keys, key prefixes / hashes, object storage
+URIs, slugs, and configuration references. Console and Admin APIs serialize
+scope headers as HTTP strings, but their semantic value is a numeric ID.
+
 ## Current Status
 
 This repository has completed implementation phases `01` through `13` and is
@@ -36,7 +50,10 @@ treating those deployment paths as fully environment-verified.
 
 The primary artifact is [DESIGN_SPEC.md](docs/DESIGN_SPEC.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
-roadmap.
+roadmap. The cleanup note
+[IMPLEMENTATION_UPDATE_2026-05-30.md](docs/IMPLEMENTATION_UPDATE_2026-05-30.md)
+summarizes the numeric-ID, identity, Console, and Docker dev changes from the
+latest structural pass.
 
 Implemented phase slices:
 
@@ -85,8 +102,8 @@ Implemented phase slices:
   Alert incident flow, and hardened observability / quality tables.
 - `08-console-product-plan`: product-grade Vue Runtime Control Plane Console
   with Dashboard, Agents, Deployments, Compatibility, Published Surfaces, Runs,
-  Run Detail, Tasks, Events, Debug / Replay, Human Tasks, Policies, API Keys,
-  Settings, Chinese / English switching, light / dark theme switching, high-risk
+  Run Detail, Tasks, Events, Debug / Replay, Human Tasks, Policies, Machine
+  Identities, Settings, Chinese / English switching, light / dark theme switching, high-risk
   operation confirmation, ECharts runtime trends, GSAP-scoped page motion, and
   frontend contract tests. Phase 13 replaces the old mock-first page data path
   with live API as the default and keeps mock data behind explicit demo mode.
@@ -134,7 +151,23 @@ Implemented phase slices:
   first-class Identity resources with Console CRUD pages; API requests use the
   logged-in operator's selected scope instead of frontend env constants. Scope
   resources are backed by SQLAlchemy models and Alembic migrations instead of
-  the in-memory admin collection path.
+  the in-memory admin collection path. Machine identity management is centered
+  on Service Accounts, with API keys managed as nested credentials that can be
+  created, disabled, re-enabled, and deleted from the selected service account.
+  Generic `/v1/service-accounts` and `/v1/api-keys` admin collection paths were
+  removed from the Console path; old Console routes redirect to Machine
+  Identities.
+
+Recent structural cleanup:
+
+- All internal table IDs and code-facing resource IDs have been normalized to
+  numeric IDs for a clean new-database schema.
+- Tenant / Project / Environment bootstrap still uses slugs for lookup, but the
+  stored IDs are numeric and are what the Console sends after scope selection.
+- Frontend relationship columns prefer names over raw IDs where the API provides
+  enough data, and timestamp display uses local `yyyy-MM-dd HH:mm:ss`.
+- Docker Compose dev enables filesystem polling for frontend hot reload in the
+  dev override only; production compose files are unaffected.
 
 Current verification baseline:
 

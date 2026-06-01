@@ -2,7 +2,7 @@ import type { Agent, Deployment, HumanTask, Run, RuntimeEvent, Task } from "./ty
 
 export const agents: Agent[] = [
   {
-    id: "agent_support",
+    id: 1,
     name: "support-agent",
     framework: "LangGraph",
     adapter: "langgraph-v1",
@@ -13,7 +13,7 @@ export const agents: Agent[] = [
     releasedAt: "2026-05-25T08:30:00Z",
   },
   {
-    id: "agent_triage",
+    id: 2,
     name: "incident-triage",
     framework: "LangChain",
     adapter: "langchain-agent-v1",
@@ -24,7 +24,7 @@ export const agents: Agent[] = [
     releasedAt: "2026-05-24T11:10:00Z",
   },
   {
-    id: "agent_research",
+    id: 3,
     name: "research-deepagent",
     framework: "DeepAgents",
     adapter: "deepagents-v1",
@@ -38,7 +38,7 @@ export const agents: Agent[] = [
 
 export const deployments: Deployment[] = [
   {
-    id: "dep_prod_support",
+    id: 10,
     agent: "support-agent",
     version: "0.3.2",
     environment: "prod",
@@ -53,7 +53,7 @@ export const deployments: Deployment[] = [
     modelGateway: "newapi-default",
   },
   {
-    id: "dep_staging_triage",
+    id: 11,
     agent: "incident-triage",
     version: "0.2.0",
     environment: "staging",
@@ -68,7 +68,7 @@ export const deployments: Deployment[] = [
     modelGateway: "newapi-low-cost",
   },
   {
-    id: "dep_dev_research",
+    id: 12,
     agent: "research-deepagent",
     version: "0.1.5",
     environment: "dev",
@@ -86,7 +86,7 @@ export const deployments: Deployment[] = [
 
 export const runs: Run[] = [
   {
-    id: "run_01HX9K2A8P",
+    id: 100,
     agent: "support-agent",
     framework: "LangGraph",
     adapter: "langgraph-v1",
@@ -98,11 +98,11 @@ export const runs: Run[] = [
     startedAt: "2026-05-26T09:18:12Z",
     finishedAt: "2026-05-26T09:18:14Z",
     trigger: "api",
-    deployment: "dep_prod_support",
+    deployment: "10",
     traceId: "trace_733a",
   },
   {
-    id: "run_01HX9KB6W4",
+    id: 101,
     agent: "support-agent",
     framework: "LangGraph",
     adapter: "langgraph-v1",
@@ -114,11 +114,11 @@ export const runs: Run[] = [
     startedAt: "2026-05-26T09:09:41Z",
     finishedAt: "2026-05-26T09:09:48Z",
     trigger: "compatibility",
-    deployment: "dep_prod_support",
+    deployment: "10",
     traceId: "trace_91dc",
   },
   {
-    id: "run_01HX9M1P77",
+    id: 102,
     agent: "incident-triage",
     framework: "LangChain",
     adapter: "langchain-agent-v1",
@@ -129,7 +129,7 @@ export const runs: Run[] = [
     costUsd: 0.019,
     startedAt: "2026-05-26T09:25:02Z",
     trigger: "api",
-    deployment: "dep_staging_triage",
+    deployment: "11",
     traceId: "trace_601e",
   },
 ];
@@ -179,8 +179,8 @@ export const events: RuntimeEvent[] = [
 
 export const tasks: Task[] = [
   {
-    id: "task_7751",
-    runId: "run_01HX9KB6W4",
+    id: 1000,
+    runId: 101,
     status: "dead_letter",
     attempt: 3,
     queue: "runtime.prod",
@@ -192,8 +192,8 @@ export const tasks: Task[] = [
     deadLetterReason: "POLICY_APPROVAL_REQUIRED",
   },
   {
-    id: "task_7752",
-    runId: "run_01HX9M1P77",
+    id: 1001,
+    runId: 102,
     status: "leased",
     attempt: 1,
     queue: "runtime.staging",
@@ -207,7 +207,7 @@ export const tasks: Task[] = [
 
 export const humanTasks: HumanTask[] = [
   {
-    id: "ht_1001",
+    id: 2000,
     source: "crm.update_ticket / run_01HX9KB6W4",
     risk: "high",
     status: "pending",
@@ -215,7 +215,7 @@ export const humanTasks: HumanTask[] = [
     expiresAt: "2026-05-26T10:09:48Z",
   },
   {
-    id: "ht_1002",
+    id: 2001,
     source: "deployment.restart / dep_staging_triage",
     risk: "medium",
     status: "pending",

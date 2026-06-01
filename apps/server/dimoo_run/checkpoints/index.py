@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 @dataclass(frozen=True)
 class CheckpointIndexRecord:
-    run_id: str
+    run_id: int
     thread_id: str
     checkpoint_id: str
     payload_uri: str
@@ -19,7 +19,7 @@ class CheckpointIndexStore:
     def add(
         self,
         *,
-        run_id: str,
+        run_id: int,
         thread_id: str,
         checkpoint_id: str,
         payload_uri: str,
@@ -35,5 +35,5 @@ class CheckpointIndexStore:
         self._records.append(record)
         return record
 
-    def list_by_run(self, run_id: str) -> list[CheckpointIndexRecord]:
+    def list_by_run(self, run_id: int) -> list[CheckpointIndexRecord]:
         return [record for record in self._records if record.run_id == run_id]

@@ -46,14 +46,14 @@ class FakeAdapter:
     async def resume(
         self,
         agent: Any,
-        run_id: str,
+        run_id: int,
         payload: dict[str, Any],
         context: RuntimeContext,
     ) -> AgentResult:
         _ = agent, run_id, payload, context
         raise NotImplementedError
 
-    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+    async def cancel(self, run_id: int, context: RuntimeContext) -> None:
         _ = run_id, context
 
 
@@ -70,15 +70,15 @@ class FailingAdapter(FakeAdapter):
 
 class TrackingCancelAdapter(FakeAdapter):
     def __init__(self) -> None:
-        self.cancelled_run_id: str | None = None
+        self.cancelled_run_id: int | None = None
 
-    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+    async def cancel(self, run_id: int, context: RuntimeContext) -> None:
         _ = context
         self.cancelled_run_id = run_id
 
 
 class UnsupportedCancelAdapter(FakeAdapter):
-    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+    async def cancel(self, run_id: int, context: RuntimeContext) -> None:
         _ = run_id, context
         raise CapabilityNotSupportedError("cancel", self.framework)
 
@@ -142,11 +142,11 @@ class RuntimeConfigCapturingAdapter(FakeAdapter):
 
 
 class StaleCompleteBackend(InMemoryTaskBackend):
-    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def assert_can_complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         _ = task_id, worker_id, fencing_token
         raise StaleFencingTokenError("stale")
 
-    async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    async def complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         _ = task_id, worker_id, fencing_token
         raise StaleFencingTokenError("stale")
 
@@ -156,7 +156,7 @@ class StaleAfterFirstFencingBackend(InMemoryTaskBackend):
         super().__init__()
         self.assert_calls = 0
 
-    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def assert_can_complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         self.assert_calls += 1
         if self.assert_calls > 1:
             raise StaleFencingTokenError("stale")
@@ -164,7 +164,7 @@ class StaleAfterFirstFencingBackend(InMemoryTaskBackend):
 
 
 class FailingCompleteRunStore(InMemoryRunStore):
-    def complete_run(self, run_id: str, output: dict[str, Any]) -> None:
+    def complete_run(self, run_id: int, output: dict[str, Any]) -> None:
         _ = run_id, output
         raise RuntimeError("run store unavailable")
 
@@ -177,11 +177,11 @@ async def create_task(
 ) -> str:
     manager = RunManager(run_store=run_store, task_backend=task_backend)
     _run, task_id = await manager.create_run_task(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         input_data={"message": "hello"},
     )
     task_backend.tasks[task_id].max_attempts = max_attempts
@@ -304,11 +304,11 @@ async def test_worker_executor_applies_task_override_config_to_adapter_runtime_c
     replay_buffer = ReplayBuffer()
     manager = RunManager(run_store=run_store, task_backend=task_backend)
     _run, task_id = await manager.create_run_task(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         input_data={"message": "hello"},
         override_config={"temperature": 0, "model": "candidate"},
     )

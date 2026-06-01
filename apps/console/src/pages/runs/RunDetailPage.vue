@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
 import type { Run, RuntimeEvent } from "../../api/types";
@@ -67,6 +67,7 @@ import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 
 const props = defineProps<{ runId: string }>();
+const runId = computed(() => Number(props.runId));
 const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
@@ -81,8 +82,8 @@ async function loadRun() {
   error.value = null;
   try {
     const [run, eventPage] = await Promise.all([
-      consoleClient.getRun(props.runId),
-      consoleClient.listRunEvents(props.runId),
+      consoleClient.getRun(runId.value),
+      consoleClient.listRunEvents(runId.value),
     ]);
     currentRun.value = run;
     events.value = eventPage.items;
@@ -97,7 +98,7 @@ async function controlRun(operation: string) {
   pendingAction.value = true;
   error.value = null;
   try {
-    currentRun.value = await consoleClient.controlRun(props.runId, operation);
+    currentRun.value = await consoleClient.controlRun(runId.value, operation);
   } catch (caught) {
     error.value = toConsoleApiError(caught);
   } finally {

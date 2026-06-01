@@ -18,7 +18,10 @@
         <button v-for="account in serviceAccounts" :key="account.id" class="account-row" :class="{ active: selectedAccount?.id === account.id }" type="button" @click="selectAccount(account)">
           <strong>{{ account.name }}</strong>
           <span class="mono">{{ account.id }}</span>
-          <small>{{ account.status || "active" }} · {{ listValue(account.permissions) }}</small>
+          <span class="account-meta">
+            <StatusBadge :status="String(account.status || 'active')" :label="String(account.status || 'active')" />
+            <small>{{ listValue(account.permissions) }}</small>
+          </span>
         </button>
       </aside>
 
@@ -26,19 +29,24 @@
         <header class="detail-header">
           <div>
             <h2>{{ selectedAccount?.name || t("serviceAccounts") }}</h2>
-            <p v-if="selectedAccount" class="mono">{{ selectedAccount.tenant_id }} / {{ selectedAccount.project_id || "*" }}</p>
+            <p v-if="selectedAccount" class="muted">{{ accountScopeLabel(selectedAccount) }}</p>
           </div>
           <div class="detail-actions">
             <button class="button" type="button" :disabled="!selectedAccount || !canWriteServiceAccount" @click="openServiceAccountEditDrawer">编辑</button>
             <button class="button danger" type="button" :disabled="!selectedAccount || !canWriteServiceAccount" @click="deleteServiceAccount">{{ t("delete") }}</button>
-            <button class="button primary" type="button" :disabled="!selectedAccount || !canWriteApiKey" @click="openKeyDrawer">
+            <button class="button primary" type="button" :disabled="!canCreateKey" @click="openKeyDrawer">
               {{ t("createApiKey") }}
             </button>
           </div>
         </header>
 
+        <InlineApiError :error="mutationError" />
+
         <div v-if="oneTimeKey" class="secret-once">
-          <strong>{{ t("oneTimeSecret") }}</strong>
+          <div>
+            <strong>{{ t("oneTimeSecret") }}</strong>
+            <span>请立即复制保存。关闭或刷新页面后，控制台不会再次显示明文 Key。</span>
+          </div>
           <code>{{ oneTimeKey }}</code>
         </div>
 
@@ -47,23 +55,50 @@
             <thead>
               <tr>
                 <th>{{ t("name") }}</th>
+                <th>Prefix</th>
                 <th>{{ t("scopes") }}</th>
                 <th>{{ t("status") }}</th>
                 <th>{{ t("lastUsed") }}</th>
+                <th>{{ t("expires") }}</th>
                 <th>{{ t("actions") }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="key in apiKeys" :key="key.id">
                 <td><strong>{{ key.name }}</strong><br /><span class="mono muted">{{ key.id }}</span></td>
+                <td class="mono">{{ key.key_prefix || "-" }}</td>
                 <td>{{ listValue(key.scopes) }}</td>
                 <td><StatusBadge :status="String(key.status || 'active')" :label="String(key.status || 'active')" /></td>
-                <td>{{ key.last_used_at || "-" }}</td>
+                <td>{{ formatDateTime(key.last_used_at) }}</td>
+                <td>{{ formatDateTime(key.expires_at) }}</td>
                 <td>
-                  <button class="button danger" type="button" :disabled="key.status === 'disabled' || !canWriteApiKey" @click="disableKey(key)">
-                    {{ t("disable") }}
-                  </button>
+                  <div class="key-actions">
+                    <button
+                      v-if="key.status === 'disabled'"
+                      class="button"
+                      type="button"
+                      :disabled="!canWriteApiKey || actionKeyId === key.id"
+                      @click="enableKey(key)"
+                    >
+                      {{ actionKeyId === key.id ? t("loading") : "启用" }}
+                    </button>
+                    <button
+                      v-else
+                      class="button"
+                      type="button"
+                      :disabled="!canWriteApiKey || actionKeyId === key.id"
+                      @click="disableKey(key)"
+                    >
+                      {{ actionKeyId === key.id ? t("loading") : t("disable") }}
+                    </button>
+                    <button class="button danger" type="button" :disabled="!canWriteApiKey || actionKeyId === key.id" @click="deleteKey(key)">
+                      {{ t("delete") }}
+                    </button>
+                  </div>
                 </td>
+              </tr>
+              <tr v-if="apiKeys.length === 0">
+                <td colspan="7" class="muted">暂无 API Key。创建一个 Key 后，外部系统才能以该服务账号身份调用接口。</td>
               </tr>
             </tbody>
           </table>
@@ -88,13 +123,13 @@
             </label>
             <label class="field">
               {{ t("tenant") }}
-              <select v-model="serviceAccountForm.tenant_id" class="select" required :disabled="serviceAccountDrawerMode === 'edit'" @change="onTenantChange">
+              <select v-model.number="serviceAccountForm.tenant_id" class="select" required :disabled="serviceAccountDrawerMode === 'edit'" @change="onTenantChange">
                 <option v-for="tenant in tenantOptions" :key="tenant.id" :value="tenant.id">{{ tenant.name || tenant.id }}</option>
               </select>
             </label>
             <label class="field">
               {{ t("project") }}
-              <select v-model="serviceAccountForm.project_id" class="select" required :disabled="serviceAccountDrawerMode === 'edit'">
+              <select v-model.number="serviceAccountForm.project_id" class="select" required :disabled="serviceAccountDrawerMode === 'edit'">
                 <option v-for="project in projectOptions" :key="project.id" :value="project.id">{{ project.name || project.id }}</option>
               </select>
             </label>
@@ -165,7 +200,7 @@
       :items="confirmState.items"
       :warning="confirmState.warning"
       :error="mutationError"
-      :busy="creatingServiceAccount || creatingKey"
+      :busy="actionSaving"
       confirm-label="确认执行"
       @cancel="closeConfirm"
       @confirm="runConfirmedAction"
@@ -184,6 +219,7 @@ import InlineApiError from "../../components/InlineApiError.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
+import { formatDateTime } from "../../utils/dateTime";
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -193,17 +229,20 @@ const selectedAccount = ref<AdminResource | null>(null);
 const apiKeys = ref<AdminResource[]>([]);
 const tenantOptions = ref<AdminResource[]>([]);
 const projectOptions = ref<AdminResource[]>([]);
+const allProjectOptions = ref<AdminResource[]>([]);
 const permissionOptions = ref<AdminResource[]>([]);
 const loading = ref(false);
 const creatingServiceAccount = ref(false);
 const creatingKey = ref(false);
+const actionSaving = ref(false);
+const actionKeyId = ref<number | null>(null);
 const serviceAccountDrawerOpen = ref(false);
 const serviceAccountDrawerMode = ref<"create" | "edit">("create");
 const keyDrawerOpen = ref(false);
 const oneTimeKey = ref("");
 const error = ref<ConsoleApiError | null>(null);
 const mutationError = ref<ConsoleApiError | null>(null);
-const serviceAccountForm = reactive({ name: "", tenant_id: "", project_id: "", status: "active", permissions: ["agent:read"] as string[] });
+const serviceAccountForm = reactive({ name: "", tenant_id: 0, project_id: 0, status: "active", permissions: ["agent:read"] as string[] });
 const keyForm = reactive({ name: "", scopes: ["agent:read"] as string[], expires_at: "" });
 const confirmState = reactive({
   open: false,
@@ -218,6 +257,14 @@ const selectedAccountPermissions = computed(() =>
 );
 const canWriteServiceAccount = computed(() => auth.can("identity:service-account:write") || auth.can("admin:write"));
 const canWriteApiKey = computed(() => auth.can("identity:api-key:write") || auth.can("admin:write"));
+const canCreateKey = computed(() => {
+  return Boolean(
+    selectedAccount.value &&
+      selectedAccount.value.status !== "disabled" &&
+      canWriteApiKey.value &&
+      selectedAccountPermissions.value.length > 0,
+  );
+});
 
 async function load() {
   if (mode === "offline") return;
@@ -273,7 +320,7 @@ async function selectAccount(account: AdminResource) {
   await loadKeys(account.id);
 }
 
-async function loadKeys(serviceAccountId: string) {
+async function loadKeys(serviceAccountId: number) {
   apiKeys.value = (await consoleClient.listServiceAccountApiKeys(serviceAccountId)).items;
 }
 
@@ -299,19 +346,48 @@ async function createApiKey() {
 
 async function disableKey(key: AdminResource) {
   if (!selectedAccount.value) return;
+  actionKeyId.value = key.id;
+  mutationError.value = null;
+  try {
+    const disabled = await consoleClient.disableServiceAccountApiKey(selectedAccount.value.id, key.id);
+    apiKeys.value = apiKeys.value.map((item) => (item.id === disabled.id ? disabled : item));
+  } catch (caught) {
+    mutationError.value = toConsoleApiError(caught);
+  } finally {
+    actionKeyId.value = null;
+  }
+}
+
+async function enableKey(key: AdminResource) {
+  if (!selectedAccount.value) return;
+  actionKeyId.value = key.id;
+  mutationError.value = null;
+  try {
+    const enabled = await consoleClient.enableServiceAccountApiKey(selectedAccount.value.id, key.id);
+    apiKeys.value = apiKeys.value.map((item) => (item.id === enabled.id ? enabled : item));
+  } catch (caught) {
+    mutationError.value = toConsoleApiError(caught);
+  } finally {
+    actionKeyId.value = null;
+  }
+}
+
+async function deleteKey(key: AdminResource) {
+  if (!selectedAccount.value) return;
+  const account = selectedAccount.value;
   openConfirm({
-    title: "禁用 API Key",
-    message: `禁用 ${key.name || key.id}。`,
-    warning: "依赖该 Key 的自动化任务会在下一次调用时认证失败。",
+    title: "删除 API Key",
+    message: `删除 ${key.name || key.id}。`,
+    warning: "删除后该 Key 会立即失效，控制台不会保留明文，无法恢复，只能重新创建。",
     items: [
       { label: t("name"), value: String(key.name || key.id) },
+      { label: "Prefix", value: String(key.key_prefix || "-") },
       { label: t("scopes"), value: listValue(key.scopes) },
       { label: t("status"), value: String(key.status || "active") },
     ],
     action: async () => {
-      if (!selectedAccount.value) return;
-      const disabled = await consoleClient.disableServiceAccountApiKey(selectedAccount.value.id, key.id);
-      apiKeys.value = apiKeys.value.map((item) => (item.id === disabled.id ? disabled : item));
+      const deleted = await consoleClient.deleteServiceAccountApiKey(account.id, key.id);
+      apiKeys.value = apiKeys.value.filter((item) => item.id !== deleted.id);
     },
   });
 }
@@ -340,8 +416,8 @@ function openServiceAccountEditDrawer() {
   if (!selectedAccount.value) return;
   serviceAccountDrawerMode.value = "edit";
   serviceAccountForm.name = String(selectedAccount.value.name || "");
-  serviceAccountForm.tenant_id = String(selectedAccount.value.tenant_id || readCurrentScope().tenant_id);
-  serviceAccountForm.project_id = String(selectedAccount.value.project_id || readCurrentScope().project_id);
+  serviceAccountForm.tenant_id = Number(selectedAccount.value.tenant_id || readCurrentScope().tenant_id);
+  serviceAccountForm.project_id = Number(selectedAccount.value.project_id || readCurrentScope().project_id);
   serviceAccountForm.status = String(selectedAccount.value.status || "active");
   serviceAccountForm.permissions = Array.isArray(selectedAccount.value.permissions) ? selectedAccount.value.permissions.map(String) : [];
   mutationError.value = null;
@@ -363,8 +439,8 @@ async function deleteServiceAccount() {
     warning: "服务账号会被软删除，关联 API Key 将不可继续用于机器访问。",
     items: [
       { label: t("name"), value: String(account.name || account.id) },
-      { label: t("tenant"), value: String(account.tenant_id || "-") },
-      { label: t("project"), value: String(account.project_id || "-") },
+      { label: t("tenant"), value: tenantName(account.tenant_id) },
+      { label: t("project"), value: projectName(account.project_id) },
     ],
     action: async () => {
       const deleted = await consoleClient.deleteServiceAccount(account.id);
@@ -398,7 +474,7 @@ function closeConfirm() {
 
 async function runConfirmedAction() {
   if (!confirmState.action) return;
-  creatingServiceAccount.value = true;
+  actionSaving.value = true;
   mutationError.value = null;
   try {
     await confirmState.action();
@@ -406,7 +482,7 @@ async function runConfirmedAction() {
   } catch (caught) {
     mutationError.value = toConsoleApiError(caught);
   } finally {
-    creatingServiceAccount.value = false;
+    actionSaving.value = false;
   }
 }
 
@@ -418,8 +494,9 @@ async function loadOptions() {
   ]);
   tenantOptions.value = tenantsPage.items;
   permissionOptions.value = permissionsPage.items;
-  if (!tenantOptions.value.some((tenant) => tenant.id === serviceAccountForm.tenant_id)) {
-    serviceAccountForm.tenant_id = tenantOptions.value[0]?.id || "";
+  await loadAllProjects();
+  if (!tenantOptions.value.some((tenant) => Number(tenant.id) === serviceAccountForm.tenant_id)) {
+    serviceAccountForm.tenant_id = Number(tenantOptions.value[0]?.id || 0);
   }
   await loadProjects();
 }
@@ -427,7 +504,7 @@ async function loadOptions() {
 async function loadProjects() {
   if (!serviceAccountForm.tenant_id) {
     projectOptions.value = [];
-    serviceAccountForm.project_id = "";
+    serviceAccountForm.project_id = 0;
     return;
   }
   projectOptions.value = (
@@ -435,9 +512,20 @@ async function loadProjects() {
       tenant_id: serviceAccountForm.tenant_id,
     })
   ).items;
-  if (!projectOptions.value.some((project) => project.id === serviceAccountForm.project_id)) {
-    serviceAccountForm.project_id = projectOptions.value[0]?.id || "";
+  if (!projectOptions.value.some((project) => Number(project.id) === serviceAccountForm.project_id)) {
+    serviceAccountForm.project_id = Number(projectOptions.value[0]?.id || 0);
   }
+}
+
+async function loadAllProjects() {
+  const projectPages = await Promise.all(
+    tenantOptions.value.map((tenant) =>
+      consoleClient.listAdminCollection("/v1/identity/projects", {
+        tenant_id: Number(tenant.id),
+      }),
+    ),
+  );
+  allProjectOptions.value = projectPages.flatMap((page) => page.items);
 }
 
 async function onTenantChange() {
@@ -446,6 +534,24 @@ async function onTenantChange() {
 
 function listValue(value: unknown): string {
   return Array.isArray(value) ? value.join(", ") : String(value || "-");
+}
+
+function accountScopeLabel(account: AdminResource): string {
+  return `${tenantName(account.tenant_id)} / ${projectName(account.project_id)}`;
+}
+
+function tenantName(value: unknown): string {
+  return relatedName(tenantOptions.value, value);
+}
+
+function projectName(value: unknown): string {
+  return relatedName(allProjectOptions.value, value);
+}
+
+function relatedName(options: AdminResource[], value: unknown): string {
+  if (value === null || value === undefined || value === "") return "*";
+  const match = options.find((item) => String(item.id) === String(value));
+  return match ? String(match.name || match.slug || match.environment || `#${match.id}`) : `#${String(value)}`;
 }
 
 onMounted(load);
@@ -491,6 +597,19 @@ onMounted(load);
   color: var(--color-text-muted);
 }
 
+.account-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .detail-header {
   display: flex;
   align-items: flex-start;
@@ -507,6 +626,13 @@ onMounted(load);
   gap: 8px;
 }
 
+.key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 142px;
+}
+
 .detail-header h2 {
   margin: 0;
 }
@@ -514,6 +640,11 @@ onMounted(load);
 .embedded {
   border: 0;
   border-radius: 0;
+}
+
+.embedded td[colspan] {
+  padding: 18px;
+  white-space: normal;
 }
 
 .secret-once {
@@ -526,8 +657,22 @@ onMounted(load);
   padding: 12px;
 }
 
+.secret-once div {
+  display: grid;
+  gap: 4px;
+}
+
+.secret-once span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
 .secret-once code {
   overflow-wrap: anywhere;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 9px 10px;
 }
 
 .drawer-layer {

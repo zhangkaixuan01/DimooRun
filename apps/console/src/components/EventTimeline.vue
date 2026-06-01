@@ -8,7 +8,7 @@
           <span class="mono">#{{ event.sequence }}</span>
         </div>
         <p>{{ event.summary }}</p>
-        <time>{{ new Date(event.timestamp).toLocaleString() }}</time>
+        <time>{{ formatDateTime(event.timestamp) }}</time>
       </div>
     </li>
   </ol>
@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import type { RuntimeEvent } from "../api/types";
+import { formatDateTime } from "../utils/dateTime";
 
 defineProps<{
   events: RuntimeEvent[];

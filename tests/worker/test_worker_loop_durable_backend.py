@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 class FakeCancelSubscriber:
     async def listen_once(self) -> dict[str, str]:
         return {
-            "run_id": "run_1",
-            "task_id": "task_1",
+            "run_id": 1,
+            "task_id": 1,
             "worker_id": "worker_1",
             "status": "cancelled",
         }
@@ -23,7 +23,7 @@ class FakeCancelHandler:
     def __init__(self) -> None:
         self.cancelled: tuple[str, str | None] | None = None
 
-    async def cancel_run(self, run_id: str, *, task_id: str | None = None) -> str:
+    async def cancel_run(self, run_id: int, *, task_id: int | None = None) -> str:
         self.cancelled = (run_id, task_id)
         return "adapter_cancelled"
 
@@ -35,9 +35,9 @@ def test_worker_loop_can_lease_durable_task_and_mark_it_running() -> None:
     session.add(
         Run(
             id="run_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="agent_version_1",
             input_ref='json:{"message":"hello"}',
         )
@@ -47,9 +47,9 @@ def test_worker_loop_can_lease_durable_task_and_mark_it_running() -> None:
     task_id = anyio.run(
         backend.enqueue,
         {
-            "tenant_id": "tenant_1",
-            "project_id": "project_1",
-            "run_id": "run_1",
+            "tenant_id": 1,
+            "project_id": 1,
+            "run_id": 1,
             "queue": "default",
         },
     )
@@ -72,9 +72,9 @@ def test_worker_loop_horizontal_scaling_leases_distinct_tasks() -> None:
         session.add(
             Run(
                 id=f"run_{index}",
-                tenant_id="tenant_1",
-                project_id="project_1",
-                agent_id="agent_1",
+                tenant_id=1,
+                project_id=1,
+                agent_id=1,
                 agent_version_id="agent_version_1",
                 input_ref='json:{"message":"hello"}',
             )
@@ -85,8 +85,8 @@ def test_worker_loop_horizontal_scaling_leases_distinct_tasks() -> None:
         anyio.run(
             backend.enqueue,
             {
-                "tenant_id": "tenant_1",
-                "project_id": "project_1",
+                "tenant_id": 1,
+                "project_id": 1,
                 "run_id": f"run_{index}",
                 "queue": "default",
             },

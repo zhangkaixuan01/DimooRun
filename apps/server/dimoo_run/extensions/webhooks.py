@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
-from uuid import uuid4
 
 from dimoo_run.core.events import AgentEvent
 from dimoo_run.observability.audit import InMemoryComplianceAuditLog
@@ -14,9 +13,9 @@ class WebhookTransport(Protocol):
 
 @dataclass(frozen=True)
 class WebhookSubscription:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     name: str
     event_types: set[str]
     target_url: str
@@ -44,7 +43,7 @@ class WebhookSubscription:
 
 @dataclass(frozen=True)
 class WebhookDelivery:
-    subscription_id: str
+    subscription_id: int
     event_id: str | None
     status: str
     reason: str | None = None
@@ -62,15 +61,16 @@ class WebhookSubscriptionService:
         self.transport = transport
         self.audit_log = audit_log
         self.redaction_policy = redaction_policy or RedactionPolicy(fields={"secret", "api_key"})
-        self.subscriptions: dict[str, WebhookSubscription] = {}
+        self.subscriptions: dict[int, WebhookSubscription] = {}
         self.deliveries: list[WebhookDelivery] = []
-        self._delivery_windows: dict[str, tuple[datetime, int]] = {}
+        self._delivery_windows: dict[int, tuple[datetime, int]] = {}
+        self._next_subscription_id = 0
 
     def subscribe(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         name: str,
         event_types: set[str],
         target_url: str,
@@ -80,7 +80,7 @@ class WebhookSubscriptionService:
         if "event:receive" not in permissions:
             raise PermissionError("webhook_subscription_permission_required")
         subscription = WebhookSubscription(
-            id=str(uuid4()),
+            id=self._allocate_subscription_id(),
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
@@ -92,7 +92,7 @@ class WebhookSubscriptionService:
         self.subscriptions[subscription.id] = subscription
         return subscription
 
-    def dispatch(self, event: AgentEvent, *, tenant_id: str, project_id: str | None) -> int:
+    def dispatch(self, event: AgentEvent, *, tenant_id: int, project_id: int | None) -> int:
         delivered = 0
         for subscription in self.subscriptions.values():
             if not self._matches(
@@ -133,8 +133,8 @@ class WebhookSubscriptionService:
         subscription: WebhookSubscription,
         *,
         event: AgentEvent,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
     ) -> bool:
         return (
             subscription.status == "active"
@@ -182,6 +182,10 @@ class WebhookSubscriptionService:
             result="allow" if status == "delivered" else "deny",
             metadata={"event_id": event.event_id, "reason": reason},
         )
+
+    def _allocate_subscription_id(self) -> int:
+        self._next_subscription_id += 1
+        return self._next_subscription_id
 
 
 @dataclass

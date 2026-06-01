@@ -1,7 +1,6 @@
 from collections.abc import Callable, Generator
 from functools import lru_cache
 from typing import Annotated, Any
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
@@ -31,8 +30,8 @@ from dimoo_run.persistence.repositories import AuditLogRepository, DeploymentRep
 
 router = APIRouter(tags=["native-deployments"])
 ActorIdHeader = Annotated[str | None, Header(alias="X-Actor-Id")]
-TenantIdHeader = Annotated[str | None, Header(alias="X-Tenant-Id")]
-ProjectIdHeader = Annotated[str | None, Header(alias="X-Project-Id")]
+TenantIdHeader = Annotated[int | None, Header(alias="X-Tenant-Id")]
+ProjectIdHeader = Annotated[int | None, Header(alias="X-Project-Id")]
 
 _default_deployment_control = DeploymentRuntimeControlService()
 
@@ -44,7 +43,6 @@ class SQLAlchemyDeploymentStore:
     def add(self, deployment: DeploymentRecord) -> DeploymentRecord:
         model = DeploymentRepository(self.session).create(
             Deployment(
-                id=deployment.id,
                 tenant_id=deployment.tenant_id,
                 project_id=deployment.project_id,
                 agent_id=deployment.agent_id,
@@ -60,7 +58,7 @@ class SQLAlchemyDeploymentStore:
         self.session.flush()
         return deployment_from_model(model)
 
-    def get(self, deployment_id: str) -> DeploymentRecord:
+    def get(self, deployment_id: int) -> DeploymentRecord:
         deployment = DeploymentRepository(self.session).get_by_id(deployment_id)
         if deployment is None:
             raise DeploymentNotFoundError(deployment_id)
@@ -69,8 +67,8 @@ class SQLAlchemyDeploymentStore:
     def list(
         self,
         *,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
     ) -> list[DeploymentRecord]:
         conditions: list[Any] = [Deployment.is_deleted.is_(False)]
         if tenant_id is not None:
@@ -104,7 +102,6 @@ class SQLAlchemyAuditSink:
         if entry.tenant_id is None:
             return
         AuditLogRepository(self.session).append(
-            audit_id=f"audit_{uuid4().hex[:12]}",
             tenant_id=entry.tenant_id,
             project_id=entry.project_id,
             actor_id=entry.actor_id,
@@ -161,7 +158,7 @@ NativeRuntimeDep = Annotated[
     NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     Depends(get_native_runtime),
 ]
-CONTROL_RESPONSES: dict[int | str, dict[str, Any]] = {
+CONTROL_RESPONSES: dict[int, dict[str, Any]] = {
     400: {"model": ErrorResponse},
     403: {"model": ErrorResponse},
     404: {"model": ErrorResponse},
@@ -169,8 +166,8 @@ CONTROL_RESPONSES: dict[int | str, dict[str, Any]] = {
 
 
 class DeploymentCreate(BaseModel):
-    agent_id: str
-    agent_version_id: str
+    agent_id: int
+    agent_version_id: int
     environment: str = Field(min_length=1)
     desired_status: DeploymentDesiredStatus = DeploymentDesiredStatus.draft
     replicas: int = Field(default=1, ge=1)
@@ -248,7 +245,7 @@ def create_deployment(
             )
     deployment = service.deployments.add(
         DeploymentRecord(
-            id=f"deployment_{uuid4().hex[:12]}",
+            id=0,
             tenant_id=x_tenant_id,
             project_id=x_project_id,
             agent_id=payload.agent_id,
@@ -328,7 +325,7 @@ def list_deployments(
     responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
 )
 def get_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -373,7 +370,7 @@ def get_deployment(
     responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
 )
 def list_deployment_instances(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -407,13 +404,13 @@ def list_deployment_instances(
 
 
 def control_response(
-    deployment_id: str,
+    deployment_id: int,
     *,
-    action: Callable[[str, str], DeploymentRecord],
+    action: Callable[[int, str], DeploymentRecord],
     service: DeploymentRuntimeControlService,
     request_id: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     authorization: str | None,
 ) -> DeploymentRead | JSONResponse:
     scope_error = require_scope(
@@ -461,7 +458,7 @@ def control_response(
     responses=CONTROL_RESPONSES,
 )
 def activate_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -493,7 +490,7 @@ def activate_deployment(
     responses=CONTROL_RESPONSES,
 )
 def pause_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -525,7 +522,7 @@ def pause_deployment(
     responses=CONTROL_RESPONSES,
 )
 def resume_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -557,7 +554,7 @@ def resume_deployment(
     responses=CONTROL_RESPONSES,
 )
 def drain_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -589,7 +586,7 @@ def drain_deployment(
     responses=CONTROL_RESPONSES,
 )
 def stop_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -621,7 +618,7 @@ def stop_deployment(
     responses=CONTROL_RESPONSES,
 )
 def restart_deployment(
-    deployment_id: str,
+    deployment_id: int,
     service: DeploymentControlDep,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
@@ -673,8 +670,8 @@ def instance_to_read(instance: object) -> AgentInstanceRead:
 
 def require_scope(
     *,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     request_id: str | None,
 ) -> JSONResponse | None:
     if tenant_id is not None and project_id is not None:
@@ -691,13 +688,13 @@ def require_scope(
 def deployment_in_scope(
     deployment: DeploymentRecord,
     *,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
 ) -> bool:
     return deployment.tenant_id == tenant_id and deployment.project_id == project_id
 
 
-def deployment_not_found(deployment_id: str, request_id: str | None) -> JSONResponse:
+def deployment_not_found(deployment_id: int, request_id: str | None) -> JSONResponse:
     return error_response(
         status_code=404,
         error_code="deployment_not_found",

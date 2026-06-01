@@ -15,13 +15,13 @@ from dimoo_run.observability.traces import InMemoryTraceSink, TraceSpan
 
 def context() -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         user_id="user_1",
         trace_id="trace_1",
         framework="langgraph",
@@ -139,15 +139,15 @@ def test_event_trace_and_audit_ledgers_are_separate_and_apply_redaction_sampling
             parent_span_id=None,
             name="model.call",
             kind="model",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            run_id="run_1",
+            tenant_id=1,
+            project_id=1,
+            run_id=1,
             metadata={"api_key": "sk-secret"},
         )
     )
     audit_log.record(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         actor_id="user_1",
         actor_type="user",
         action="secret.read",

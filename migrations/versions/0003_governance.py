@@ -6,7 +6,7 @@ Create Date: 2026-05-24
 """
 
 from alembic import op
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, text
+from sqlalchemy import BigInteger, JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, text
 
 from migrations.table_helpers import audit_columns, drop_tables, id_column, tenant_project_columns
 
@@ -51,9 +51,9 @@ def upgrade() -> None:
         "policy_decisions",
         id_column(),
         *tenant_project_columns(project_nullable=True),
-        Column("policy_id", String(64), ForeignKey("policies.id")),
+        Column("policy_id", BigInteger, ForeignKey("policies.id")),
         Column("resource_type", String(128), nullable=False),
-        Column("resource_id", String(64)),
+        Column("resource_id", BigInteger),
         Column("action", String(128), nullable=False),
         Column("decision", String(64), nullable=False),
         Column("reason", String(255)),
@@ -77,8 +77,8 @@ def upgrade() -> None:
     op.create_table(
         "secrets",
         id_column(),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=False),
         Column("name", String(255), nullable=False),
         Column("provider", String(128), nullable=False),
         Column("scope", String(128), nullable=False),
@@ -139,9 +139,9 @@ def upgrade() -> None:
         "model_policies",
         id_column(),
         *tenant_project_columns(project_nullable=True),
-        Column("agent_id", String(64), ForeignKey("agents.id")),
-        Column("agent_version_id", String(64), ForeignKey("agent_versions.id")),
-        Column("gateway_id", String(64), ForeignKey("model_gateways.id"), nullable=False),
+        Column("agent_id", BigInteger, ForeignKey("agents.id")),
+        Column("agent_version_id", BigInteger, ForeignKey("agent_versions.id")),
+        Column("gateway_id", BigInteger, ForeignKey("model_gateways.id"), nullable=False),
         Column("allowed_models_json", JSON, nullable=False, server_default=text("'[]'")),
         Column("denied_models_json", JSON, nullable=False, server_default=text("'[]'")),
         Column("default_model", String(255), nullable=False),
@@ -156,11 +156,11 @@ def upgrade() -> None:
     op.create_table(
         "model_usage_snapshots",
         id_column(),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id")),
-        Column("run_id", String(64), ForeignKey("runs.id"), nullable=False),
-        Column("attempt_id", String(64), ForeignKey("run_attempts.id")),
-        Column("gateway_id", String(64), ForeignKey("model_gateways.id"), nullable=False),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id")),
+        Column("run_id", BigInteger, ForeignKey("runs.id"), nullable=False),
+        Column("attempt_id", BigInteger, ForeignKey("run_attempts.id")),
+        Column("gateway_id", BigInteger, ForeignKey("model_gateways.id"), nullable=False),
         Column("gateway_request_id", String(255)),
         Column("model", String(255), nullable=False),
         Column("provider", String(128)),
@@ -176,12 +176,12 @@ def upgrade() -> None:
         "human_tasks",
         id_column(),
         *tenant_project_columns(project_nullable=True),
-        Column("run_id", String(64), ForeignKey("runs.id")),
-        Column("attempt_id", String(64), ForeignKey("run_attempts.id")),
-        Column("task_id", String(64), ForeignKey("tasks.id")),
+        Column("run_id", BigInteger, ForeignKey("runs.id")),
+        Column("attempt_id", BigInteger, ForeignKey("run_attempts.id")),
+        Column("task_id", BigInteger, ForeignKey("tasks.id")),
         Column("type", String(64), nullable=False),
         Column("status", String(64), nullable=False, server_default="pending"),
-        Column("assignee_user_id", String(64), ForeignKey("users.id")),
+        Column("assignee_user_id", BigInteger, ForeignKey("users.id")),
         Column("assignee_role", String(128)),
         Column("payload_ref", String(1024)),
         Column("decision_ref", String(1024)),
@@ -192,7 +192,7 @@ def upgrade() -> None:
         "approval_requests",
         id_column(),
         *tenant_project_columns(project_nullable=True),
-        Column("human_task_id", String(64), ForeignKey("human_tasks.id"), nullable=False),
+        Column("human_task_id", BigInteger, ForeignKey("human_tasks.id"), nullable=False),
         Column("requested_by", String(64)),
         Column("status", String(64), nullable=False, server_default="pending"),
         Column("decision_ref", String(1024)),

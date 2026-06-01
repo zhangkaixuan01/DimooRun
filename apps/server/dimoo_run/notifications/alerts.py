@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.observability.audit import InMemoryComplianceAuditLog
 from dimoo_run.observability.policies import RedactionPolicy
@@ -13,9 +12,9 @@ class NotificationConfigurationError(RuntimeError):
 
 @dataclass(frozen=True)
 class NotificationChannel:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     type: str
     target_ref: str
     status: str = "active"
@@ -24,13 +23,13 @@ class NotificationChannel:
 
 @dataclass(frozen=True)
 class AlertRule:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     name: str
     signal: str
     threshold: float
-    channel_id: str
+    channel_id: int
     status: str = "active"
     dedupe_window_seconds: int = 300
     cooldown_seconds: int = 60
@@ -38,9 +37,9 @@ class AlertRule:
 
 @dataclass(frozen=True)
 class IncidentEvent:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     signal: str
     severity: str
     status: str
@@ -60,14 +59,15 @@ class NotificationService:
         audit_log: InMemoryComplianceAuditLog | None = None,
         redaction_policy: RedactionPolicy | None = None,
     ) -> None:
-        self.channels: dict[str, NotificationChannel] = {}
-        self.rules: dict[str, AlertRule] = {}
+        self.channels: dict[int, NotificationChannel] = {}
+        self.rules: dict[int, AlertRule] = {}
         self.incidents: list[IncidentEvent] = []
         self.deliveries: list[dict[str, Any]] = []
         self.failed_deliveries: list[dict[str, Any]] = []
         self.audit_log = audit_log
         self.redaction_policy = redaction_policy or RedactionPolicy(fields={"secret", "api_key"})
-        self._last_delivery_at: dict[str, datetime] = {}
+        self._last_delivery_at: dict[int, datetime] = {}
+        self._next_incident_id = 0
 
     def register_channel(self, channel: NotificationChannel) -> NotificationChannel:
         self.channels[channel.id] = channel
@@ -81,8 +81,8 @@ class NotificationService:
     def evaluate_signal(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         signal: str,
         value: float,
         source_ref: str,
@@ -104,7 +104,7 @@ class NotificationService:
                 if self._is_in_cooldown(rule, now=now):
                     return None
                 incident = IncidentEvent(
-                    id=str(uuid4()),
+                    id=self._allocate_incident_id(),
                     tenant_id=tenant_id,
                     project_id=project_id,
                     signal=signal,
@@ -123,7 +123,7 @@ class NotificationService:
                 return incident
         return None
 
-    def acknowledge_incident(self, incident_id: str, *, actor_id: str) -> IncidentEvent:
+    def acknowledge_incident(self, incident_id: int, *, actor_id: str) -> IncidentEvent:
         incident = self._get_incident(incident_id)
         updated = self._replace_incident(
             incident,
@@ -134,7 +134,7 @@ class NotificationService:
         self._audit_incident_action(updated, action="incident.acknowledge", actor_id=actor_id)
         return updated
 
-    def resolve_incident(self, incident_id: str, *, actor_id: str) -> IncidentEvent:
+    def resolve_incident(self, incident_id: int, *, actor_id: str) -> IncidentEvent:
         incident = self._get_incident(incident_id)
         updated = self._replace_incident(
             incident,
@@ -199,7 +199,7 @@ class NotificationService:
         except Exception as exc:  # noqa: BLE001
             self.failed_deliveries.append({**payload, "reason": str(exc)})
 
-    def _get_incident(self, incident_id: str) -> IncidentEvent:
+    def _get_incident(self, incident_id: int) -> IncidentEvent:
         for incident in self.incidents:
             if incident.id == incident_id:
                 return incident
@@ -244,3 +244,7 @@ class NotificationService:
             result="allow",
             metadata={"signal": incident.signal, "status": incident.status},
         )
+
+    def _allocate_incident_id(self) -> int:
+        self._next_incident_id += 1
+        return self._next_incident_id

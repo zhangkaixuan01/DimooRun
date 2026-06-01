@@ -34,10 +34,10 @@ class SQLAlchemyQuotaPolicy:
     def assert_can_enqueue(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
-        agent_id: str | None = None,
-        deployment_id: str | None = None,
+        tenant_id: int,
+        project_id: int,
+        agent_id: int | None = None,
+        deployment_id: int | None = None,
     ) -> None:
         if self.quota.tenant_max_running_tasks is not None:
             current = self._count_running(tenant_id=tenant_id, project_id=None)
@@ -122,7 +122,7 @@ class SQLAlchemyQuotaPolicy:
                     current=current,
                 )
 
-    def _count_running(self, *, tenant_id: str, project_id: str | None) -> int:
+    def _count_running(self, *, tenant_id: int, project_id: int | None) -> int:
         conditions = [
             Task.tenant_id == tenant_id,
             Task.status.in_(["leased", "running"]),
@@ -135,10 +135,10 @@ class SQLAlchemyQuotaPolicy:
     def _count_running_for_run_binding(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
-        agent_id: str | None,
-        deployment_id: str | None,
+        tenant_id: int,
+        project_id: int,
+        agent_id: int | None,
+        deployment_id: int | None,
     ) -> int:
         conditions = [
             Task.tenant_id == tenant_id,

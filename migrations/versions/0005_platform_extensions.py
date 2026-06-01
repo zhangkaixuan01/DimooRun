@@ -6,7 +6,7 @@ Create Date: 2026-05-24
 """
 
 from alembic import op
-from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, String, text
+from sqlalchemy import BigInteger, JSON, Boolean, Column, Float, ForeignKey, String, text
 
 from migrations.table_helpers import (
     audit_columns,
@@ -45,9 +45,9 @@ def upgrade() -> None:
     op.create_table(
         "published_surfaces",
         id_column(),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
-        Column("deployment_id", String(64), ForeignKey("deployments.id"), nullable=False),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=False),
+        Column("deployment_id", BigInteger, ForeignKey("deployments.id"), nullable=False),
         Column("type", String(64), nullable=False),
         Column("status", String(64), nullable=False, server_default="active"),
         Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
@@ -66,9 +66,9 @@ def upgrade() -> None:
     op.create_table(
         "ingress_routes",
         id_column(),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
-        Column("surface_id", String(64), ForeignKey("published_surfaces.id"), nullable=False),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=False),
+        Column("surface_id", BigInteger, ForeignKey("published_surfaces.id"), nullable=False),
         Column("path", String(512), nullable=False),
         Column("custom_domain", String(255)),
         Column("auth_mode", String(64), nullable=False),
@@ -180,16 +180,16 @@ def upgrade() -> None:
         "replay_jobs",
         id_column(),
         *tenant_project_columns(),
-        Column("source_run_id", String(64), ForeignKey("runs.id"), nullable=False),
-        Column("source_agent_version_id", String(64), ForeignKey("agent_versions.id")),
+        Column("source_run_id", BigInteger, ForeignKey("runs.id"), nullable=False),
+        Column("source_agent_version_id", BigInteger, ForeignKey("agent_versions.id")),
         Column(
             "candidate_agent_version_id",
-            String(64),
+            BigInteger,
             ForeignKey("agent_versions.id"),
             nullable=False,
         ),
-        Column("replay_run_id", String(64), ForeignKey("runs.id")),
-        Column("replay_task_id", String(64), ForeignKey("tasks.id")),
+        Column("replay_run_id", BigInteger, ForeignKey("runs.id")),
+        Column("replay_task_id", BigInteger, ForeignKey("tasks.id")),
         Column("status", String(64), nullable=False, server_default="created"),
         Column("requested_by", String(64)),
         Column("override_config_json", JSON, nullable=False, server_default=text("'{}'")),
@@ -213,7 +213,7 @@ def upgrade() -> None:
         Column("name", String(255), nullable=False),
         Column("signal", String(128), nullable=False),
         Column("threshold", Float, nullable=False),
-        Column("channel_id", String(64), ForeignKey("notification_channels.id"), nullable=False),
+        Column("channel_id", BigInteger, ForeignKey("notification_channels.id"), nullable=False),
         Column("status", String(64), nullable=False, server_default="active"),
         Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
         *audit_columns(),

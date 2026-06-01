@@ -1,15 +1,17 @@
+export type ResourceId = number;
+
 export type NativeAgentRead = {
-  id: string;
+  id: ResourceId;
   name: string;
   status: string;
 };
 
 export type NativeDeploymentRead = {
-  id: string;
-  tenant_id: string;
-  project_id: string;
-  agent_id: string;
-  agent_version_id: string;
+  id: ResourceId;
+  tenant_id: ResourceId;
+  project_id: ResourceId;
+  agent_id: ResourceId;
+  agent_version_id: ResourceId;
   environment: string;
   desired_status: string;
   runtime_status: string;
@@ -18,10 +20,10 @@ export type NativeDeploymentRead = {
 };
 
 export type NativeRunRead = {
-  id: string;
-  agent_id: string;
-  agent_version_id: string;
-  deployment_id: string | null;
+  id: ResourceId;
+  agent_id: ResourceId;
+  agent_version_id: ResourceId;
+  deployment_id: ResourceId | null;
   status: string;
   input?: Record<string, unknown>;
   output?: Record<string, unknown> | null;
@@ -30,15 +32,15 @@ export type NativeRunRead = {
 };
 
 export type NativeTaskCreateResponse = {
-  run_id: string;
-  task_id: string;
+  run_id: ResourceId;
+  task_id: ResourceId;
   status: string;
   replayed: boolean;
 };
 
 export type NativeTaskRead = {
-  id: string;
-  run_id: string;
+  id: ResourceId;
+  run_id: ResourceId;
   status: string;
   queue: string;
   priority: number;
@@ -62,15 +64,18 @@ export type AdminItemResponse<T = Record<string, unknown>> = {
 };
 
 export type ConsoleOperatorRead = {
-  id: string;
+  id: ResourceId;
   email: string;
   name: string;
   roles: string[];
   permissions: string[];
   allowed_scopes: Array<{
-    tenant_id: string;
-    project_id: string;
+    tenant_id: ResourceId;
+    tenant_name?: string | null;
+    project_id: ResourceId;
+    project_name?: string | null;
     environment: string;
+    environment_name?: string | null;
   }>;
   status: string;
   created_at: string;
@@ -125,12 +130,13 @@ async function request<T>(options: ClientOptions, path: string, init?: RequestIn
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;
   if (!response.ok) {
+    const errorPayload = payload?.detail || payload;
     throw new DimooRunApiError(
-      payload?.message || `DimooRun API request failed: ${response.status}`,
+      payload?.detail?.message || payload?.message || `DimooRun API request failed: ${response.status}`,
       response.status,
-      payload?.error_code || null,
-      payload?.request_id || null,
-      payload?.details || null,
+      payload?.detail?.error_code || errorPayload?.error_code || null,
+      payload?.detail?.request_id || errorPayload?.request_id || null,
+      payload?.detail?.details || errorPayload?.details || null,
     );
   }
   return payload as T;
@@ -159,30 +165,30 @@ export function createDimooRunClient(options: ClientOptions) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    updateAgent: (agentId: string, payload: Record<string, unknown>) =>
+    updateAgent: (agentId: ResourceId, payload: Record<string, unknown>) =>
       request<NativeAgentRead>(options, `/v1/agents/${agentId}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
-    archiveAgent: (agentId: string) =>
+    archiveAgent: (agentId: ResourceId) =>
       request<NativeAgentRead>(options, `/v1/agents/${agentId}`, {
         method: "DELETE",
       }),
     listDeployments: () => request<NativeDeploymentRead[]>(options, "/v1/deployments"),
     listRuns: () => request<NativeRunRead[]>(options, "/v1/runs"),
-    getRun: (runId: string) => request<NativeRunRead>(options, `/v1/runs/${runId}`),
-    listRunEvents: (runId: string) => request<NativeEventRead[]>(options, `/v1/runs/${runId}/events`),
-    listRunAttempts: (runId: string) => request<Record<string, unknown>[]>(options, `/v1/runs/${runId}/attempts`),
+    getRun: (runId: ResourceId) => request<NativeRunRead>(options, `/v1/runs/${runId}`),
+    listRunEvents: (runId: ResourceId) => request<NativeEventRead[]>(options, `/v1/runs/${runId}/events`),
+    listRunAttempts: (runId: ResourceId) => request<Record<string, unknown>[]>(options, `/v1/runs/${runId}/attempts`),
     listTasks: () => request<NativeTaskRead[]>(options, "/v1/tasks"),
-    controlDeployment: (deploymentId: string, operation: string) =>
+    controlDeployment: (deploymentId: ResourceId, operation: string) =>
       request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}/${operation}`, {
         method: "POST",
       }),
-    controlRun: (runId: string, operation: string) =>
+    controlRun: (runId: ResourceId, operation: string) =>
       request<NativeRunRead>(options, `/v1/runs/${runId}/${operation}`, {
         method: "POST",
       }),
-    cancelTask: (taskId: string) =>
+    cancelTask: (taskId: ResourceId) =>
       request<Record<string, unknown>>(options, `/v1/tasks/${taskId}/cancel`, {
         method: "POST",
       }),
@@ -193,12 +199,12 @@ export function createDimooRunClient(options: ClientOptions) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    updateAdminItem: <T = Record<string, unknown>>(path: string, resourceId: string, payload: Record<string, unknown>) =>
+    updateAdminItem: <T = Record<string, unknown>>(path: string, resourceId: ResourceId, payload: Record<string, unknown>) =>
       request<AdminItemResponse<T>>(options, `${path}/${resourceId}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
-    deleteAdminItem: <T = Record<string, unknown>>(path: string, resourceId: string) =>
+    deleteAdminItem: <T = Record<string, unknown>>(path: string, resourceId: ResourceId) =>
       request<AdminItemResponse<T>>(options, `${path}/${resourceId}`, {
         method: "DELETE",
       }),
@@ -207,7 +213,7 @@ export function createDimooRunClient(options: ClientOptions) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    createTask: (agentId: string, input: Record<string, unknown>, idempotencyKey: string) =>
+    createTask: (agentId: ResourceId, input: Record<string, unknown>, idempotencyKey: string) =>
       request<NativeTaskCreateResponse>(options, `/v1/agents/${agentId}/tasks`, {
         method: "POST",
         headers: {

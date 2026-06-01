@@ -3,6 +3,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -46,7 +47,7 @@ class Project(IdMixin, TimestampMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("tenant_id", "slug", name="uq_projects_tenant_slug"),)
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
@@ -63,8 +64,8 @@ class Environment(IdMixin, TimestampMixin, Base):
         ),
     )
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     environment: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
@@ -74,7 +75,7 @@ class Environment(IdMixin, TimestampMixin, Base):
 class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
@@ -122,7 +123,7 @@ class ConsoleOperatorCredential(IdMixin, TimestampMixin, Base):
         UniqueConstraint("operator_id", name="uq_console_operator_credentials_operator"),
     )
 
-    operator_id: Mapped[str] = mapped_column(
+    operator_id: Mapped[int] = mapped_column(
         ForeignKey("console_operators.id"), nullable=False, index=True
     )
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -135,7 +136,7 @@ class ConsoleOperatorSession(IdMixin, TimestampMixin, Base):
     __tablename__ = "console_operator_sessions"
     __table_args__ = (UniqueConstraint("token_hash", name="uq_console_sessions_token_hash"),)
 
-    operator_id: Mapped[str] = mapped_column(
+    operator_id: Mapped[int] = mapped_column(
         ForeignKey("console_operators.id"), nullable=False, index=True
     )
     token_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
@@ -159,11 +160,11 @@ class ConsoleOperatorAllowedScope(IdMixin, TimestampMixin, Base):
         ),
     )
 
-    operator_id: Mapped[str] = mapped_column(
+    operator_id: Mapped[int] = mapped_column(
         ForeignKey("console_operators.id"), nullable=False, index=True
     )
-    tenant_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    project_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    tenant_id: Mapped[int | None] = mapped_column(ForeignKey("tenants.id"), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
     environment: Mapped[str] = mapped_column(String(128), nullable=False)
 
 
@@ -191,10 +192,10 @@ class ConsoleOperatorRole(IdMixin, TimestampMixin, Base):
     __tablename__ = "console_operator_roles"
     __table_args__ = (UniqueConstraint("operator_id", "role_id", name="uq_console_operator_role"),)
 
-    operator_id: Mapped[str] = mapped_column(
+    operator_id: Mapped[int] = mapped_column(
         ForeignKey("console_operators.id"), nullable=False, index=True
     )
-    role_id: Mapped[str] = mapped_column(ForeignKey("console_roles.id"), nullable=False, index=True)
+    role_id: Mapped[int] = mapped_column(ForeignKey("console_roles.id"), nullable=False, index=True)
 
 
 class ConsoleRolePermission(IdMixin, TimestampMixin, Base):
@@ -203,8 +204,8 @@ class ConsoleRolePermission(IdMixin, TimestampMixin, Base):
         UniqueConstraint("role_id", "permission_id", name="uq_console_role_permission"),
     )
 
-    role_id: Mapped[str] = mapped_column(ForeignKey("console_roles.id"), nullable=False, index=True)
-    permission_id: Mapped[str] = mapped_column(
+    role_id: Mapped[int] = mapped_column(ForeignKey("console_roles.id"), nullable=False, index=True)
+    permission_id: Mapped[int] = mapped_column(
         ForeignKey("console_permissions.id"), nullable=False, index=True
     )
 
@@ -215,10 +216,10 @@ class ConsoleOperatorPermission(IdMixin, TimestampMixin, Base):
         UniqueConstraint("operator_id", "permission_id", name="uq_console_operator_permission"),
     )
 
-    operator_id: Mapped[str] = mapped_column(
+    operator_id: Mapped[int] = mapped_column(
         ForeignKey("console_operators.id"), nullable=False, index=True
     )
-    permission_id: Mapped[str] = mapped_column(
+    permission_id: Mapped[int] = mapped_column(
         ForeignKey("console_permissions.id"), nullable=False, index=True
     )
 
@@ -227,13 +228,13 @@ class APIKey(IdMixin, TimestampMixin, Base):
     __tablename__ = "api_keys"
     __table_args__ = (UniqueConstraint("key_hash", name="uq_api_keys_key_hash"),)
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str | None] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int | None] = mapped_column(
         ForeignKey("projects.id"), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     owner_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    owner_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("service_accounts.id"), nullable=False, index=True)
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     key_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
     scopes_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
@@ -256,11 +257,11 @@ class Agent(IdMixin, TimestampMixin, Base):
         ),
     )
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    owner_id: Mapped[str | None] = mapped_column(String(64))
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
 
 
@@ -270,7 +271,7 @@ class AgentVersion(IdMixin, TimestampMixin, Base):
         UniqueConstraint("agent_id", "version", name="uq_agent_versions_agent_version"),
     )
 
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
     version: Mapped[str] = mapped_column(String(128), nullable=False)
     package_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
     framework: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -302,10 +303,10 @@ class Deployment(IdMixin, TimestampMixin, Base):
         ),
     )
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
-    agent_version_id: Mapped[str] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False, index=True)
+    agent_version_id: Mapped[int] = mapped_column(
         ForeignKey("agent_versions.id"), nullable=False, index=True
     )
     environment: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -323,11 +324,11 @@ class Deployment(IdMixin, TimestampMixin, Base):
 class AgentInstance(IdMixin, TimestampMixin, Base):
     __tablename__ = "agent_instances"
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
-    deployment_id: Mapped[str] = mapped_column(ForeignKey("deployments.id"), nullable=False)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
-    agent_version_id: Mapped[str] = mapped_column(ForeignKey("agent_versions.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    deployment_id: Mapped[int] = mapped_column(ForeignKey("deployments.id"), nullable=False)
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    agent_version_id: Mapped[int] = mapped_column(ForeignKey("agent_versions.id"), nullable=False)
     worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
     execution_profile_id: Mapped[str | None] = mapped_column(String(128))
     cache_key: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -345,25 +346,25 @@ class AgentInstance(IdMixin, TimestampMixin, Base):
 class SessionModel(IdMixin, TimestampMixin, Base):
     __tablename__ = "sessions"
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
-    service_account_id: Mapped[str | None] = mapped_column(ForeignKey("service_accounts.id"))
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    service_account_id: Mapped[int | None] = mapped_column(ForeignKey("service_accounts.id"))
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class Run(IdMixin, AuditMixin, Base):
     __tablename__ = "runs"
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
-    service_account_id: Mapped[str | None] = mapped_column(ForeignKey("service_accounts.id"))
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
-    agent_version_id: Mapped[str] = mapped_column(ForeignKey("agent_versions.id"), nullable=False)
-    deployment_id: Mapped[str | None] = mapped_column(ForeignKey("deployments.id"))
-    session_id: Mapped[str | None] = mapped_column(ForeignKey("sessions.id"))
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    service_account_id: Mapped[int | None] = mapped_column(ForeignKey("service_accounts.id"))
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    agent_version_id: Mapped[int] = mapped_column(ForeignKey("agent_versions.id"), nullable=False)
+    deployment_id: Mapped[int | None] = mapped_column(ForeignKey("deployments.id"))
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("sessions.id"))
     framework: Mapped[str | None] = mapped_column(String(128))
     adapter: Mapped[str | None] = mapped_column(String(128))
     thread_id: Mapped[str | None] = mapped_column(String(255))
@@ -380,8 +381,8 @@ class Run(IdMixin, AuditMixin, Base):
 class RunAttempt(IdMixin, AuditMixin, Base):
     __tablename__ = "run_attempts"
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"))
     attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
     worker_id: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(
@@ -396,9 +397,9 @@ class RunAttempt(IdMixin, AuditMixin, Base):
 class Task(IdMixin, AuditMixin, Base):
     __tablename__ = "tasks"
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default=TaskStatus.queued.value, nullable=False)
     attempt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
@@ -422,10 +423,10 @@ class Event(IdMixin, AuditMixin, Base):
     __tablename__ = "events"
     __table_args__ = (UniqueConstraint("run_id", "sequence", name="uq_events_run_sequence"),)
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("run_attempts.id"))
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(128), nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     event_id: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
@@ -438,7 +439,7 @@ class Event(IdMixin, AuditMixin, Base):
 class CheckpointIndex(IdMixin, AuditMixin, Base):
     __tablename__ = "checkpoint_indexes"
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
     thread_id: Mapped[str] = mapped_column(String(255), nullable=False)
     checkpoint_ns: Mapped[str | None] = mapped_column(String(255))
     checkpoint_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -458,9 +459,9 @@ class PublishedSurface(IdMixin, AuditMixin, Base):
         ),
     )
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
-    deployment_id: Mapped[str] = mapped_column(ForeignKey("deployments.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    deployment_id: Mapped[int] = mapped_column(ForeignKey("deployments.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -479,9 +480,9 @@ class IngressRoute(IdMixin, AuditMixin, Base):
         ),
     )
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
-    surface_id: Mapped[str] = mapped_column(ForeignKey("published_surfaces.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    surface_id: Mapped[int] = mapped_column(ForeignKey("published_surfaces.id"), nullable=False)
     path: Mapped[str] = mapped_column(String(512), nullable=False)
     custom_domain: Mapped[str | None] = mapped_column(String(255))
     auth_mode: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -507,8 +508,8 @@ class Tool(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class Secret(IdMixin, TimestampMixin, Base):
     __tablename__ = "secrets"
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     provider: Mapped[str] = mapped_column(String(128), nullable=False)
     scope: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -564,9 +565,9 @@ class Policy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class PolicyDecisionRecord(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "policy_decisions"
 
-    policy_id: Mapped[str | None] = mapped_column(ForeignKey("policies.id"))
+    policy_id: Mapped[int | None] = mapped_column(ForeignKey("policies.id"))
     resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    resource_id: Mapped[str | None] = mapped_column(String(64))
+    resource_id: Mapped[int | None] = mapped_column(BigInteger)
     action: Mapped[str] = mapped_column(String(128), nullable=False)
     decision: Mapped[str] = mapped_column(String(64), nullable=False)
     reason: Mapped[str | None] = mapped_column(String(255))
@@ -602,9 +603,9 @@ class ModelGateway(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class ModelPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "model_policies"
 
-    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"))
-    agent_version_id: Mapped[str | None] = mapped_column(ForeignKey("agent_versions.id"))
-    gateway_id: Mapped[str] = mapped_column(ForeignKey("model_gateways.id"), nullable=False)
+    agent_id: Mapped[int | None] = mapped_column(ForeignKey("agents.id"))
+    agent_version_id: Mapped[int | None] = mapped_column(ForeignKey("agent_versions.id"))
+    gateway_id: Mapped[int] = mapped_column(ForeignKey("model_gateways.id"), nullable=False)
     allowed_models_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     denied_models_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     default_model: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -619,11 +620,11 @@ class ModelPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class ModelUsageSnapshot(IdMixin, TimestampMixin, Base):
     __tablename__ = "model_usage_snapshots"
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
-    gateway_id: Mapped[str] = mapped_column(ForeignKey("model_gateways.id"), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("run_attempts.id"))
+    gateway_id: Mapped[int] = mapped_column(ForeignKey("model_gateways.id"), nullable=False)
     gateway_request_id: Mapped[str | None] = mapped_column(String(255))
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     provider: Mapped[str | None] = mapped_column(String(128))
@@ -638,12 +639,12 @@ class ModelUsageSnapshot(IdMixin, TimestampMixin, Base):
 class HumanTask(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "human_tasks"
 
-    run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
-    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
-    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("runs.id"))
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("run_attempts.id"))
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"))
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
-    assignee_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    assignee_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     assignee_role: Mapped[str | None] = mapped_column(String(128))
     payload_ref: Mapped[str | None] = mapped_column(String(1024))
     decision_ref: Mapped[str | None] = mapped_column(String(1024))
@@ -653,7 +654,7 @@ class HumanTask(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class ApprovalRequest(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "approval_requests"
 
-    human_task_id: Mapped[str] = mapped_column(ForeignKey("human_tasks.id"), nullable=False)
+    human_task_id: Mapped[int] = mapped_column(ForeignKey("human_tasks.id"), nullable=False)
     requested_by: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(64), default="pending", nullable=False)
     decision_ref: Mapped[str | None] = mapped_column(String(1024))
@@ -780,8 +781,8 @@ class Template(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class Artifact(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "artifacts"
 
-    run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
-    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("runs.id"))
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("run_attempts.id"))
     event_id: Mapped[str | None] = mapped_column(String(512))
     artifact_type: Mapped[str] = mapped_column(String(128), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -800,8 +801,8 @@ class RunGraphNode(IdMixin, TenantProjectMixin, TimestampMixin, Base):
         UniqueConstraint("run_id", "node_key", name="uq_run_graph_nodes_run_node_key"),
     )
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("run_attempts.id"))
     node_key: Mapped[str] = mapped_column(String(255), nullable=False)
     node_type: Mapped[str] = mapped_column(String(64), nullable=False)
     framework_node_id: Mapped[str | None] = mapped_column(String(255))
@@ -818,9 +819,9 @@ class RunGraphNode(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class RunGraphEdge(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "run_graph_edges"
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    source_node_id: Mapped[str] = mapped_column(ForeignKey("run_graph_nodes.id"), nullable=False)
-    target_node_id: Mapped[str] = mapped_column(ForeignKey("run_graph_nodes.id"), nullable=False)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    source_node_id: Mapped[int] = mapped_column(ForeignKey("run_graph_nodes.id"), nullable=False)
+    target_node_id: Mapped[int] = mapped_column(ForeignKey("run_graph_nodes.id"), nullable=False)
     edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
@@ -849,8 +850,8 @@ class Dataset(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class DatasetItem(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "dataset_items"
 
-    dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), nullable=False)
-    source_run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
+    dataset_id: Mapped[int] = mapped_column(ForeignKey("datasets.id"), nullable=False)
+    source_run_id: Mapped[int | None] = mapped_column(ForeignKey("runs.id"))
     input_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
     output_ref: Mapped[str | None] = mapped_column(String(1024))
     expected_ref: Mapped[str | None] = mapped_column(String(1024))
@@ -861,12 +862,12 @@ class Experiment(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "experiments"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), nullable=False)
-    baseline_agent_version_id: Mapped[str | None] = mapped_column(ForeignKey("agent_versions.id"))
-    candidate_agent_version_id: Mapped[str] = mapped_column(
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    baseline_agent_version_id: Mapped[int | None] = mapped_column(ForeignKey("agent_versions.id"))
+    candidate_agent_version_id: Mapped[int] = mapped_column(
         ForeignKey("agent_versions.id"), nullable=False
     )
-    dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), nullable=False)
+    dataset_id: Mapped[int] = mapped_column(ForeignKey("datasets.id"), nullable=False)
     evaluator_config_json: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False
     )
@@ -876,7 +877,7 @@ class Experiment(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class ExperimentRun(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "experiment_runs"
 
-    experiment_id: Mapped[str] = mapped_column(ForeignKey("experiments.id"), nullable=False)
+    experiment_id: Mapped[int] = mapped_column(ForeignKey("experiments.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="running", nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -886,7 +887,7 @@ class ExperimentRun(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class EvaluationResult(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "evaluation_results"
 
-    experiment_run_id: Mapped[str] = mapped_column(ForeignKey("experiment_runs.id"), nullable=False)
+    experiment_run_id: Mapped[int] = mapped_column(ForeignKey("experiment_runs.id"), nullable=False)
     evaluator_name: Mapped[str] = mapped_column(String(255), nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -896,7 +897,7 @@ class EvaluationResult(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class Feedback(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "feedback"
 
-    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     rating: Mapped[str | None] = mapped_column(String(64))
     comment: Mapped[str | None] = mapped_column(Text)
@@ -906,7 +907,7 @@ class Feedback(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class MemoryBlock(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "memory_blocks"
 
-    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"))
+    agent_id: Mapped[int | None] = mapped_column(ForeignKey("agents.id"))
     memory_type: Mapped[str] = mapped_column(String(64), nullable=False)
     content_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -917,7 +918,7 @@ class SemanticStoreProvider(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     embedding_model: Mapped[str] = mapped_column(String(255), nullable=False)
-    embedding_gateway_id: Mapped[str | None] = mapped_column(ForeignKey("model_gateways.id"))
+    embedding_gateway_id: Mapped[int | None] = mapped_column(ForeignKey("model_gateways.id"))
     connection_ref: Mapped[str] = mapped_column(String(512), nullable=False)
     retention_policy_id: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
@@ -972,7 +973,7 @@ class AlertRule(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     signal: Mapped[str] = mapped_column(String(128), nullable=False)
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
-    channel_id: Mapped[str] = mapped_column(ForeignKey("notification_channels.id"), nullable=False)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("notification_channels.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
@@ -1020,7 +1021,7 @@ class BackupPlan(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class RestoreJob(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "restore_jobs"
 
-    backup_plan_id: Mapped[str | None] = mapped_column(ForeignKey("backup_plans.id"))
+    backup_plan_id: Mapped[int | None] = mapped_column(ForeignKey("backup_plans.id"))
     backup_ref: Mapped[str] = mapped_column(String(1024), nullable=False)
     restore_scope: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="created", nullable=False)
@@ -1033,13 +1034,13 @@ class RestoreJob(IdMixin, TenantProjectMixin, TimestampMixin, Base):
 class ReplayJob(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "replay_jobs"
 
-    source_run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
-    source_agent_version_id: Mapped[str] = mapped_column(ForeignKey("agent_versions.id"))
-    candidate_agent_version_id: Mapped[str] = mapped_column(
+    source_run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    source_agent_version_id: Mapped[int] = mapped_column(ForeignKey("agent_versions.id"))
+    candidate_agent_version_id: Mapped[int] = mapped_column(
         ForeignKey("agent_versions.id"), nullable=False
     )
-    replay_run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"))
-    replay_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    replay_run_id: Mapped[int | None] = mapped_column(ForeignKey("runs.id"))
+    replay_task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"))
     status: Mapped[str] = mapped_column(String(64), default="created", nullable=False)
     requested_by: Mapped[str | None] = mapped_column(String(64))
     override_config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -1050,16 +1051,16 @@ class AuditLog(IdMixin, AuditMixin, Base):
     __tablename__ = "audit_logs"
     __table_args__ = {"info": {"immutable": True}}
 
-    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
-    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"))
-    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"))
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     actor_id: Mapped[str | None] = mapped_column(String(64))
     actor_type: Mapped[str] = mapped_column(
         String(64), default=AuditActorType.system.value, nullable=False
     )
     action: Mapped[str] = mapped_column(String(128), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    resource_id: Mapped[str | None] = mapped_column(String(64))
+    resource_id: Mapped[int | None] = mapped_column(BigInteger)
     result: Mapped[str] = mapped_column(String(64), nullable=False)
     ip: Mapped[str | None] = mapped_column(String(128))
     user_agent: Mapped[str | None] = mapped_column(String(512))

@@ -35,7 +35,7 @@
             <td>{{ listValue(operator.permissions) }}</td>
             <td class="mono muted">{{ scopeValue(operator.allowed_scopes) }}</td>
             <td><StatusBadge :status="String(operator.status || 'active')" :label="String(operator.status || 'active')" /></td>
-            <td>{{ operator.last_login_at || "-" }}</td>
+            <td>{{ formatDateTime(operator.last_login_at) }}</td>
             <td>
               <div class="row-actions">
                 <button class="button" type="button" :disabled="!canManageOperators" @click="openEditDrawer(operator)">编辑</button>
@@ -106,13 +106,13 @@
               <div v-for="(scope, index) in form.allowed_scopes" :key="index" class="scope-grid">
                 <label class="field">
                   {{ t("tenant") }}
-                  <select v-model="scope.tenant_id" class="select" required @change="onScopeTenantChange(scope)">
+                  <select v-model.number="scope.tenant_id" class="select" required @change="onScopeTenantChange(scope)">
                     <option v-for="tenant in tenantOptions" :key="tenant.id" :value="tenant.id">{{ tenant.name || tenant.id }}</option>
                   </select>
                 </label>
                 <label class="field">
                   {{ t("project") }}
-                  <select v-model="scope.project_id" class="select" required @focus="loadScopeProjects(scope)">
+                  <select v-model.number="scope.project_id" class="select" required @focus="loadScopeProjects(scope)">
                     <option v-for="project in projectOptionsFor(scope.tenant_id)" :key="project.id" :value="project.id">{{ project.name || project.id }}</option>
                   </select>
                 </label>
@@ -211,8 +211,9 @@ import InlineApiError from "../../components/InlineApiError.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
+import { formatDateTime } from "../../utils/dateTime";
 
-type ScopeForm = { tenant_id: string; project_id: string; environment: string };
+type ScopeForm = { tenant_id: number; project_id: number; environment: string };
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -326,8 +327,8 @@ function openEditDrawer(operator: ConsoleOperator) {
   form.permissions = Array.isArray(operator.permissions) ? operator.permissions.map(String) : [];
   form.allowed_scopes = Array.isArray(operator.allowed_scopes) && operator.allowed_scopes.length > 0
     ? operator.allowed_scopes.map((scope) => ({
-        tenant_id: String(scope.tenant_id || ""),
-        project_id: String(scope.project_id || ""),
+        tenant_id: Number(scope.tenant_id || 0),
+        project_id: Number(scope.project_id || 0),
         environment: String(scope.environment || ""),
       }))
     : [defaultScope()];
@@ -391,16 +392,16 @@ async function loadScopeEnvironments(scope: ScopeForm) {
 
 async function onScopeTenantChange(scope: ScopeForm) {
   await loadScopeProjects(scope);
-  scope.project_id = projectOptionsFor(scope.tenant_id)[0]?.id || "";
+  scope.project_id = Number(projectOptionsFor(scope.tenant_id)[0]?.id || 0);
   await loadScopeEnvironments(scope);
   scope.environment = String(environmentOptionsFor(scope.tenant_id, scope.project_id)[0]?.environment || "");
 }
 
-function projectOptionsFor(tenantId: string): AdminResource[] {
+function projectOptionsFor(tenantId: number): AdminResource[] {
   return projectOptionsByTenant.value[tenantId] || [];
 }
 
-function environmentOptionsFor(tenantId: string, projectId: string): AdminResource[] {
+function environmentOptionsFor(tenantId: number, projectId: number): AdminResource[] {
   return environmentOptionsByScope.value[`${tenantId}:${projectId}`] || [];
 }
 
@@ -527,8 +528,15 @@ function scopeValue(value: unknown): string {
   if (!Array.isArray(value) || value.length === 0) return "-";
   return value.map((scope) => {
     const record = scope as Record<string, unknown>;
-    return `${record.tenant_id}/${record.project_id}/${record.environment}`;
+    const tenant = readableScopePart(record.tenant_name, record.tenant_id);
+    const project = readableScopePart(record.project_name, record.project_id);
+    const environment = readableScopePart(record.environment_name, record.environment);
+    return `${tenant} / ${project} / ${environment}`;
   }).join(", ");
+}
+
+function readableScopePart(name: unknown, fallback: unknown): string {
+  return String(name || fallback || "-");
 }
 
 onMounted(() => {

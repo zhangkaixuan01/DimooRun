@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from alembic import op
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, text
+from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, text
 
 
 def audit_columns() -> list[Column[Any]]:
@@ -17,14 +17,19 @@ def audit_columns() -> list[Column[Any]]:
     ]
 
 
-def id_column() -> Column[str]:
-    return Column("id", String(64), primary_key=True)
+def id_column() -> Column[int]:
+    return Column(
+        "id",
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
 
 
 def tenant_project_columns(project_nullable: bool = True) -> list[Column[Any]]:
     return [
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=project_nullable),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=project_nullable),
     ]
 
 
@@ -51,8 +56,8 @@ def create_runtime_stub_table(table_name: str) -> None:
     op.create_table(
         table_name,
         id_column(),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=False),
         Column("status", String(64), nullable=False, server_default="active"),
         Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
         *audit_columns(),
@@ -75,9 +80,9 @@ def create_task_stub_table(table_name: str) -> None:
     op.create_table(
         table_name,
         id_column(),
-        Column("run_id", String(64), ForeignKey("runs.id")),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
+        Column("run_id", BigInteger, ForeignKey("runs.id")),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=False),
         Column("status", String(64), nullable=False, server_default="queued"),
         Column("metadata_json", JSON, nullable=False, server_default=text("'{}'")),
         *audit_columns(),

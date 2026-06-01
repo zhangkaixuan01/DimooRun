@@ -234,7 +234,7 @@ POST /compat/langgraph/threads/{thread_id}/runs/stream
 ```text
 assistant_id -> Deployment / AgentVersion
 thread_id -> Session.thread_id / CheckpointIndex.thread_id
-run_id -> Run.id
+run_id -> Run.id (internal numeric ID, serialized as a path segment for LangGraph-compatible routes)
 stream -> Streaming Runtime
 checkpoint -> Framework Runtime Store + CheckpointIndex
 ```

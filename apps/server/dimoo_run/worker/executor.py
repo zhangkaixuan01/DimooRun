@@ -22,9 +22,9 @@ class AgentRuntimeSpec:
 
 @dataclass(frozen=True)
 class WorkerExecutionResult:
-    task_id: str
-    run_id: str
-    attempt_id: str
+    task_id: int
+    run_id: int
+    attempt_id: int
     status: str
 
 
@@ -37,7 +37,7 @@ class WorkerExecutor:
         run_store: RuntimeRunStore,
         replay_buffer: ReplayBuffer,
         adapters: dict[str, AgentAdapter],
-        agent_specs: dict[str, AgentRuntimeSpec],
+        agent_specs: dict[int, AgentRuntimeSpec],
     ) -> None:
         self.worker_id = worker_id
         self.task_backend = task_backend
@@ -45,7 +45,7 @@ class WorkerExecutor:
         self.replay_buffer = replay_buffer
         self.adapters = adapters
         self.agent_specs = agent_specs
-        self._active_task_id: str | None = None
+        self._active_task_id: int | None = None
         self._active_worker_id: str | None = None
         self._active_fencing_token: int | None = None
 
@@ -207,7 +207,7 @@ class WorkerExecutor:
             status="succeeded",
         )
 
-    def _append(self, run_id: str, attempt_id: str, event: AgentEvent) -> AgentEvent:
+    def _append(self, run_id: int, attempt_id: int, event: AgentEvent) -> AgentEvent:
         self._assert_active_fencing()
         return self.replay_buffer.append(run_id, attempt_id, event)
 
@@ -227,7 +227,7 @@ class WorkerExecutor:
         self._active_worker_id = None
         self._active_fencing_token = None
 
-    async def cancel_run(self, run_id: str, *, task_id: str | None = None) -> str:
+    async def cancel_run(self, run_id: int, *, task_id: int | None = None) -> str:
         run = self.run_store.get_run(run_id)
         spec = self.agent_specs[run.agent_version_id]
         adapter = self.adapters[spec.adapter]
@@ -235,7 +235,7 @@ class WorkerExecutor:
             tenant_id=run.tenant_id,
             project_id=run.project_id,
             run_id=run.run_id,
-            task_id=task_id or "",
+            task_id=task_id,
             agent_id=run.agent_id,
             agent_version_id=run.agent_version_id,
             deployment_id=run.deployment_id,
@@ -264,7 +264,7 @@ class WorkerExecutor:
         agent: Any,
         leased: dict[str, Any],
         context: RuntimeContext,
-        attempt_id: str,
+        attempt_id: int,
     ) -> AgentResult:
         if leased.get("execution_mode") != "stream":
             result = await adapter.invoke(agent, leased["input_data"], context)

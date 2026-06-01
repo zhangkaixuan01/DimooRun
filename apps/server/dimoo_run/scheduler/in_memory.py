@@ -2,7 +2,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.runtime.state_machine import assert_task_transition
 
@@ -17,9 +16,9 @@ class StaleFencingTokenError(RuntimeError):
 
 @dataclass
 class InMemoryTask:
-    task_id: str
+    task_id: int
     payload: dict[str, Any]
-    run_id: str
+    run_id: int
     queue: str = "default"
     priority: int = 0
     status: str = "queued"
@@ -54,11 +53,16 @@ class InMemoryTask:
 class InMemoryTaskBackend:
     def __init__(self, now: Callable[[], datetime] | None = None) -> None:
         self._now = now or (lambda: datetime.now(UTC))
-        self.tasks: dict[str, InMemoryTask] = {}
+        self.tasks: dict[int, InMemoryTask] = {}
         self.dead_letters: list[dict[str, Any]] = []
+        self._next_id = 1
 
-    async def enqueue(self, task: dict[str, Any]) -> str:
-        task_id = task.get("task_id") or str(uuid4())
+    async def enqueue(self, task: dict[str, Any]) -> int:
+        task_id = task.get("task_id") or self._next_id
+        if task.get("task_id") is None:
+            self._next_id += 1
+        else:
+            self._next_id = max(self._next_id, int(task_id) + 1)
         item = InMemoryTask(
             task_id=task_id,
             payload=dict(task),
@@ -101,7 +105,7 @@ class InMemoryTaskBackend:
 
     async def heartbeat(
         self,
-        task_id: str,
+        task_id: int,
         worker_id: str,
         lease_seconds: int = 30,
     ) -> None:
@@ -110,7 +114,7 @@ class InMemoryTaskBackend:
         task.heartbeat_at = now
         task.leased_until = now + timedelta(seconds=lease_seconds)
 
-    async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    async def complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self.tasks[task_id]
         self.assert_can_complete(task_id, worker_id, fencing_token)
         self._transition(task, "succeeded")
@@ -118,7 +122,7 @@ class InMemoryTaskBackend:
 
     async def fail(
         self,
-        task_id: str,
+        task_id: int,
         worker_id: str,
         fencing_token: int,
         error: dict[str, Any],
@@ -147,7 +151,7 @@ class InMemoryTaskBackend:
         self._transition(task, "queued")
         task.status = "queued"
 
-    async def cancel(self, task_id: str) -> None:
+    async def cancel(self, task_id: int) -> None:
         task = self.tasks[task_id]
         if task.status == "leased":
             self._transition(task, "running")
@@ -155,18 +159,18 @@ class InMemoryTaskBackend:
         self._transition(task, "cancelled")
         task.status = "cancelled"
 
-    def mark_running(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def mark_running(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self._owned_task(task_id, worker_id)
         self._assert_fencing_token(task, fencing_token)
         self._transition(task, "running")
         task.status = "running"
 
-    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def assert_can_complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self.tasks[task_id]
         self._assert_fencing_token(task, fencing_token)
         self._assert_owner(task, worker_id)
 
-    def will_retry(self, task_id: str) -> bool:
+    def will_retry(self, task_id: int) -> bool:
         task = self.tasks[task_id]
         return task.attempt + 1 < task.max_attempts
 
@@ -186,7 +190,7 @@ class InMemoryTaskBackend:
                 task.worker_id = None
                 task.leased_until = None
 
-    def _owned_task(self, task_id: str, worker_id: str) -> InMemoryTask:
+    def _owned_task(self, task_id: int, worker_id: str) -> InMemoryTask:
         task = self.tasks[task_id]
         self._assert_owner(task, worker_id)
         return task

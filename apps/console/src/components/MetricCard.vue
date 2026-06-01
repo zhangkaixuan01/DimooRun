@@ -20,16 +20,16 @@ defineProps<{
 <style scoped>
 .metric-card {
   display: flex;
-  min-height: 102px;
+  min-height: 106px;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-muted) 38%, transparent), transparent),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-quiet) 72%, transparent), transparent 64%),
     var(--color-surface);
-  padding: 16px;
+  padding: 15px 16px;
   box-shadow: var(--shadow-panel);
 }
 
@@ -42,32 +42,37 @@ defineProps<{
 
 .metric-value {
   display: block;
-  font-size: 24px;
-  font-weight: 760;
+  font-size: 26px;
+  font-weight: 780;
   line-height: 1.1;
+  letter-spacing: 0;
 }
 
 .metric-delta {
-  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
-  padding: 3px 8px;
+  padding: 3px 7px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .metric-delta[data-tone="good"] {
+  border-color: color-mix(in srgb, var(--color-success) 42%, var(--color-border));
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
 .metric-delta[data-tone="warn"] {
+  border-color: color-mix(in srgb, var(--color-warning) 42%, var(--color-border));
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
 
 .metric-delta[data-tone="bad"] {
+  border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }

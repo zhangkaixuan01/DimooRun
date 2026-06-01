@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from uuid import uuid4
 
 from dimoo_run.runtime.state_machine import (
     assert_run_attempt_transition,
@@ -12,12 +11,12 @@ from dimoo_run.scheduler.backend import TaskBackend
 
 @dataclass
 class RuntimeRun:
-    run_id: str
-    tenant_id: str
-    project_id: str
-    agent_id: str
-    agent_version_id: str
-    deployment_id: str | None
+    run_id: int
+    tenant_id: int
+    project_id: int
+    agent_id: int
+    agent_version_id: int
+    deployment_id: int | None
     input_data: dict[str, Any]
     override_config: dict[str, Any] = field(default_factory=dict)
     status: str = "pending"
@@ -29,9 +28,9 @@ class RuntimeRun:
 
 @dataclass
 class RuntimeAttempt:
-    attempt_id: str
-    run_id: str
-    task_id: str
+    attempt_id: int
+    run_id: int
+    task_id: int
     worker_id: str
     attempt_no: int
     status: str = "running"
@@ -42,86 +41,88 @@ class RuntimeAttempt:
 
 class RuntimeRunStore(Protocol):
     @property
-    def runs(self) -> dict[str, RuntimeRun]: ...
+    def runs(self) -> dict[int, RuntimeRun]: ...
 
     @property
-    def attempts(self) -> dict[str, RuntimeAttempt]: ...
+    def attempts(self) -> dict[int, RuntimeAttempt]: ...
 
     async def create_run(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
-        agent_id: str,
-        agent_version_id: str,
-        deployment_id: str | None,
+        tenant_id: int,
+        project_id: int,
+        agent_id: int,
+        agent_version_id: int,
+        deployment_id: int | None,
         input_data: dict[str, Any],
         override_config: dict[str, Any] | None = None,
         thread_id: str | None = None,
-        run_id: str | None = None,
+        run_id: int | None = None,
     ) -> RuntimeRun: ...
 
     async def create_attempt(
         self,
         *,
-        run_id: str,
-        task_id: str,
+        run_id: int,
+        task_id: int,
         worker_id: str,
     ) -> RuntimeAttempt: ...
 
-    def complete_run(self, run_id: str, output: dict[str, Any]) -> None: ...
+    def complete_run(self, run_id: int, output: dict[str, Any]) -> None: ...
 
-    def fail_run(self, run_id: str, error: dict[str, Any]) -> None: ...
+    def fail_run(self, run_id: int, error: dict[str, Any]) -> None: ...
 
-    def timeout_run(self, run_id: str, error: dict[str, Any]) -> None: ...
+    def timeout_run(self, run_id: int, error: dict[str, Any]) -> None: ...
 
-    def get_run(self, run_id: str) -> RuntimeRun: ...
+    def get_run(self, run_id: int) -> RuntimeRun: ...
 
-    def mark_run_running(self, run_id: str) -> None: ...
+    def mark_run_running(self, run_id: int) -> None: ...
 
-    def cancel_run(self, run_id: str) -> None: ...
+    def cancel_run(self, run_id: int) -> None: ...
 
-    def delete_run(self, run_id: str) -> None: ...
+    def delete_run(self, run_id: int) -> None: ...
 
-    def complete_attempt(self, attempt_id: str) -> None: ...
+    def complete_attempt(self, attempt_id: int) -> None: ...
 
-    def fail_attempt(self, attempt_id: str, error: dict[str, Any]) -> None: ...
+    def fail_attempt(self, attempt_id: int, error: dict[str, Any]) -> None: ...
 
-    def timeout_attempt(self, attempt_id: str, error: dict[str, Any]) -> None: ...
+    def timeout_attempt(self, attempt_id: int, error: dict[str, Any]) -> None: ...
 
 
 class DeploymentRunGate(Protocol):
     def assert_accepts_new_run(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
-        agent_id: str | None = None,
-        agent_version_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
+        agent_id: int | None = None,
+        agent_version_id: int | None = None,
     ) -> None: ...
 
 
 class InMemoryRunStore:
     def __init__(self) -> None:
-        self.runs: dict[str, RuntimeRun] = {}
-        self.attempts: dict[str, RuntimeAttempt] = {}
+        self.runs: dict[int, RuntimeRun] = {}
+        self.attempts: dict[int, RuntimeAttempt] = {}
+        self._next_run_id = 1
+        self._next_attempt_id = 1
 
     async def create_run(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
-        agent_id: str,
-        agent_version_id: str,
-        deployment_id: str | None,
+        tenant_id: int,
+        project_id: int,
+        agent_id: int,
+        agent_version_id: int,
+        deployment_id: int | None,
         input_data: dict[str, Any],
         override_config: dict[str, Any] | None = None,
         thread_id: str | None = None,
-        run_id: str | None = None,
+        run_id: int | None = None,
     ) -> RuntimeRun:
         run = RuntimeRun(
-            run_id=run_id or str(uuid4()),
+            run_id=run_id or self._next_run_id,
             tenant_id=tenant_id,
             project_id=project_id,
             agent_id=agent_id,
@@ -131,36 +132,41 @@ class InMemoryRunStore:
             override_config=dict(override_config or {}),
             thread_id=thread_id,
         )
+        if run_id is None:
+            self._next_run_id += 1
+        else:
+            self._next_run_id = max(self._next_run_id, run_id + 1)
         self.runs[run.run_id] = run
         return run
 
     async def create_attempt(
         self,
         *,
-        run_id: str,
-        task_id: str,
+        run_id: int,
+        task_id: int,
         worker_id: str,
     ) -> RuntimeAttempt:
         attempt_no = (
             len([attempt for attempt in self.attempts.values() if attempt.run_id == run_id]) + 1
         )
         attempt = RuntimeAttempt(
-            attempt_id=str(uuid4()),
+            attempt_id=self._next_attempt_id,
             run_id=run_id,
             task_id=task_id,
             worker_id=worker_id,
             attempt_no=attempt_no,
         )
+        self._next_attempt_id += 1
         self.attempts[attempt.attempt_id] = attempt
         if self.runs[run_id].status != "running":
             assert_run_transition(self.runs[run_id].status, "running")
             self.runs[run_id].status = "running"
         return attempt
 
-    def get_run(self, run_id: str) -> RuntimeRun:
+    def get_run(self, run_id: int) -> RuntimeRun:
         return self.runs[run_id]
 
-    def complete_run(self, run_id: str, output: dict[str, Any]) -> None:
+    def complete_run(self, run_id: int, output: dict[str, Any]) -> None:
         run = self.runs[run_id]
         if run.status == "pending":
             assert_run_transition(run.status, "running")
@@ -169,7 +175,7 @@ class InMemoryRunStore:
         run.status = "succeeded"
         run.output = output
 
-    def fail_run(self, run_id: str, error: dict[str, Any]) -> None:
+    def fail_run(self, run_id: int, error: dict[str, Any]) -> None:
         run = self.runs[run_id]
         if run.status == "pending":
             assert_run_transition(run.status, "running")
@@ -178,7 +184,7 @@ class InMemoryRunStore:
         run.status = "failed"
         run.error = error
 
-    def timeout_run(self, run_id: str, error: dict[str, Any]) -> None:
+    def timeout_run(self, run_id: int, error: dict[str, Any]) -> None:
         run = self.runs[run_id]
         if run.status == "pending":
             assert_run_transition(run.status, "running")
@@ -187,35 +193,35 @@ class InMemoryRunStore:
         run.status = "timeout"
         run.error = error
 
-    def mark_run_running(self, run_id: str) -> None:
+    def mark_run_running(self, run_id: int) -> None:
         run = self.runs[run_id]
         if run.status == "running":
             return
         assert_run_transition(run.status, "running")
         run.status = "running"
 
-    def cancel_run(self, run_id: str) -> None:
+    def cancel_run(self, run_id: int) -> None:
         run = self.runs[run_id]
         assert_run_transition(run.status, "cancelled")
         run.status = "cancelled"
 
-    def delete_run(self, run_id: str) -> None:
+    def delete_run(self, run_id: int) -> None:
         self.runs.pop(run_id, None)
 
-    def complete_attempt(self, attempt_id: str) -> None:
+    def complete_attempt(self, attempt_id: int) -> None:
         attempt = self.attempts[attempt_id]
         assert_run_attempt_transition(attempt.status, "succeeded")
         attempt.status = "succeeded"
         attempt.finished_at = datetime.now(UTC)
 
-    def fail_attempt(self, attempt_id: str, error: dict[str, Any]) -> None:
+    def fail_attempt(self, attempt_id: int, error: dict[str, Any]) -> None:
         attempt = self.attempts[attempt_id]
         assert_run_attempt_transition(attempt.status, "failed")
         attempt.status = "failed"
         attempt.error = error
         attempt.finished_at = datetime.now(UTC)
 
-    def timeout_attempt(self, attempt_id: str, error: dict[str, Any]) -> None:
+    def timeout_attempt(self, attempt_id: int, error: dict[str, Any]) -> None:
         attempt = self.attempts[attempt_id]
         assert_run_attempt_transition(attempt.status, "timeout")
         attempt.status = "timeout"
@@ -238,18 +244,18 @@ class RunManager:
     async def create_run_task(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
-        agent_id: str,
-        agent_version_id: str,
-        deployment_id: str | None,
+        tenant_id: int,
+        project_id: int,
+        agent_id: int,
+        agent_version_id: int,
+        deployment_id: int | None,
         input_data: dict[str, Any],
         override_config: dict[str, Any] | None = None,
         queue: str = "default",
         thread_id: str | None = None,
-        run_id: str | None = None,
-        task_id: str | None = None,
-    ) -> tuple[RuntimeRun, str]:
+        run_id: int | None = None,
+        task_id: int | None = None,
+    ) -> tuple[RuntimeRun, int]:
         if deployment_id is not None and self.deployment_gate is not None:
             self.deployment_gate.assert_accepts_new_run(
                 deployment_id,

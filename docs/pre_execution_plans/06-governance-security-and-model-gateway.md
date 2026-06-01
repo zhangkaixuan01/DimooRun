@@ -294,8 +294,8 @@ SecretProvider：
 class SecretProvider(Protocol):
     async def get_secret(
         self,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         secret_name: str,
         context: RuntimeContext,
     ) -> str: ...

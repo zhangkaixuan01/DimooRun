@@ -26,10 +26,10 @@ NativeRuntimeDep = Annotated[
 
 
 class TaskRead(BaseModel):
-    id: str
-    run_id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    run_id: int
+    tenant_id: int
+    project_id: int
     status: str
     queue: str
     priority: int
@@ -50,12 +50,12 @@ def _task_to_read(task: NativeTask) -> TaskRead:
 
 
 def _find_task(
-    task_id: str,
+    task_id: int,
     *,
     runtime: NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     authorization: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     request_id: str | None,
     required_scope: str = "agent:read",
 ) -> NativeTask | JSONResponse:
@@ -90,7 +90,7 @@ def _find_task(
 
 @router.get("/tasks/{task_id}", response_model=TaskRead)
 def get_task(
-    task_id: str,
+    task_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -143,7 +143,7 @@ def list_tasks(
 
 @router.post("/tasks/{task_id}/cancel", response_model=TaskRead)
 def cancel_task(
-    task_id: str,
+    task_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,

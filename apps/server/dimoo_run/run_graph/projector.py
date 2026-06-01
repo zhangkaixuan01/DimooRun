@@ -1,16 +1,15 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.core.events import AgentEvent
 
 
 @dataclass
 class RunGraphNode:
-    id: str
-    run_id: str
-    attempt_id: str | None
+    id: int
+    run_id: int
+    attempt_id: int | None
     node_key: str
     node_type: str
     name: str
@@ -26,20 +25,20 @@ class RunGraphNode:
 
 @dataclass(frozen=True)
 class RunGraphEdge:
-    id: str
-    run_id: str
+    id: int
+    run_id: int
     source_node_key: str
     target_node_key: str
-    source_node_id: str | None
-    target_node_id: str | None
+    source_node_id: int | None
+    target_node_id: int | None
     edge_type: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class RunGraph:
-    run_id: str
-    attempt_id: str | None
+    run_id: int
+    attempt_id: int | None
     nodes: list[RunGraphNode]
     edges: list[RunGraphEdge]
 
@@ -48,18 +47,20 @@ class RunGraphProjector:
     def project(
         self,
         *,
-        run_id: str,
-        attempt_id: str | None,
+        run_id: int,
+        attempt_id: int | None,
         events: list[AgentEvent],
     ) -> RunGraph:
         nodes: dict[str, RunGraphNode] = {}
         edges: list[RunGraphEdge] = []
+        next_node_id = 1
+        next_edge_id = 1
         for event in events:
             node_key = str(event.payload.get("node_key") or event.type)
             node = nodes.get(node_key)
             if node is None:
                 node = RunGraphNode(
-                    id=str(uuid4()),
+                    id=next_node_id,
                     run_id=run_id,
                     attempt_id=attempt_id,
                     node_key=node_key,
@@ -70,6 +71,7 @@ class RunGraphProjector:
                     output_ref=event.payload.get("output_ref"),
                     metadata={"source_event_type": event.type},
                 )
+                next_node_id += 1
                 nodes[node_key] = node
             if event.type.endswith(".completed"):
                 node.status = "succeeded"
@@ -81,7 +83,7 @@ class RunGraphProjector:
                 parent_node = nodes.get(parent_key)
                 if parent_node is None:
                     parent_node = RunGraphNode(
-                        id=str(uuid4()),
+                        id=next_node_id,
                         run_id=run_id,
                         attempt_id=attempt_id,
                         node_key=parent_key,
@@ -90,10 +92,11 @@ class RunGraphProjector:
                         status="observed",
                         metadata={"source_event_type": "inferred.parent"},
                     )
+                    next_node_id += 1
                     nodes[parent_key] = parent_node
                 edges.append(
                     RunGraphEdge(
-                        id=str(uuid4()),
+                        id=next_edge_id,
                         run_id=run_id,
                         source_node_key=parent_key,
                         target_node_key=node_key,
@@ -102,6 +105,7 @@ class RunGraphProjector:
                         edge_type="observed",
                     )
                 )
+                next_edge_id += 1
         return RunGraph(
             run_id=run_id,
             attempt_id=attempt_id,

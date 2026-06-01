@@ -15,15 +15,15 @@ def setup_function() -> None:
 def create_api_key(*, scopes: set[str]) -> tuple[str, ServiceAccountRecord]:
     authenticator = default_api_key_authenticator()
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="runtime",
         permissions=scopes,
         created_by="admin_1",
     )
     plain_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="runtime-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -38,19 +38,19 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
     service.deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="dev",
             desired_status=DeploymentDesiredStatus.draft,
         )
     )
     instance = service.instances.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_1",
         execution_profile_id=None,
@@ -64,16 +64,16 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_1",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
     instances_response = client.get(
         "/v1/deployments/deployment_1/instances",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 
@@ -93,8 +93,8 @@ def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
         "/v1/agents",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
         json={"name": "support-agent"},
     ).json()
@@ -102,8 +102,8 @@ def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
         f"/v1/agents/{agent['id']}/versions",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
         json={"version": "0.1.0"},
     ).json()
@@ -113,8 +113,8 @@ def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_create",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
         json={
             "agent_id": agent["id"],
@@ -128,8 +128,8 @@ def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_duplicate",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
         json={
             "agent_id": agent["id"],
@@ -153,8 +153,8 @@ def test_deployment_api_rejects_missing_agent_version_binding() -> None:
         "/v1/agents",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
         json={"name": "support-agent"},
     ).json()
@@ -163,8 +163,8 @@ def test_deployment_api_rejects_missing_agent_version_binding() -> None:
         "/v1/deployments",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
         json={
             "agent_id": agent["id"],
@@ -186,8 +186,8 @@ def test_deployment_control_api_returns_stable_error_response() -> None:
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_missing",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 
@@ -205,9 +205,9 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
     service.deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="dev",
         )
@@ -230,16 +230,16 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
         "/v1/deployments",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
     cross_scope = client.get(
         "/v1/deployments/deployment_2",
         headers={
             "Authorization": f"Bearer {plain_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 
@@ -255,9 +255,9 @@ def test_deployment_control_api_requires_api_key_with_deploy_scope() -> None:
     service.deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="dev",
         )
@@ -267,14 +267,14 @@ def test_deployment_control_api_requires_api_key_with_deploy_scope() -> None:
 
     missing_auth = client.post(
         "/v1/deployments/deployment_1/activate",
-        headers={"X-Tenant-Id": "tenant_1", "X-Project-Id": "project_1"},
+        headers={"X-Tenant-Id": "1", "X-Project-Id": "1"},
     )
     insufficient_scope = client.post(
         "/v1/deployments/deployment_1/activate",
         headers={
             "Authorization": f"Bearer {read_only_key}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 

@@ -35,8 +35,8 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
     audit_sink = InMemoryAuditSink()
     registry = ServiceAccountRegistry(now=lambda: now)
     service_account = registry.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="runtime",
         permissions={"agent:invoke", "run:read"},
         created_by="admin_1",
@@ -48,8 +48,8 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
     )
 
     plain_key, api_key = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="runtime-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -59,8 +59,8 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
     )
     actor = authenticator.authenticate(
         plain_key,
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         required_scope="agent:invoke",
     )
 
@@ -73,8 +73,8 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
 
     with pytest.raises(APIKeyScopeError):
         authenticator.create_key(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             name="too-wide",
             owner_type="service_account",
             owner_id=service_account.id,
@@ -84,7 +84,7 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
     with pytest.raises(APIKeyScopeError):
         authenticator.authenticate(
             plain_key,
-            tenant_id="tenant_1",
+            tenant_id=1,
             project_id="project_2",
             required_scope="agent:invoke",
         )
@@ -93,8 +93,8 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
     with pytest.raises(APIKeyDisabledError):
         authenticator.authenticate(
             plain_key,
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             required_scope="agent:invoke",
         )
 
@@ -102,15 +102,15 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
 def test_api_key_creation_requires_owner_scope_status_and_same_tenant_project() -> None:
     registry = ServiceAccountRegistry()
     service_account = registry.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="runtime",
         permissions={"agent:invoke"},
         created_by="admin_1",
     )
     disabled = registry.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="disabled",
         permissions={"agent:invoke"},
         created_by="admin_1",
@@ -121,7 +121,7 @@ def test_api_key_creation_requires_owner_scope_status_and_same_tenant_project() 
     with pytest.raises(APIKeyScopeError, match="owner_scope_mismatch"):
         authenticator.create_key(
             tenant_id="tenant_2",
-            project_id="project_1",
+            project_id=1,
             name="cross-tenant",
             owner_type="service_account",
             owner_id=service_account.id,
@@ -130,7 +130,7 @@ def test_api_key_creation_requires_owner_scope_status_and_same_tenant_project() 
         )
     with pytest.raises(APIKeyScopeError, match="owner_scope_mismatch"):
         authenticator.create_key(
-            tenant_id="tenant_1",
+            tenant_id=1,
             project_id="project_2",
             name="cross-project",
             owner_type="service_account",
@@ -140,8 +140,8 @@ def test_api_key_creation_requires_owner_scope_status_and_same_tenant_project() 
         )
     with pytest.raises(APIKeyDisabledError, match="owner_disabled"):
         authenticator.create_key(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             name="disabled-owner",
             owner_type="service_account",
             owner_id=disabled.id,
@@ -156,8 +156,8 @@ def test_policy_engine_records_deny_and_approval_audit() -> None:
         rules=[
             StaticPolicyRule(
                 policy_id="deny-prod-secret",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 resource_type="secret",
                 action="read",
                 decision=Decision.deny,
@@ -177,8 +177,8 @@ def test_policy_engine_records_deny_and_approval_audit() -> None:
 
     denied = engine.evaluate(
         PolicyRequest(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             actor_id="user_1",
             actor_type="user",
             resource_type="secret",
@@ -188,8 +188,8 @@ def test_policy_engine_records_deny_and_approval_audit() -> None:
     )
     approval = engine.evaluate(
         PolicyRequest(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             actor_id="user_1",
             actor_type="user",
             resource_type="tool",
@@ -218,8 +218,8 @@ def test_policy_rules_are_scoped_by_tenant_and_project() -> None:
         rules=[
             StaticPolicyRule(
                 policy_id="deny-tenant-1-secret",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 resource_type="secret",
                 action="read",
                 decision=Decision.deny,
@@ -230,8 +230,8 @@ def test_policy_rules_are_scoped_by_tenant_and_project() -> None:
 
     same_scope = engine.evaluate(
         PolicyRequest(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             actor_id="user_1",
             actor_type="user",
             resource_type="secret",

@@ -11,15 +11,15 @@ from dimoo_run.api.dependencies import (
 )
 from dimoo_run.security.api_keys import AuthenticatedActor
 
-TenantIdHeader = Annotated[str | None, Header(alias="X-Tenant-Id")]
-ProjectIdHeader = Annotated[str | None, Header(alias="X-Project-Id")]
+TenantIdHeader = Annotated[int | None, Header(alias="X-Tenant-Id")]
+ProjectIdHeader = Annotated[int | None, Header(alias="X-Project-Id")]
 
 
 def require_compat_api_key(
     response: Response,
     authorization: AuthorizationHeader,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     x_request_id: RequestIdHeader,
     *,
     required_scope: str = "agent:invoke",

@@ -12,9 +12,9 @@ class TraceSpan:
     parent_span_id: str | None
     name: str
     kind: str
-    tenant_id: str
-    project_id: str | None
-    run_id: str | None
+    tenant_id: int
+    project_id: int | None
+    run_id: int | None
     metadata: dict[str, Any] = field(default_factory=dict)
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished_at: datetime | None = None

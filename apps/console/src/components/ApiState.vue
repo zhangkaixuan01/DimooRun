@@ -39,7 +39,7 @@ const { t } = useI18n();
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-muted) 38%, transparent), transparent),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-quiet) 72%, transparent), transparent 64%),
     var(--color-surface);
   box-shadow: var(--shadow-panel);
   padding: 18px 20px;

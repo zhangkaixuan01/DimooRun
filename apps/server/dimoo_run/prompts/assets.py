@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.policy.decisions import Decision
 from dimoo_run.policy.engine import PolicyEngine, PolicyRequest
@@ -12,9 +11,9 @@ class AssetVersionError(ValueError):
 
 @dataclass(frozen=True)
 class PromptAsset:
-    id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    tenant_id: int
+    project_id: int
     name: str
     version: str
     content_ref: str
@@ -27,13 +26,14 @@ class PromptAsset:
 class PromptAssetStore:
     def __init__(self, *, policy_engine: PolicyEngine) -> None:
         self.policy_engine = policy_engine
-        self.prompts: dict[tuple[str, str, str, str], PromptAsset] = {}
+        self.prompts: dict[tuple[int, int, str, str], PromptAsset] = {}
+        self._next_prompt_id = 0
 
     def create_prompt(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         name: str,
         version: str,
         content_ref: str,
@@ -49,14 +49,15 @@ class PromptAssetStore:
                 actor_id=created_by,
                 actor_type="user",
                 resource_type="prompt",
-                resource_id=name,
+                resource_id=None,
                 action="create",
+                request_metadata={"name": name, "version": version},
             )
         )
         if decision.decision == Decision.deny:
             raise PermissionError(decision.reason or "prompt_create_denied")
         prompt = PromptAsset(
-            id=str(uuid4()),
+            id=self._allocate_prompt_id(),
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
@@ -70,11 +71,15 @@ class PromptAssetStore:
 
     def resolve_prompt(
         self,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         name: str,
         version: str,
     ) -> PromptAsset:
         if version == "latest":
             raise AssetVersionError("production must bind explicit prompt versions")
         return self.prompts[(tenant_id, project_id, name, version)]
+
+    def _allocate_prompt_id(self) -> int:
+        self._next_prompt_id += 1
+        return self._next_prompt_id

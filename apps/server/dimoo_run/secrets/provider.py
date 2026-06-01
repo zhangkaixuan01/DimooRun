@@ -17,8 +17,8 @@ class SecretScopeMismatchError(PermissionError):
 
 @dataclass
 class SecretRecord:
-    tenant_id: str
-    project_id: str | None
+    tenant_id: int
+    project_id: int | None
     name: str
     value: str
     status: str = "active"
@@ -34,13 +34,13 @@ class InMemorySecretProvider:
     ) -> None:
         self.policy_engine = policy_engine
         self._now = now or (lambda: datetime.now(UTC))
-        self.secrets: dict[tuple[str, str | None, str], SecretRecord] = {}
+        self.secrets: dict[tuple[int, int | None, str], SecretRecord] = {}
 
     def put_secret(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         name: str,
         value: str,
     ) -> SecretRecord:
@@ -56,8 +56,8 @@ class InMemorySecretProvider:
     def get_secret(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         secret_name: str,
         context: RuntimeContext,
     ) -> str:
@@ -69,9 +69,10 @@ class InMemorySecretProvider:
                     actor_id=context.user_id or context.service_account_id,
                     actor_type="service_account" if context.service_account_id else "user",
                     resource_type="secret",
-                    resource_id=secret_name,
+                    resource_id=None,
                     action="read",
                     runtime_context=context.to_metadata(),
+                    request_metadata={"secret_name": secret_name},
                 ),
                 reason="secret_scope_mismatch",
                 metadata={"requested_tenant_id": tenant_id, "requested_project_id": project_id},
@@ -85,7 +86,7 @@ class InMemorySecretProvider:
                 actor_id=context.user_id or context.service_account_id,
                 actor_type="service_account" if context.service_account_id else "user",
                 resource_type="secret",
-                resource_id=secret_name,
+                resource_id=None,
                 action="read",
                 agent_id=context.agent_id,
                 agent_version_id=context.agent_version_id,
@@ -104,7 +105,7 @@ class InMemorySecretProvider:
                 actor_id=context.user_id or context.service_account_id,
                 actor_type="service_account" if context.service_account_id else "user",
                 resource_type="secret",
-                resource_id=secret_name,
+                resource_id=None,
                 action="read",
                 result="allow",
                 metadata={"secret_name": secret_name},

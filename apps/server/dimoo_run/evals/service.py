@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from uuid import uuid4
 
 
 class Evaluator(Protocol):
@@ -19,22 +18,22 @@ class Evaluator(Protocol):
 
 @dataclass(frozen=True)
 class Experiment:
-    id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    tenant_id: int
+    project_id: int
     name: str
-    agent_id: str
-    baseline_agent_version_id: str | None
-    candidate_agent_version_id: str
-    dataset_id: str
+    agent_id: int
+    baseline_agent_version_id: int | None
+    candidate_agent_version_id: int
+    dataset_id: int
     evaluator_config: dict[str, Any]
     status: str = "draft"
 
 
 @dataclass(frozen=True)
 class ExperimentRun:
-    id: str
-    experiment_id: str
+    id: int
+    experiment_id: int
     status: str
     started_at: datetime
     finished_at: datetime | None = None
@@ -42,10 +41,10 @@ class ExperimentRun:
 
 @dataclass(frozen=True)
 class EvaluationResult:
-    id: str
-    tenant_id: str
-    project_id: str
-    experiment_run_id: str
+    id: int
+    tenant_id: int
+    project_id: int
+    experiment_run_id: int
     evaluator_name: str
     score: float
     passed: bool
@@ -54,7 +53,7 @@ class EvaluationResult:
 
 @dataclass(frozen=True)
 class QualityGateDecision:
-    experiment_run_id: str
+    experiment_run_id: int
     allowed: bool
     failed_evaluators: list[str]
 
@@ -83,24 +82,27 @@ class ThresholdEvaluator:
 
 class InMemoryEvaluationService:
     def __init__(self) -> None:
-        self.experiments: dict[str, Experiment] = {}
-        self.experiment_runs: dict[str, ExperimentRun] = {}
+        self.experiments: dict[int, Experiment] = {}
+        self.experiment_runs: dict[int, ExperimentRun] = {}
         self.results: list[EvaluationResult] = []
+        self._next_experiment_id = 1
+        self._next_run_id = 1
+        self._next_result_id = 1
 
     def create_experiment(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         name: str,
-        agent_id: str,
-        baseline_agent_version_id: str | None,
-        candidate_agent_version_id: str,
-        dataset_id: str,
+        agent_id: int,
+        baseline_agent_version_id: int | None,
+        candidate_agent_version_id: int,
+        dataset_id: int,
         evaluator_config: dict[str, Any],
     ) -> Experiment:
         experiment = Experiment(
-            id=str(uuid4()),
+            id=self._next_experiment_id,
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
@@ -110,24 +112,26 @@ class InMemoryEvaluationService:
             dataset_id=dataset_id,
             evaluator_config=evaluator_config,
         )
+        self._next_experiment_id += 1
         self.experiments[experiment.id] = experiment
         return experiment
 
     async def run_experiment(
         self,
         *,
-        experiment_id: str,
+        experiment_id: int,
         items: list[dict[str, Any]],
         evaluators: list[Evaluator],
     ) -> ExperimentRun:
         experiment = self.experiments[experiment_id]
         run = ExperimentRun(
-            id=str(uuid4()),
+            id=self._next_run_id,
             experiment_id=experiment_id,
             status="succeeded",
             started_at=datetime.now(UTC),
             finished_at=datetime.now(UTC),
         )
+        self._next_run_id += 1
         self.experiment_runs[run.id] = run
         for item in items:
             for evaluator in evaluators:
@@ -139,7 +143,7 @@ class InMemoryEvaluationService:
                 )
                 self.results.append(
                     EvaluationResult(
-                        id=str(uuid4()),
+                        id=self._next_result_id,
                         tenant_id=experiment.tenant_id,
                         project_id=experiment.project_id,
                         experiment_run_id=run.id,
@@ -149,9 +153,10 @@ class InMemoryEvaluationService:
                         metadata=dict(result.get("metadata", {})),
                     )
                 )
+                self._next_result_id += 1
         return run
 
-    def quality_gate(self, experiment_run_id: str) -> QualityGateDecision:
+    def quality_gate(self, experiment_run_id: int) -> QualityGateDecision:
         failed = [
             result.evaluator_name
             for result in self.results

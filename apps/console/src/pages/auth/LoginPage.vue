@@ -67,12 +67,10 @@ async function submit() {
   min-height: 100vh;
   grid-template-rows: auto 1fr;
   background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--color-surface-muted) 42%, transparent),
-      transparent 42%
-    ),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-page-grid) 38%, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-page-grid) 34%, transparent) 1px, transparent 1px),
     var(--color-page);
+  background-size: 28px 28px;
 }
 
 .login-topbar {
@@ -80,7 +78,7 @@ async function submit() {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
   padding: 16px 22px;
   backdrop-filter: blur(10px);
 }
@@ -97,9 +95,10 @@ async function submit() {
   height: 38px;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--color-accent);
-  color: oklch(99% 0.004 232);
+  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-info));
+  color: oklch(98% 0.006 255);
   font-weight: 800;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 .brand-lockup strong {
@@ -140,7 +139,9 @@ async function submit() {
   width: min(420px, calc(100% - 40px));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-quiet) 82%, transparent), transparent 56%),
+    var(--color-surface);
   box-shadow: var(--shadow-popover);
 }
 

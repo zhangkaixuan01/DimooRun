@@ -1,11 +1,18 @@
 import os
+import tempfile
+from uuid import uuid4
 
 from dimoo_run.api.dependencies import reset_console_identity
+from dimoo_run.core.config import Settings
+from dimoo_run.domain.models import ConsolePermission, ConsoleRole, ConsoleRolePermission
+from dimoo_run.persistence.database import create_session_factory
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
+from sqlalchemy import delete, select
 
 
 def setup_function() -> None:
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.gettempdir()}/dimoorun-console-{uuid4().hex}.db"
     os.environ["DIMOORUN_BOOTSTRAP_ADMIN_EMAIL"] = "admin@local.dimoorun"
     os.environ["DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD"] = "admin12345"
     os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
@@ -17,8 +24,8 @@ def setup_function() -> None:
 def scoped_headers(token: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {token}",
-        "X-Tenant-Id": "tenant_1",
-        "X-Project-Id": "project_1",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
         "X-Environment": "local",
         "X-Request-Id": "req_auth",
     }
@@ -41,7 +48,14 @@ def test_console_login_me_logout_flow() -> None:
     assert me.status_code == 200
     assert me.json()["operator"]["email"] == "admin@local.dimoorun"
     assert me.json()["operator"]["allowed_scopes"] == [
-        {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+        {
+            "tenant_id": 1,
+            "tenant_name": "Default Tenant",
+            "project_id": 1,
+            "project_name": "Default Project",
+            "environment": "local",
+            "environment_name": "local",
+        }
     ]
 
     logout = client.post("/v1/auth/logout", headers=scoped_headers(token))
@@ -57,8 +71,8 @@ def test_admin_collection_requires_console_auth() -> None:
     denied = client.get(
         "/v1/policies",
         headers={
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
             "X-Request-Id": "req_auth",
         },
     )
@@ -83,14 +97,21 @@ def test_operator_management_and_password_reset() -> None:
             "roles": ["runtime_operator"],
             "permissions": ["agent:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
     assert created.status_code == 201
     operator_id = created.json()["item"]["id"]
     assert created.json()["item"]["allowed_scopes"] == [
-        {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+        {
+            "tenant_id": 1,
+            "tenant_name": "Default Tenant",
+            "project_id": 1,
+            "project_name": "Default Project",
+            "environment": "local",
+            "environment_name": "local",
+        }
     ]
 
     listed = client.get("/v1/identity/operators", headers=scoped_headers(token))
@@ -126,7 +147,7 @@ def test_password_reset_revokes_existing_operator_sessions() -> None:
             "roles": ["identity_admin"],
             "permissions": ["admin:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
@@ -162,7 +183,7 @@ def test_revoke_operator_sessions_endpoint_invalidates_existing_sessions() -> No
             "roles": ["identity_admin"],
             "permissions": ["admin:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
@@ -197,7 +218,7 @@ def test_list_operator_sessions_hides_token_hash_and_reports_status() -> None:
             "roles": ["identity_admin"],
             "permissions": ["admin:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
@@ -240,7 +261,7 @@ def test_delete_operator_soft_deletes_and_revokes_sessions() -> None:
             "roles": ["identity_admin"],
             "permissions": ["admin:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
@@ -278,7 +299,7 @@ def test_disabled_operator_session_is_denied() -> None:
             "roles": ["identity_admin"],
             "permissions": ["admin:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
@@ -315,7 +336,7 @@ def test_operator_session_is_restricted_to_allowed_scope() -> None:
             "roles": ["runtime_operator"],
             "permissions": ["admin:read"],
             "allowed_scopes": [
-                {"tenant_id": "tenant_1", "project_id": "project_1", "environment": "local"}
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
             ],
         },
     )
@@ -329,13 +350,75 @@ def test_operator_session_is_restricted_to_allowed_scope() -> None:
     )
     denied = client.get(
         "/v1/policies",
-        headers={
-            "Authorization": f"Bearer {scoped_token}",
-            "X-Tenant-Id": "tenant_other",
-            "X-Project-Id": "project_1",
-            "X-Environment": "local",
-        },
+            headers={
+                "Authorization": f"Bearer {scoped_token}",
+                "X-Tenant-Id": "999",
+                "X-Project-Id": "1",
+                "X-Environment": "local",
+            },
     )
 
     assert denied.status_code == 403
     assert denied.json()["detail"]["error_code"] == "scope_not_allowed"
+
+
+def test_builtin_identity_admin_permissions_are_persisted_for_existing_bootstrap() -> None:
+    client = TestClient(create_app())
+    admin_token = login(client)
+    created = client.post(
+        "/v1/identity/operators",
+        headers=scoped_headers(admin_token),
+        json={
+            "email": "identity-admin@local.dimoorun",
+            "name": "Identity Admin",
+            "password": "operator123",
+            "roles": ["identity_admin"],
+            "permissions": [],
+            "allowed_scopes": [
+                {"tenant_id": 1, "project_id": 1, "environment": "local"}
+            ],
+        },
+    )
+    assert created.status_code == 201
+
+    session_factory = create_session_factory(Settings.from_env().database.url)
+    with session_factory() as session:
+        identity_admin = session.scalar(
+            select(ConsoleRole).where(ConsoleRole.name == "identity_admin")
+        )
+        assert identity_admin is not None
+        permission_ids = list(
+            session.scalars(
+                select(ConsolePermission.id).where(
+                    ConsolePermission.code.in_(
+                        ["identity:service-account:write", "identity:api-key:write"]
+                    )
+                )
+            )
+        )
+        session.execute(
+            delete(ConsoleRolePermission).where(
+                ConsoleRolePermission.role_id == identity_admin.id,
+                ConsoleRolePermission.permission_id.in_(permission_ids),
+            )
+        )
+        session.commit()
+
+    operator_token = str(
+        client.post(
+            "/v1/auth/login",
+            json={"email": "identity-admin@local.dimoorun", "password": "operator123"},
+        ).json()["access_token"]
+    )
+    created_service_account = client.post(
+        "/v1/identity/service-accounts",
+        headers=scoped_headers(operator_token),
+        json={
+            "name": "identity-admin-sa",
+            "tenant_id": 1,
+            "project_id": 1,
+            "permissions": ["agent:read"],
+        },
+    )
+
+    assert created_service_account.status_code == 201

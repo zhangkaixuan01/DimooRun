@@ -13,10 +13,10 @@ ALLOWED_SURFACE_TYPES = {"api", "chat", "task", "stream", "mcp_server", "webhook
 
 @dataclass(frozen=True)
 class PublishedSurfaceConfig:
-    id: str
-    tenant_id: str
-    project_id: str
-    deployment_id: str
+    id: int
+    tenant_id: int
+    project_id: int
+    deployment_id: int
     type: str
     status: str = "active"
 
@@ -24,7 +24,7 @@ class PublishedSurfaceConfig:
 class PublishedSurfaceRegistry:
     def __init__(self, *, deployments: InMemoryDeploymentStore) -> None:
         self.deployments = deployments
-        self.surfaces: dict[str, PublishedSurfaceConfig] = {}
+        self.surfaces: dict[int, PublishedSurfaceConfig] = {}
 
     def publish(self, surface: PublishedSurfaceConfig) -> PublishedSurfaceConfig:
         deployment = self.deployments.get(surface.deployment_id)

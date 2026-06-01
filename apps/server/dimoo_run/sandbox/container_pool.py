@@ -13,9 +13,9 @@ class ContainerPoolBoundaryError(RuntimeError):
 
 @dataclass(frozen=True)
 class ContainerPoolRequest:
-    tenant_id: str
-    project_id: str
-    deployment_id: str
+    tenant_id: int
+    project_id: int
+    deployment_id: int
     desired_status: str
     env: dict[str, str] = field(default_factory=dict)
     secret_refs: set[str] = field(default_factory=set)

@@ -14,13 +14,13 @@ class FakeGraph:
 
 def make_context() -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="agent_version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
     )
 
 

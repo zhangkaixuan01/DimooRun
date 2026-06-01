@@ -10,8 +10,8 @@ class ReplayScheduler:
     async def replay_run(
         self,
         *,
-        source_run_id: str,
-        candidate_agent_version_id: str | None = None,
+        source_run_id: int,
+        candidate_agent_version_id: int | None = None,
     ) -> RuntimeRun:
         source = self.run_store.runs[source_run_id]
         replay = await self.run_store.create_run(

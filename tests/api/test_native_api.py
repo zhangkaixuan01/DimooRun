@@ -1,3 +1,7 @@
+import os
+import tempfile
+from uuid import uuid4
+
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.runtime import reset_native_runtime
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
@@ -36,6 +40,8 @@ NATIVE_PATHS = [
 
 
 def setup_function() -> None:
+    os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.gettempdir()}/dimoorun-native-{uuid4().hex}.db"
     reset_api_key_authenticator()
     reset_native_runtime()
 
@@ -44,15 +50,15 @@ def create_api_key(*, scopes: set[str] | None = None) -> tuple[str, ServiceAccou
     requested_scopes = scopes or {"agent:read", "agent:write", "agent:invoke"}
     authenticator = default_api_key_authenticator()
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="native",
         permissions=requested_scopes,
         created_by="admin_1",
     )
     plain_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="native-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -70,15 +76,15 @@ def auth_headers(
     headers = {
         "Authorization": f"Bearer {api_key or create_api_key()[0]}",
         "X-Request-Id": "req_native",
-        "X-Tenant-Id": "tenant_1",
-        "X-Project-Id": "project_1",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
     }
     if idempotency_key is not None:
         headers["Idempotency-Key"] = idempotency_key
     return headers
 
 
-def create_agent_with_version(client: TestClient, key: str) -> tuple[str, str]:
+def create_agent_with_version(client: TestClient, key: str) -> tuple[int, int]:
     agent = client.post(
         "/v1/agents",
         headers=auth_headers(key),
@@ -113,8 +119,8 @@ def test_dev_api_key_can_authenticate_in_dev_mode(monkeypatch) -> None:  # type:
         headers={
             "Authorization": "Bearer dev-local-key",
             "X-Request-Id": "req_dev_key",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 
@@ -131,8 +137,8 @@ def test_dev_api_key_is_rejected_outside_dev_mode(monkeypatch) -> None:  # type:
         headers={
             "Authorization": "Bearer dev-local-key",
             "X-Request-Id": "req_dev_key",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 
@@ -152,8 +158,8 @@ def test_native_agent_task_run_event_flow_is_real() -> None:
 
     assert task_response.status_code == 202
     task_body = task_response.json()
-    assert task_body["run_id"].startswith("run_")
-    assert task_body["task_id"].startswith("task_")
+    assert isinstance(task_body["run_id"], int)
+    assert isinstance(task_body["task_id"], int)
     assert task_body["status"] == "queued"
 
     run = client.get(

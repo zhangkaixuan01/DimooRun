@@ -1,9 +1,16 @@
+import os
+import tempfile
+from uuid import uuid4
+
 from dimoo_run.api.compat.langgraph import default_compat_runtime, reset_compat_runtime
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.deployments import default_deployment_control, reset_deployment_control
 from dimoo_run.deployments.service import DeploymentRecord
 from dimoo_run.domain.enums import DeploymentDesiredStatus
+from dimoo_run.domain.models import Project, Tenant
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
+from dimoo_run.persistence.database import create_session_factory
+from dimoo_run.core.config import Settings
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
@@ -22,6 +29,8 @@ COMPAT_PATHS = [
 
 
 def setup_function() -> None:
+    os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.gettempdir()}/dimoorun-compat-{uuid4().hex}.db"
     reset_api_key_authenticator()
     reset_compat_runtime()
     reset_deployment_control()
@@ -31,15 +40,15 @@ def create_api_key(*, scopes: set[str] | None = None) -> tuple[str, ServiceAccou
     requested_scopes = scopes or {"agent:read", "agent:invoke"}
     authenticator = default_api_key_authenticator()
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="compat",
         permissions=requested_scopes,
         created_by="admin_1",
     )
     plain_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="compat-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -54,8 +63,8 @@ def auth_headers(api_key: str | None = None) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {key}",
         "X-Request-Id": "req_compat",
-        "X-Tenant-Id": "tenant_1",
-        "X-Project-Id": "project_1",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
     }
 
 
@@ -83,8 +92,8 @@ def test_langgraph_compat_rejects_unregistered_bearer_token() -> None:
         "/compat/langgraph/assistants",
         headers={
             "Authorization": "Bearer anything",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
         },
     )
 
@@ -99,12 +108,12 @@ def test_langgraph_compat_assistant_thread_run_flow_returns_sdk_shaped_objects()
     assistant = client.post(
         "/compat/langgraph/assistants",
         headers=auth_headers(key),
-        json={"name": "support-agent", "deployment_id": "dep_prod_support"},
+        json={"name": "support-agent"},
     )
     assert assistant.status_code == 201
     assistant_body = assistant.json()
     assert assistant_body["assistant_id"].startswith("assistant_")
-    assert assistant_body["metadata"]["dimoorun_mapping"]["deployment_id"] == "dep_prod_support"
+    assert assistant_body["metadata"]["dimoorun_mapping"]["deployment_id"] is None
 
     listed_assistants = client.get(
         "/compat/langgraph/assistants",
@@ -123,13 +132,13 @@ def test_langgraph_compat_assistant_thread_run_flow_returns_sdk_shaped_objects()
     )
     assert run.status_code == 201
     run_body = run.json()
-    assert run_body["run_id"].startswith("run_")
+    assert isinstance(run_body["run_id"], int)
     assert run_body["status"] == "queued"
-    assert run_body["metadata"]["dimoorun_mapping"]["task_id"].startswith("task_")
+    assert isinstance(run_body["metadata"]["dimoorun_mapping"]["task_id"], int)
     runtime = default_compat_runtime()
     assert run_body["metadata"]["dimoorun_mapping"]["task_id"] in runtime.task_backend.tasks
     assert run_body["metadata"]["dimoorun_mapping"]["run_id"] in runtime.run_store.runs
-    assert runtime.audit_log.records[-1].actor_id == service_account.id
+    assert runtime.audit_log.records[-1].actor_id == str(service_account.id)
 
     joined = client.post(
         f"/compat/langgraph/threads/{thread_id}/runs/{run_body['run_id']}/join",
@@ -150,7 +159,7 @@ def test_langgraph_compat_assistant_thread_run_flow_returns_sdk_shaped_objects()
     assert "event: run.created" in stream.text
     assert "event: task.queued" in stream.text
     assert "event: run.started" in stream.text
-    streamed_run_id = stream.text.split("id: ", maxsplit=1)[1].split(":", maxsplit=1)[0]
+    streamed_run_id = int(stream.text.split("id: ", maxsplit=1)[1].split(":", maxsplit=1)[0])
     assert runtime.run_store.runs[streamed_run_id].status == "running"
 
 
@@ -160,7 +169,7 @@ def test_langgraph_compat_cancel_updates_runtime_run_task_and_audit() -> None:
     assistant = client.post(
         "/compat/langgraph/assistants",
         headers=auth_headers(key),
-        json={"name": "support-agent", "deployment_id": "dep_prod_support"},
+        json={"name": "support-agent"},
     ).json()
     thread = client.post("/compat/langgraph/threads", headers=auth_headers(key), json={}).json()
     run = client.post(
@@ -187,11 +196,11 @@ def test_langgraph_compat_respects_deployment_gate_when_deployment_exists() -> N
     service = default_deployment_control()
     service.deployments.add(
         DeploymentRecord(
-            id="deployment_paused",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="support-agent",
-            agent_version_id="compat-langgraph",
+            id=1,
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
+            agent_version_id=1,
             environment="dev",
             desired_status=DeploymentDesiredStatus.paused,
         )
@@ -201,7 +210,7 @@ def test_langgraph_compat_respects_deployment_gate_when_deployment_exists() -> N
     assistant = client.post(
         "/compat/langgraph/assistants",
         headers=auth_headers(key),
-        json={"name": "support-agent", "deployment_id": "deployment_paused"},
+        json={"name": "support-agent", "deployment_id": 1},
     ).json()
     thread = client.post("/compat/langgraph/threads", headers=auth_headers(key), json={}).json()
 
@@ -219,11 +228,11 @@ def test_langgraph_compat_rejects_cross_scope_existing_deployment() -> None:
     service = default_deployment_control()
     service.deployments.add(
         DeploymentRecord(
-            id="deployment_other",
-            tenant_id="tenant_2",
-            project_id="project_2",
-            agent_id="support-agent",
-            agent_version_id="compat-langgraph",
+            id=2,
+            tenant_id=2,
+            project_id=2,
+            agent_id=1,
+            agent_version_id=1,
             environment="dev",
             desired_status=DeploymentDesiredStatus.active,
         )
@@ -233,7 +242,7 @@ def test_langgraph_compat_rejects_cross_scope_existing_deployment() -> None:
     response = client.post(
         "/compat/langgraph/assistants",
         headers=auth_headers(key),
-        json={"name": "support-agent", "deployment_id": "deployment_other"},
+        json={"name": "support-agent", "deployment_id": 2},
     )
 
     assert response.status_code == 404
@@ -258,20 +267,20 @@ def test_langgraph_compat_does_not_allow_cross_project_thread_or_assistant_bindi
     client = TestClient(create_app())
     key, _ = create_api_key()
     cross_key, _ = create_api_key_for_scope(
-        tenant_id="tenant_2",
-        project_id="project_2",
+        tenant_id=2,
+        project_id=2,
         scopes={"agent:read", "agent:invoke"},
     )
     assistant = client.post(
         "/compat/langgraph/assistants",
         headers=auth_headers(key),
-        json={"name": "support-agent", "deployment_id": "dep_prod_support"},
+        json={"name": "support-agent"},
     ).json()
     thread = client.post("/compat/langgraph/threads", headers=auth_headers(key), json={}).json()
 
     response = client.post(
         f"/compat/langgraph/threads/{thread['thread_id']}/runs",
-        headers=auth_headers_for_scope(cross_key, tenant_id="tenant_2", project_id="project_2"),
+        headers=auth_headers_for_scope(cross_key, tenant_id=2, project_id=2),
         json={"assistant_id": assistant["assistant_id"], "input": {"message": "hello"}},
     )
 
@@ -299,11 +308,12 @@ def test_agent_protocol_capabilities_only_require_read_scope() -> None:
 
 def create_api_key_for_scope(
     *,
-    tenant_id: str,
-    project_id: str,
+    tenant_id: int,
+    project_id: int,
     scopes: set[str],
 ) -> tuple[str, ServiceAccountRecord]:
     authenticator = default_api_key_authenticator()
+    _ensure_scope(tenant_id, project_id)
     service_account = authenticator.service_accounts.create(
         tenant_id=tenant_id,
         project_id=project_id,
@@ -323,10 +333,21 @@ def create_api_key_for_scope(
     return plain_key, service_account
 
 
-def auth_headers_for_scope(api_key: str, *, tenant_id: str, project_id: str) -> dict[str, str]:
+def auth_headers_for_scope(api_key: str, *, tenant_id: int, project_id: int) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {api_key}",
         "X-Request-Id": "req_compat",
-        "X-Tenant-Id": tenant_id,
-        "X-Project-Id": project_id,
+        "X-Tenant-Id": str(tenant_id),
+        "X-Project-Id": str(project_id),
     }
+
+
+def _ensure_scope(tenant_id: int, project_id: int) -> None:
+    session_factory = create_session_factory(Settings.from_env().database.url)
+    with session_factory() as session:
+        if session.get(Tenant, tenant_id) is None:
+            session.add(Tenant(id=tenant_id, name=f"Tenant {tenant_id}", slug=f"tenant-{tenant_id}", status="active"))
+            session.flush()
+        if session.get(Project, project_id) is None:
+            session.add(Project(id=project_id, tenant_id=tenant_id, name=f"Project {project_id}", slug=f"project-{project_id}", status="active"))
+        session.commit()

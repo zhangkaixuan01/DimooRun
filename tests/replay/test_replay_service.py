@@ -11,11 +11,11 @@ async def test_replay_job_creates_new_run_without_mutating_source_run() -> None:
 
     source = ReplaySourceRun(
         run_id="run_failed",
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_old",
-        deployment_id="deployment_1",
+        deployment_id=1,
         input_ref="artifact://input",
         input_data={"question": "hello"},
         status="failed",
@@ -45,11 +45,11 @@ async def test_replay_rejects_replay_of_running_source_run() -> None:
         await service.create_replay_job(
             source_run=ReplaySourceRun(
                 run_id="run_running",
-                tenant_id="tenant_1",
-                project_id="project_1",
-                agent_id="agent_1",
+                tenant_id=1,
+                project_id=1,
+                agent_id=1,
                 agent_version_id="version_old",
-                deployment_id="deployment_1",
+                deployment_id=1,
                 input_ref=None,
                 input_data={},
                 status="running",

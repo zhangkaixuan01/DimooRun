@@ -63,15 +63,15 @@ class FakeObjectStoreClient:
         return f"https://signed.example/{bucket}/{key}?expires={expires_seconds}"
 
 
-def context(project_id: str | None = "project_1") -> RuntimeContext:
+def context(project_id: int | None = 1) -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
+        tenant_id=1,
         project_id=project_id,
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="agent_version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         attempt_id="attempt_1",
         framework="langgraph",
     )
@@ -170,7 +170,7 @@ def test_observability_exporter_redacts_samples_and_dead_letters_failures() -> N
     )
     event = AgentEvent(
         type="tool.completed",
-        run_id="run_1",
+        run_id=1,
         sequence=1,
         payload={"secret": "leak", "value": 1},
     )
@@ -195,8 +195,8 @@ def test_backup_plan_and_restore_dry_run_validate_artifact_checksum(tmp_path: Pa
     data = json.dumps({"answer": 42}, separators=(",", ":"), sort_keys=True).encode("utf-8")
     service = BackupRestoreService(audit_log=audit)
     plan = service.create_plan(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="daily",
         scope="project",
         targets=["Artifact metadata", "Artifact object data"],
@@ -209,8 +209,8 @@ def test_backup_plan_and_restore_dry_run_validate_artifact_checksum(tmp_path: Pa
     )
 
     job = service.dry_run_restore(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         backup_plan_id=plan.id,
         backup_ref="backup://daily/1",
         restore_scope="project",
@@ -236,8 +236,8 @@ def test_restore_dry_run_rejects_cross_scope_plan_and_artifacts(tmp_path: Path) 
     )
     service = BackupRestoreService(audit_log=audit)
     plan = service.create_plan(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="daily",
         scope="project",
         targets=["Artifact object data"],
@@ -249,8 +249,8 @@ def test_restore_dry_run_rejects_cross_scope_plan_and_artifacts(tmp_path: Path) 
 
     with pytest.raises(RestoreValidationError, match="artifact_scope_mismatch"):
         service.dry_run_restore(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             backup_plan_id=plan.id,
             backup_ref="backup://daily/1",
             restore_scope="project",
@@ -260,7 +260,7 @@ def test_restore_dry_run_rejects_cross_scope_plan_and_artifacts(tmp_path: Path) 
 
     with pytest.raises(RestoreValidationError, match="backup_plan_scope_mismatch"):
         service.dry_run_restore(
-            tenant_id="tenant_1",
+            tenant_id=1,
             project_id="project_2",
             backup_plan_id=plan.id,
             backup_ref="backup://daily/1",
@@ -276,8 +276,8 @@ def test_notification_incident_ack_resolve_dedupe_and_failed_delivery() -> None:
     channel = service.register_channel(
         NotificationChannel(
             id="channel_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             type="webhook",
             target_ref="secret:webhook",
             metadata={"fail_delivery": True},
@@ -286,8 +286,8 @@ def test_notification_incident_ack_resolve_dedupe_and_failed_delivery() -> None:
     service.register_rule(
         AlertRule(
             id="rule_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             name="failure-rate",
             signal="run_failed_rate_high",
             threshold=0.2,
@@ -298,16 +298,16 @@ def test_notification_incident_ack_resolve_dedupe_and_failed_delivery() -> None:
     )
 
     incident = service.evaluate_signal(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         signal="run_failed_rate_high",
         value=0.5,
         source_ref="metric://run_failed_rate",
         payload={"secret": "leak"},
     )
     duplicate = service.evaluate_signal(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         signal="run_failed_rate_high",
         value=0.7,
         source_ref="metric://run_failed_rate",
@@ -329,8 +329,8 @@ def test_webhook_subscription_dispatch_redacts_audits_and_isolates_failure() -> 
     transport = InMemoryWebhookTransport(fail_next=True)
     service = WebhookSubscriptionService(transport=transport, audit_log=audit)
     subscription = service.subscribe(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="events",
         event_types={"run.completed"},
         target_url="https://example.com/webhook",
@@ -340,15 +340,15 @@ def test_webhook_subscription_dispatch_redacts_audits_and_isolates_failure() -> 
 
     event = AgentEvent(
         type="run.completed",
-        run_id="run_1",
+        run_id=1,
         sequence=1,
         payload={"api_key": "leak", "ok": True},
     )
 
     assert subscription.public_dict()["secret_ref"] == "[REDACTED]"
-    assert service.dispatch(event, tenant_id="tenant_1", project_id="project_1") == 0
+    assert service.dispatch(event, tenant_id=1, project_id=1) == 0
     assert service.deliveries[0].status == "failed"
-    assert service.dispatch(event, tenant_id="tenant_1", project_id="project_1") == 1
+    assert service.dispatch(event, tenant_id=1, project_id=1) == 1
     assert transport.requests[0]["payload"]["payload"]["api_key"] == "[REDACTED]"
     assert audit.records[-1].action == "webhook.dispatch"
 
@@ -358,8 +358,8 @@ def test_webhook_rate_limit_resets_after_one_minute() -> None:
     transport = InMemoryWebhookTransport()
     service = WebhookSubscriptionService(transport=transport, audit_log=audit)
     subscription = service.subscribe(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="events",
         event_types={"run.completed"},
         target_url="https://example.com/webhook",
@@ -370,16 +370,16 @@ def test_webhook_rate_limit_resets_after_one_minute() -> None:
         **{**subscription.__dict__, "rate_limit_per_minute": 1}
     )
     service.subscriptions[subscription.id] = limited
-    event = AgentEvent(type="run.completed", run_id="run_1", sequence=1, payload={})
+    event = AgentEvent(type="run.completed", run_id=1, sequence=1, payload={})
 
-    assert service.dispatch(event, tenant_id="tenant_1", project_id="project_1") == 1
-    assert service.dispatch(event, tenant_id="tenant_1", project_id="project_1") == 0
+    assert service.dispatch(event, tenant_id=1, project_id=1) == 1
+    assert service.dispatch(event, tenant_id=1, project_id=1) == 0
     service._delivery_windows[subscription.id] = (  # noqa: SLF001
         datetime.now(UTC) - timedelta(minutes=1, seconds=1),
         1,
     )
 
-    assert service.dispatch(event, tenant_id="tenant_1", project_id="project_1") == 1
+    assert service.dispatch(event, tenant_id=1, project_id=1) == 1
 
 
 def test_container_pool_enforces_deployment_status_policy_and_audits() -> None:
@@ -397,9 +397,9 @@ def test_container_pool_enforces_deployment_status_policy_and_audits() -> None:
 
     result = pool.run(
         ContainerPoolRequest(
-            tenant_id="tenant_1",
-            project_id="project_1",
-            deployment_id="deployment_1",
+            tenant_id=1,
+            project_id=1,
+            deployment_id=1,
             desired_status=DeploymentDesiredStatus.active.value,
             env={"SAFE": "1"},
             secret_refs={"secret:model"},
@@ -413,8 +413,8 @@ def test_container_pool_enforces_deployment_status_policy_and_audits() -> None:
     with pytest.raises(ContainerPoolBoundaryError):
         pool.run(
             ContainerPoolRequest(
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 deployment_id="deployment_2",
                 desired_status=DeploymentDesiredStatus.paused.value,
             ),
@@ -424,8 +424,8 @@ def test_container_pool_enforces_deployment_status_policy_and_audits() -> None:
     with pytest.raises(SandboxPolicyViolation):
         pool.run(
             ContainerPoolRequest(
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 deployment_id="deployment_3",
                 desired_status=DeploymentDesiredStatus.active.value,
                 env={"OPENAI_API_KEY": "leak"},

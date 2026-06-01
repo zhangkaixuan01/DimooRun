@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal
-from uuid import uuid4
 
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.policy.decisions import Decision
@@ -28,9 +27,9 @@ class ModelGatewayScopeMismatchError(PermissionError):
 
 @dataclass(frozen=True)
 class ModelGatewayConfig:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     provider_type: Literal["newapi", "litellm", "openai_compatible", "custom"]
     base_url: str
     credential_ref: str
@@ -41,10 +40,10 @@ class ModelGatewayConfig:
 
 @dataclass(frozen=True)
 class ModelPolicyConfig:
-    id: str
-    tenant_id: str
-    project_id: str | None
-    gateway_id: str
+    id: int
+    tenant_id: int
+    project_id: int | None
+    gateway_id: int
     default_model: str
     allowed_models: set[str] = field(default_factory=set)
     denied_models: set[str] = field(default_factory=set)
@@ -57,7 +56,7 @@ class ModelPolicyConfig:
 
 @dataclass(frozen=True)
 class PreparedModelRequest:
-    gateway_id: str
+    gateway_id: int
     base_url: str
     credential_ref: str
     model: str
@@ -66,10 +65,10 @@ class PreparedModelRequest:
 
 @dataclass(frozen=True)
 class ModelUsageSnapshot:
-    id: str
-    run_id: str
-    attempt_id: str | None
-    gateway_id: str
+    id: int
+    run_id: int
+    attempt_id: int | None
+    gateway_id: int
     gateway_request_id: str | None
     model: str
     provider: str | None
@@ -84,9 +83,10 @@ class ModelUsageSnapshot:
 class InMemoryModelGatewayProvider:
     def __init__(self, *, policy_engine: PolicyEngine) -> None:
         self.policy_engine = policy_engine
-        self.gateways: dict[str, ModelGatewayConfig] = {}
-        self.policies: dict[tuple[str, str | None], ModelPolicyConfig] = {}
+        self.gateways: dict[int, ModelGatewayConfig] = {}
+        self.policies: dict[tuple[int, int | None], ModelPolicyConfig] = {}
         self.usage_snapshots: list[ModelUsageSnapshot] = []
+        self._next_usage_id = 0
 
     def register_gateway(self, gateway: ModelGatewayConfig) -> ModelGatewayConfig:
         self.gateways[gateway.id] = gateway
@@ -165,7 +165,7 @@ class InMemoryModelGatewayProvider:
         gateway = self.gateways[policy.gateway_id]
         self._assert_gateway_scope(gateway, context)
         snapshot = ModelUsageSnapshot(
-            id=str(uuid4()),
+            id=self._allocate_usage_id(),
             run_id=context.run_id,
             attempt_id=None,
             gateway_id=policy.gateway_id,
@@ -206,3 +206,7 @@ class InMemoryModelGatewayProvider:
                 },
             )
             raise ModelGatewayScopeMismatchError(gateway.id)
+
+    def _allocate_usage_id(self) -> int:
+        self._next_usage_id += 1
+        return self._next_usage_id

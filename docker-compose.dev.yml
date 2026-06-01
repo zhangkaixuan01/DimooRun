@@ -27,6 +27,9 @@ services:
     volumes:
       - ./apps/console:/app/apps/console
       - console-node-modules:/app/apps/console/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:

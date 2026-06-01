@@ -7,7 +7,7 @@ def test_encode_sse_event_includes_id_event_and_json_payload() -> None:
         AgentEvent(
             type="agent.stream_chunk",
             payload={"delta": "hello"},
-            run_id="run_1",
+            run_id=1,
             sequence=1,
         )
     )

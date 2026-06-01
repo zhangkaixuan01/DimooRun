@@ -25,23 +25,36 @@ function renderChart() {
   const dark = preferences.theme === "dark";
   chart.setOption({
     backgroundColor: "transparent",
-    color: ["#0f766e", "#2c62b8"],
-    grid: { left: 36, right: 18, top: 18, bottom: 28 },
+    color: dark ? ["#77d9a7", "#9aa7ff"] : ["#149465", "#5362d8"],
+    grid: { left: 38, right: 18, top: 20, bottom: 28 },
     tooltip: { trigger: "axis" },
     xAxis: {
       type: "category",
       data: ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"],
-      axisLine: { lineStyle: { color: dark ? "#445061" : "#c2ccd6" } },
-      axisLabel: { color: dark ? "#aab5c4" : "#607086" },
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: dark ? "#566274" : "#c6d0dc" } },
+      axisLabel: { color: dark ? "#b2bdcb" : "#596a7f" },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: dark ? "#aab5c4" : "#607086" },
-      splitLine: { lineStyle: { color: dark ? "#2d3642" : "#dce3ea" } },
+      axisLabel: { color: dark ? "#b2bdcb" : "#596a7f" },
+      splitLine: { lineStyle: { color: dark ? "#364153" : "#dce4ee" } },
     },
     series: [
-      { name: "runs", type: "bar", data: [42, 64, 58, 77, 63, 82, 71, 89, 66, 74, 86, 92], barMaxWidth: 18 },
-      { name: "success", type: "line", data: [97, 98, 99, 98, 97, 99, 98, 99, 97, 98, 99, 99], smooth: true },
+      {
+        name: "runs",
+        type: "bar",
+        data: [42, 64, 58, 77, 63, 82, 71, 89, 66, 74, 86, 92],
+        barMaxWidth: 18,
+        itemStyle: { borderRadius: [4, 4, 0, 0] },
+      },
+      {
+        name: "success",
+        type: "line",
+        data: [97, 98, 99, 98, 97, 99, 98, 99, 97, 98, 99, 99],
+        smooth: true,
+        symbolSize: 6,
+      },
     ],
   });
 }

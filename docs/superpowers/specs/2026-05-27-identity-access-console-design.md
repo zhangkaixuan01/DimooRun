@@ -422,7 +422,9 @@ The UI must never show the full raw key after creation.
 
 ## Backend API Shape
 
-The backend should expose product-specific endpoints while keeping compatibility aliases where needed.
+The backend exposes product-specific endpoints only. Identity and machine
+identity operations must not go through generic admin collection compatibility
+aliases.
 
 Recommended new routes:
 
@@ -461,10 +463,14 @@ POST   /v1/identity/service-accounts/{service_account_id}/enable
 GET    /v1/identity/service-accounts/{service_account_id}/api-keys
 POST   /v1/identity/service-accounts/{service_account_id}/api-keys
 POST   /v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}/disable
+POST   /v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}/enable
 POST   /v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}/rotate
+DELETE /v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}
 ```
 
-Existing routes such as `/v1/service-accounts` and `/v1/api-keys` may remain as compatibility aliases until the console is moved fully to the new structure.
+Removed routes such as `/v1/service-accounts` and `/v1/api-keys` must not be
+used by the Console. API keys are credentials under a service account, not
+standalone identities.
 
 ## Frontend Pages
 
@@ -594,7 +600,7 @@ Frontend tests:
 - Treat service account as the identity and API key as its credential.
 - Make permission catalog platform-defined and mostly read-only.
 - Keep backend authorization authoritative; frontend only reflects capability.
-- Keep compatibility routes temporarily to avoid breaking existing console and tests during migration.
+- Remove compatibility routes after the Console is fully moved to the machine identity structure.
 
 ## Self-Review
 

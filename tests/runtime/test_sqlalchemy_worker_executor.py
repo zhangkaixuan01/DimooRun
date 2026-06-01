@@ -65,9 +65,9 @@ async def test_worker_executor_completes_sqlalchemy_run_attempt_and_task() -> No
     replay_buffer = ReplayBuffer()
     manager = RunManager(run_store=run_store, task_backend=task_backend)
     run, task_id = await manager.create_run_task(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         deployment_id=None,
         input_data={"message": "hello"},
@@ -116,9 +116,9 @@ async def test_worker_executor_times_out_sqlalchemy_run_attempt_and_task() -> No
     replay_buffer = ReplayBuffer()
     manager = RunManager(run_store=run_store, task_backend=task_backend)
     run, task_id = await manager.create_run_task(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         deployment_id=None,
         input_data={"message": "hello"},

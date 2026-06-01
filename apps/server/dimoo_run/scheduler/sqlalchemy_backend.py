@@ -27,7 +27,7 @@ class SQLAlchemyTaskBackend:
         self.last_quota_error: QuotaExceededError | None = None
         self.dead_letters: list[dict[str, Any]] = []
 
-    async def enqueue(self, task: dict[str, Any]) -> str:
+    async def enqueue(self, task: dict[str, Any]) -> int:
         if self.quota_policy is not None:
             self.quota_policy.assert_can_enqueue(
                 tenant_id=task["tenant_id"],
@@ -35,9 +35,7 @@ class SQLAlchemyTaskBackend:
                 agent_id=task.get("agent_id"),
                 deployment_id=task.get("deployment_id"),
             )
-        task_id = task.get("task_id") or f"task_{uuid4().hex[:12]}"
         model = Task(
-            id=task_id,
             run_id=task["run_id"],
             tenant_id=task["tenant_id"],
             project_id=task["project_id"],
@@ -51,7 +49,7 @@ class SQLAlchemyTaskBackend:
         )
         self.session.add(model)
         self.session.flush()
-        return task_id
+        return model.id
 
     async def lease(
         self,
@@ -109,7 +107,7 @@ class SQLAlchemyTaskBackend:
 
     async def heartbeat(
         self,
-        task_id: str,
+        task_id: int,
         worker_id: str,
         lease_seconds: int = 30,
     ) -> None:
@@ -119,7 +117,7 @@ class SQLAlchemyTaskBackend:
         task.leased_until = now + timedelta(seconds=lease_seconds)
         self.session.flush()
 
-    async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    async def complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self._task(task_id)
         self.assert_can_complete(task_id, worker_id, fencing_token)
         if task.status == "leased":
@@ -133,7 +131,7 @@ class SQLAlchemyTaskBackend:
 
     async def fail(
         self,
-        task_id: str,
+        task_id: int,
         worker_id: str,
         fencing_token: int,
         error: dict[str, Any],
@@ -166,7 +164,7 @@ class SQLAlchemyTaskBackend:
         task.status = "queued"
         self.session.flush()
 
-    async def cancel(self, task_id: str) -> None:
+    async def cancel(self, task_id: int) -> None:
         task = self._task(task_id)
         if task.status == "leased":
             assert_task_transition(task.status, "running")
@@ -176,7 +174,7 @@ class SQLAlchemyTaskBackend:
         task.finished_at = self._now()
         self.session.flush()
 
-    def mark_running(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def mark_running(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self._owned_task(task_id, worker_id)
         self._assert_fencing_token(task, fencing_token)
         assert_task_transition(task.status, "running")
@@ -184,12 +182,12 @@ class SQLAlchemyTaskBackend:
         task.started_at = task.started_at or self._now()
         self.session.flush()
 
-    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def assert_can_complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self._task(task_id)
         self._assert_fencing_token(task, fencing_token)
         self._assert_owner(task, worker_id)
 
-    def will_retry(self, task_id: str) -> bool:
+    def will_retry(self, task_id: int) -> bool:
         task = self._task(task_id)
         return task.attempt + 1 < task.max_attempts
 
@@ -257,13 +255,13 @@ class SQLAlchemyTaskBackend:
             "quota_blocking_reason": task.metadata_json.get("quota_blocking_reason"),
         }
 
-    def _task(self, task_id: str) -> Task:
+    def _task(self, task_id: int) -> Task:
         task = self.session.get(Task, task_id)
         if task is None:
             raise KeyError(task_id)
         return task
 
-    def _owned_task(self, task_id: str, worker_id: str) -> Task:
+    def _owned_task(self, task_id: int, worker_id: str) -> Task:
         task = self._task(task_id)
         self._assert_owner(task, worker_id)
         return task

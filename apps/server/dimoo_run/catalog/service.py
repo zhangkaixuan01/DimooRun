@@ -7,9 +7,9 @@ from dimoo_run.policy.engine import PolicyEngine, PolicyRequest
 
 @dataclass(frozen=True)
 class CatalogItem:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     type: str
     name: str
     provider: str
@@ -26,7 +26,7 @@ class CatalogItem:
 class CatalogService:
     def __init__(self, *, policy_engine: PolicyEngine) -> None:
         self.policy_engine = policy_engine
-        self.items: dict[str, CatalogItem] = {}
+        self.items: dict[int, CatalogItem] = {}
 
     def register(self, item: CatalogItem, *, actor_id: str | None) -> CatalogItem:
         decision = self.policy_engine.evaluate(

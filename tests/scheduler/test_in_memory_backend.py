@@ -34,7 +34,7 @@ def test_in_memory_backend_satisfies_runtime_task_backend_protocol() -> None:
 async def test_in_memory_backend_heartbeat_extends_only_owner_lease() -> None:
     current = datetime(2026, 1, 1, tzinfo=UTC)
     backend = InMemoryTaskBackend(now=lambda: current)
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
     await backend.heartbeat(task_id, worker_id="worker_1", lease_seconds=60)
@@ -50,7 +50,7 @@ async def test_in_memory_backend_heartbeat_extends_only_owner_lease() -> None:
 async def test_in_memory_backend_releases_expired_lease_with_new_fencing_token() -> None:
     current = datetime(2026, 1, 1, tzinfo=UTC)
     backend = InMemoryTaskBackend(now=lambda: current)
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=1)
 
     current = current + timedelta(seconds=2)
@@ -66,7 +66,7 @@ async def test_in_memory_backend_releases_expired_lease_with_new_fencing_token()
 async def test_in_memory_backend_rejects_stale_fencing_token_on_complete() -> None:
     current = datetime(2026, 1, 1, tzinfo=UTC)
     backend = InMemoryTaskBackend(now=lambda: current)
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=1)
     current = current + timedelta(seconds=2)
     second = await backend.lease("default", worker_id="worker_2", lease_seconds=30)
@@ -84,7 +84,7 @@ async def test_in_memory_backend_rejects_stale_fencing_token_on_complete() -> No
 @pytest.mark.asyncio
 async def test_in_memory_backend_fail_checks_owner_before_mutating_task() -> None:
     backend = InMemoryTaskBackend(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
     assert leased is not None
@@ -106,7 +106,7 @@ async def test_in_memory_backend_fail_checks_owner_before_mutating_task() -> Non
 async def test_in_memory_backend_retries_then_dead_letters() -> None:
     backend = InMemoryTaskBackend(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
     task_id = await backend.enqueue(
-        {"queue": "default", "run_id": "run_1", "max_attempts": 2, "attempt": 1}
+        {"queue": "default", "run_id": 1, "max_attempts": 2, "attempt": 1}
     )
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
@@ -125,7 +125,7 @@ async def test_in_memory_backend_retries_then_dead_letters() -> None:
 @pytest.mark.asyncio
 async def test_in_memory_backend_rejects_complete_without_lease_owner() -> None:
     backend = InMemoryTaskBackend(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
 
     with pytest.raises(TaskLeaseError):
         await backend.complete(task_id, worker_id="worker_1", fencing_token=0)

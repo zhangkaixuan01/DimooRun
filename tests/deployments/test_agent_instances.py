@@ -9,17 +9,17 @@ def test_agent_instance_cache_key_and_reuse() -> None:
     registry = AgentInstanceRegistry(now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
 
     first = registry.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_1",
         execution_profile_id="profile_1",
     )
     registry.mark_ready(first.id)
     reused = registry.get_ready(
-        deployment_id="deployment_1",
+        deployment_id=1,
         agent_version_id="version_1",
         execution_profile_id="profile_1",
     )
@@ -32,10 +32,10 @@ def test_agent_instance_status_changes_use_registry_clock() -> None:
     now = datetime(2026, 1, 1, tzinfo=UTC)
     registry = AgentInstanceRegistry(now=lambda: now)
     instance = registry.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_1",
         execution_profile_id="profile_1",
@@ -52,10 +52,10 @@ def test_agent_instance_status_changes_use_registry_clock() -> None:
 def test_restart_and_stop_evict_cached_instances() -> None:
     registry = AgentInstanceRegistry()
     instance = registry.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_1",
         execution_profile_id=None,
@@ -73,10 +73,10 @@ def test_idle_instances_can_be_evicted_by_policy() -> None:
     now = datetime(2026, 1, 1, tzinfo=UTC)
     registry = AgentInstanceRegistry(now=lambda: now)
     instance = registry.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_1",
         execution_profile_id=None,
@@ -93,19 +93,19 @@ def test_idle_instances_can_be_evicted_by_policy() -> None:
 def test_runtime_status_aggregates_instance_health() -> None:
     registry = AgentInstanceRegistry()
     ready = registry.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_1",
         execution_profile_id=None,
     )
     failed = registry.register_loading(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        deployment_id="deployment_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        deployment_id=1,
+        agent_id=1,
         agent_version_id="version_1",
         worker_id="worker_2",
         execution_profile_id=None,

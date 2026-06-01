@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import quote
-from uuid import uuid4
 
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.observability.audit import InMemoryComplianceAuditLog
@@ -21,11 +20,11 @@ class ArtifactChecksumMismatchError(RuntimeError):
 
 @dataclass(frozen=True)
 class ArtifactRecord:
-    id: str
-    tenant_id: str
-    project_id: str | None
-    run_id: str | None
-    attempt_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
+    run_id: int | None
+    attempt_id: int | None
     event_id: str | None
     artifact_type: str
     mime_type: str
@@ -72,6 +71,7 @@ class InMemoryArtifactStore:
         self.audit_log = audit_log
         self.records: dict[str, ArtifactRecord] = {}
         self._objects: dict[str, bytes] = {}
+        self._next_id = 1
 
     def write_json(
         self,
@@ -85,7 +85,7 @@ class InMemoryArtifactStore:
         metadata: dict[str, Any] | None = None,
     ) -> ArtifactRecord:
         encoded = _encode_json(payload)
-        artifact_id = str(uuid4())
+        artifact_id = self._allocate_id()
         storage_uri = f"memory://artifact/{artifact_id}"
         record = ArtifactRecord(
             id=artifact_id,
@@ -106,6 +106,11 @@ class InMemoryArtifactStore:
         self.records[storage_uri] = record
         self._objects[storage_uri] = encoded
         return record
+
+    def _allocate_id(self) -> int:
+        artifact_id = self._next_id
+        self._next_id += 1
+        return artifact_id
 
     def read_json(
         self,
@@ -202,7 +207,7 @@ class LocalArtifactStore(InMemoryArtifactStore):
         metadata: dict[str, Any] | None = None,
     ) -> ArtifactRecord:
         encoded = _encode_json(payload)
-        artifact_id = str(uuid4())
+        artifact_id = self._allocate_id()
         object_path = self.objects_root / f"{artifact_id}.json"
         metadata_path = self.metadata_root / f"{artifact_id}.json"
         storage_uri = f"local://artifact/{artifact_id}"
@@ -276,7 +281,7 @@ class LocalArtifactStore(InMemoryArtifactStore):
         record = self.records[storage_uri]
         if self.public_base_url:
             base_url = self.public_base_url.rstrip("/")
-            return f"{base_url}/{quote(record.id)}?expires={expires_seconds}"
+            return f"{base_url}/{quote(str(record.id))}?expires={expires_seconds}"
         return f"{storage_uri}?expires={expires_seconds}"
 
     def _authorize_read(
@@ -350,7 +355,7 @@ class S3CompatibleArtifactStore(LocalArtifactStore):
                 key=_object_key(record.id),
                 body=object_path.read_bytes(),
                 content_type=record.mime_type,
-                metadata={"checksum": record.checksum, "artifact_id": record.id},
+                metadata={"checksum": record.checksum, "artifact_id": str(record.id)},
             )
         return s3_record
 
@@ -407,7 +412,7 @@ class S3CompatibleArtifactStore(LocalArtifactStore):
                 expires_seconds=expires_seconds,
             )
         return (
-            f"{self.endpoint_url}/{quote(self.bucket)}/artifacts/{quote(record.id)}.json"
+            f"{self.endpoint_url}/{quote(self.bucket)}/artifacts/{quote(str(record.id))}.json"
             f"?expires={expires_seconds}"
         )
 
@@ -432,5 +437,5 @@ def _record_to_json(record: ArtifactRecord) -> dict[str, Any]:
     }
 
 
-def _object_key(artifact_id: str) -> str:
+def _object_key(artifact_id: int) -> str:
     return f"artifacts/{artifact_id}.json"

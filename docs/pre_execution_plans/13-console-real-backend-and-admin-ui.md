@@ -199,10 +199,19 @@ apps/console/src/api/mockData.ts
 
 - [x] Service Account 列表。
 - [x] 创建 Service Account。
-- [x] API Key 列表。
-- [ ] 创建 API Key 后只展示一次明文。
-- [ ] 禁用 API Key。
+- [x] API Key 作为 Service Account 的嵌套凭证展示，不再作为独立身份页面。
+- [x] 创建 API Key 后只展示一次明文。
+- [x] 禁用 / 启用 API Key。
+- [x] 删除 API Key。
+- [x] Service Account 禁用 / 启用后列表状态立即刷新。
+- [x] API Key 禁用 / 启用 / 删除后列表状态立即刷新。
 - [ ] last_used_at 展示。
+
+实现补充：
+
+- Console 统一进入 `Identity / Machine Identities` 管理 Service Accounts 与 API Keys，旧的 `/identity/service-accounts` 和 `/governance/api-keys` 前端路由重定向到该页面。
+- 后端移除了通用 `/v1/service-accounts` 与 `/v1/api-keys` in-memory admin collection 路径，机器身份只通过 `/v1/identity/service-accounts/{service_account_id}/api-keys` 这类领域路由操作。
+- API Key scopes 必须保持为所属 Service Account 权限子集；Service Account 权限收窄时，超出权限范围的 key 会被禁用。
 
 ## 5. Governance 页面
 

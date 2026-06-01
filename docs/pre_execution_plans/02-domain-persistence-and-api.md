@@ -278,6 +278,8 @@ restore_jobs
 
 字段策略：
 
+- [x] 所有内部平台资源主键和外键从零建库即使用数据库自增 `BIGINT`，不保留旧字符串 ID 兼容层。
+- [x] `slug`、`name`、`request_id`、`event_id`、`trace_id`、`thread_id`、`checkpoint_id`、`worker_id`、幂等键、key hash / prefix、对象存储 URI 和外部配置引用继续作为字符串字段，但不作为内部受管资源主键。
 - [x] 核心对象字段按 `DESIGN_SPEC.md` 完整建。
 - [x] 扩展对象第一版至少包含 `id`、`tenant_id`、`project_id nullable`、`status`、`metadata_json`、`created_at`、`updated_at`。
 - [x] 所有 Platform Metadata Store 表必须包含通用审计与软删除字段：`created_at`、`created_by`、`updated_at`、`updated_by`、`is_deleted`、`deleted_at`、`deleted_by`。
@@ -409,7 +411,8 @@ GET/POST /v1/ingress-routes
 GET      /v1/catalog/items
 GET/POST /v1/datasets
 GET/POST /v1/experiments
-GET/POST /v1/service-accounts
+GET/POST /v1/identity/service-accounts
+GET/POST /v1/identity/service-accounts/{service_account_id}/api-keys
 GET/POST /v1/schedules
 GET/POST /v1/batch-runs
 GET/POST /v1/notifications/channels

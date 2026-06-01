@@ -89,7 +89,7 @@ async def test_redis_stream_fanout_writes_replay_stream_and_pubsub() -> None:
         AgentEvent(
             "agent.stream_chunk",
             {"delta": "hello"},
-            run_id="run_1",
+            run_id=1,
             sequence=3,
             event_id="run_1:3",
         ),
@@ -110,11 +110,11 @@ async def test_redis_stream_fanout_replays_after_last_event_id() -> None:
     bridge = RedisStreamFanOutBridge(redis)
     await bridge.publish(
         "run_1",
-        AgentEvent("agent.stream_chunk", {"delta": "first"}, run_id="run_1", sequence=1),
+        AgentEvent("agent.stream_chunk", {"delta": "first"}, run_id=1, sequence=1),
     )
     await bridge.publish(
         "run_1",
-        AgentEvent("agent.stream_chunk", {"delta": "second"}, run_id="run_1", sequence=2),
+        AgentEvent("agent.stream_chunk", {"delta": "second"}, run_id=1, sequence=2),
     )
 
     events = await bridge.replay("run_1", last_event_id="run_1:1")
@@ -129,7 +129,7 @@ async def test_redis_stream_fanout_relays_pubsub_to_local_hub() -> None:
     hub = StreamFanOutHub()
     subscriber = hub.subscribe("run_1", "subscriber_1")
     payload = {
-        "run_id": "run_1",
+        "run_id": 1,
         "attempt_id": None,
         "sequence": 1,
         "event_id": "run_1:1",

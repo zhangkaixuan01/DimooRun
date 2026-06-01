@@ -73,14 +73,14 @@ class LangChainAgentAdapter:
     async def resume(
         self,
         agent: Any,
-        run_id: str,
+        run_id: int,
         payload: dict[str, Any],
         context: RuntimeContext,
     ) -> AgentResult:
         _ = agent, run_id, payload, context
         raise CapabilityNotSupportedError(capability="resume", framework=self.framework)
 
-    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+    async def cancel(self, run_id: int, context: RuntimeContext) -> None:
         _ = run_id, context
         raise CapabilityNotSupportedError(capability="cancel", framework=self.framework)
 

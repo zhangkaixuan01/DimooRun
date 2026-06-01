@@ -54,7 +54,7 @@ const mode = apiMode();
 const loading = ref(false);
 const error = ref<ConsoleApiError | null>(null);
 const tasks = ref<Task[]>([]);
-const pendingTask = ref<string | null>(null);
+const pendingTask = ref<number | null>(null);
 
 async function loadTasks() {
   if (mode === "offline") return;
@@ -69,7 +69,7 @@ async function loadTasks() {
   }
 }
 
-async function cancelTask(taskId: string) {
+async function cancelTask(taskId: number) {
   pendingTask.value = taskId;
   error.value = null;
   try {

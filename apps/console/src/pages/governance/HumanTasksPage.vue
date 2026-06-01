@@ -17,7 +17,7 @@
             <td><StatusBadge :status="task.risk === 'critical' ? 'failed' : 'pending'" :label="task.risk" /></td>
             <td><StatusBadge :status="task.status" :label="task.status" /></td>
             <td>{{ task.assignee }}</td>
-            <td>{{ task.expiresAt }}</td>
+            <td>{{ formatDateTime(task.expiresAt) }}</td>
             <td class="ops">
               <button class="button" type="button" :disabled="pendingTask === task.id" @click="decide(task.id, 'approve')">{{ t("approve") }}</button>
               <button class="button danger" type="button" :disabled="pendingTask === task.id" @click="decide(task.id, 'reject')">{{ t("reject") }}</button>
@@ -37,12 +37,13 @@ import type { HumanTask } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
+import { formatDateTime } from "../../utils/dateTime";
 
 const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const error = ref<ConsoleApiError | null>(null);
-const pendingTask = ref<string | null>(null);
+const pendingTask = ref<number | null>(null);
 const humanTasks = ref<HumanTask[]>([]);
 
 async function loadHumanTasks() {
@@ -58,7 +59,7 @@ async function loadHumanTasks() {
   }
 }
 
-async function decide(taskId: string, decision: "approve" | "reject") {
+async function decide(taskId: number, decision: "approve" | "reject") {
   pendingTask.value = taskId;
   error.value = null;
   try {

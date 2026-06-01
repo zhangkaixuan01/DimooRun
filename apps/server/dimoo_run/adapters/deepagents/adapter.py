@@ -79,7 +79,7 @@ class DeepAgentsAdapter:
     async def resume(
         self,
         agent: Any,
-        run_id: str,
+        run_id: int,
         payload: dict[str, Any],
         context: RuntimeContext,
     ) -> AgentResult:
@@ -87,7 +87,7 @@ class DeepAgentsAdapter:
         _ = agent, run_id, payload, context
         raise CapabilityNotSupportedError(capability="resume", framework=self.framework)
 
-    async def cancel(self, run_id: str, context: RuntimeContext) -> None:
+    async def cancel(self, run_id: int, context: RuntimeContext) -> None:
         self.capabilities.require("interrupt", self.framework)
         _ = run_id, context
 

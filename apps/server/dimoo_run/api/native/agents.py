@@ -34,9 +34,9 @@ class AgentCreate(BaseModel):
 
 
 class AgentRead(BaseModel):
-    id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    tenant_id: int
+    project_id: int
     name: str
     description: str | None = None
     status: str
@@ -53,8 +53,8 @@ class AgentVersionCreate(BaseModel):
 
 
 class AgentVersionRead(BaseModel):
-    id: str
-    agent_id: str
+    id: int
+    agent_id: int
     version: str
     package_uri: str
     framework: str
@@ -72,8 +72,8 @@ class AgentTaskCreate(BaseModel):
 
 
 class AgentTaskCreateResponse(BaseModel):
-    run_id: str
-    task_id: str
+    run_id: int
+    task_id: int
     status: str
     replayed: bool = False
 
@@ -81,11 +81,11 @@ class AgentTaskCreateResponse(BaseModel):
 def _auth(
     *,
     authorization: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     required_scope: str,
     request_id: str | None,
-) -> tuple[str, str] | JSONResponse:
+) -> tuple[int, int] | JSONResponse:
     if tenant_id is None or project_id is None:
         return error_response(
             status_code=400,
@@ -171,7 +171,7 @@ def list_agents(
 
 @router.get("/agents/{agent_id}", response_model=AgentRead)
 def get_agent(
-    agent_id: str,
+    agent_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -202,7 +202,7 @@ def get_agent(
 
 @router.patch("/agents/{agent_id}", response_model=AgentRead)
 def update_agent(
-    agent_id: str,
+    agent_id: int,
     payload: AgentCreate,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
@@ -235,7 +235,7 @@ def update_agent(
 
 @router.delete("/agents/{agent_id}", response_model=AgentRead)
 def delete_agent(
-    agent_id: str,
+    agent_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -267,7 +267,7 @@ def delete_agent(
 
 @router.post("/agents/{agent_id}/versions", status_code=201, response_model=AgentVersionRead)
 def create_agent_version(
-    agent_id: str,
+    agent_id: int,
     payload: AgentVersionCreate,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
@@ -300,7 +300,7 @@ def create_agent_version(
 
 @router.get("/agents/{agent_id}/versions", response_model=list[AgentVersionRead])
 def list_agent_versions(
-    agent_id: str,
+    agent_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -318,7 +318,7 @@ def list_agent_versions(
 
 @router.get("/agents/{agent_id}/versions/{version}", response_model=AgentVersionRead)
 def get_agent_version(
-    agent_id: str,
+    agent_id: int,
     version: str,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
@@ -343,7 +343,7 @@ def get_agent_version(
 
 @router.post("/agents/{agent_id}/invoke", status_code=202, response_model=AgentTaskCreateResponse)
 def invoke_agent(
-    agent_id: str,
+    agent_id: int,
     payload: AgentTaskCreate,
     response: Response,
     runtime: NativeRuntimeDep,
@@ -368,7 +368,7 @@ def invoke_agent(
 
 @router.post("/agents/{agent_id}/tasks", status_code=202, response_model=AgentTaskCreateResponse)
 def create_agent_task(
-    agent_id: str,
+    agent_id: int,
     payload: AgentTaskCreate,
     response: Response,
     runtime: NativeRuntimeDep,
@@ -441,7 +441,7 @@ def create_agent_task(
 
 @router.post("/agents/{agent_id}/stream", status_code=202, response_model=AgentTaskCreateResponse)
 def stream_agent(
-    agent_id: str,
+    agent_id: int,
     payload: AgentTaskCreate,
     response: Response,
     runtime: NativeRuntimeDep,

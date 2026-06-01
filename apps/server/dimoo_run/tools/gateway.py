@@ -14,9 +14,9 @@ class ToolScopeMismatchError(PermissionError):
 
 @dataclass(frozen=True)
 class ToolDefinition:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     name: str
     risk_level: str
     schema: dict[str, Any]
@@ -27,14 +27,14 @@ class ToolDefinition:
 class ToolCallResult:
     status: str
     output: dict[str, Any] | None = None
-    human_task_id: str | None = None
+    human_task_id: int | None = None
 
 
 class ToolGateway:
     def __init__(self, *, policy_engine: PolicyEngine, human_tasks: HumanTaskService) -> None:
         self.policy_engine = policy_engine
         self.human_tasks = human_tasks
-        self.tools: dict[str, ToolDefinition] = {}
+        self.tools: dict[int, ToolDefinition] = {}
 
     def register(self, definition: ToolDefinition) -> ToolDefinition:
         self.tools[definition.id] = definition
@@ -43,7 +43,7 @@ class ToolGateway:
     def call(
         self,
         *,
-        tool_id: str,
+        tool_id: int,
         arguments: dict[str, Any],
         context: RuntimeContext,
         actor_id: str | None,

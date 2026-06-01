@@ -26,12 +26,12 @@ NativeRuntimeDep = Annotated[
 
 
 class RunRead(BaseModel):
-    id: str
-    tenant_id: str
-    project_id: str
-    agent_id: str
-    agent_version_id: str
-    deployment_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int
+    agent_id: int
+    agent_version_id: int
+    deployment_id: int | None
     status: str
     input: dict[str, Any]
     output: dict[str, Any] | None = None
@@ -51,11 +51,11 @@ class EventRead(BaseModel):
 def _auth(
     *,
     authorization: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     required_scope: str,
     request_id: str | None,
-) -> tuple[str, str] | JSONResponse:
+) -> tuple[int, int] | JSONResponse:
     if tenant_id is None or project_id is None:
         return error_response(
             status_code=400,
@@ -83,12 +83,12 @@ def _run_to_read(run: NativeRun) -> RunRead:
 
 
 def _find_run(
-    run_id: str,
+    run_id: int,
     *,
     runtime: NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     authorization: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     request_id: str | None,
     required_scope: str = "agent:read",
 ) -> NativeRun | JSONResponse:
@@ -120,7 +120,7 @@ def _find_run(
 
 @router.get("/runs/{run_id}", response_model=RunRead)
 def get_run(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -166,7 +166,7 @@ def list_runs(
 
 @router.get("/runs/{run_id}/events", response_model=list[EventRead])
 def list_run_events(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -197,7 +197,7 @@ def list_run_events(
 
 @router.get("/runs/{run_id}/attempts", response_model=list[dict[str, Any]])
 def list_run_attempts(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -219,7 +219,7 @@ def list_run_attempts(
 
 @router.post("/runs/{run_id}/cancel", response_model=RunRead)
 def cancel_run(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -243,7 +243,7 @@ def cancel_run(
 
 @router.post("/runs/{run_id}/resume", response_model=RunRead)
 def resume_run(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -255,7 +255,7 @@ def resume_run(
 
 @router.post("/runs/{run_id}/retry", response_model=RunRead)
 def retry_run(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -267,7 +267,7 @@ def retry_run(
 
 @router.post("/runs/{run_id}/replay", response_model=RunRead)
 def replay_run(
-    run_id: str,
+    run_id: int,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,

@@ -36,17 +36,16 @@ export const useScopeStore = defineStore("scope", {
     initialize(scopes: unknown) {
       this.allowedScopes = normalizeScopes(scopes);
       const stored = readCurrentScope();
-      this.currentScope = this.allowedScopes.some((scope) => scopeKey(scope) === scopeKey(stored))
-        ? stored
-        : this.allowedScopes[0] || fallbackScope();
+      const storedAllowedScope = this.allowedScopes.find((scope) => scopeKey(scope) === scopeKey(stored));
+      this.currentScope = storedAllowedScope || this.allowedScopes[0] || fallbackScope();
       writeCurrentScope(this.currentScope);
     },
-    setTenant(tenantId: string) {
+    setTenant(tenantId: number) {
       const next =
         this.allowedScopes.find((scope) => scope.tenant_id === tenantId) || this.allowedScopes[0];
       if (next) this.setScope(next);
     },
-    setProject(projectId: string) {
+    setProject(projectId: number) {
       const next =
         this.allowedScopes.find(
           (scope) => scope.tenant_id === this.currentScope.tenant_id && scope.project_id === projectId,
@@ -76,10 +75,10 @@ export const useScopeStore = defineStore("scope", {
   },
 });
 
-function uniqueBy(scopes: ConsoleScope[], keyOf: (scope: ConsoleScope) => string): ConsoleScope[] {
+function uniqueBy(scopes: ConsoleScope[], keyOf: (scope: ConsoleScope) => unknown): ConsoleScope[] {
   const seen = new Set<string>();
   return scopes.filter((scope) => {
-    const key = keyOf(scope);
+    const key = String(keyOf(scope));
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

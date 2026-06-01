@@ -1,7 +1,8 @@
-export type StatusTone = "success" | "warning" | "danger" | "neutral" | "running";
+export type StatusTone = "success" | "warning" | "danger" | "neutral" | "running" | "disabled";
+export type ResourceId = number;
 
 export type Agent = {
-  id: string;
+  id: ResourceId;
   name: string;
   framework: "LangGraph" | "LangChain" | "DeepAgents";
   adapter: string;
@@ -13,7 +14,7 @@ export type Agent = {
 };
 
 export type Deployment = {
-  id: string;
+  id: ResourceId;
   agent: string;
   version: string;
   environment: string;
@@ -29,7 +30,7 @@ export type Deployment = {
 };
 
 export type Run = {
-  id: string;
+  id: ResourceId;
   agent: string;
   framework: string;
   adapter: string;
@@ -55,8 +56,8 @@ export type RuntimeEvent = {
 };
 
 export type Task = {
-  id: string;
-  runId: string;
+  id: ResourceId;
+  runId: ResourceId;
   status: "queued" | "leased" | "running" | "retrying" | "dead_letter" | "succeeded" | "cancelled";
   attempt: number;
   queue: string;
@@ -77,7 +78,7 @@ export type Task = {
 };
 
 export type HumanTask = {
-  id: string;
+  id: ResourceId;
   source: string;
   risk: "medium" | "high" | "critical";
   status: "pending" | "approved" | "rejected";

@@ -10,8 +10,8 @@ from dimoo_run.evals.service import (
 def test_dataset_item_can_be_created_from_failed_run_with_redaction() -> None:
     service = DatasetService(redacted_fields={"api_key"})
     dataset = service.create_dataset(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="failures",
         source="failure_case",
         schema={"type": "object"},
@@ -20,8 +20,8 @@ def test_dataset_item_can_be_created_from_failed_run_with_redaction() -> None:
 
     item = service.add_item_from_run(
         dataset_id=dataset.id,
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         run_id="run_failed",
         input_data={"question": "hello", "request": {"api_key": "sk-secret"}},
         output_data={"answer": "bad"},
@@ -30,8 +30,8 @@ def test_dataset_item_can_be_created_from_failed_run_with_redaction() -> None:
     )
 
     assert item.dataset_id == dataset.id
-    assert item.tenant_id == "tenant_1"
-    assert item.project_id == "project_1"
+    assert item.tenant_id == 1
+    assert item.project_id == 1
     assert item.source_run_id == "run_failed"
     assert item.input_data["request"]["api_key"] == "[REDACTED]"
 
@@ -42,8 +42,8 @@ def test_dataset_item_rejects_missing_or_cross_scope_dataset() -> None:
     with pytest.raises(DatasetScopeMismatchError, match="dataset_not_found"):
         service.add_item_from_run(
             dataset_id="missing",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             run_id="run_failed",
             input_data={},
             output_data={},
@@ -52,8 +52,8 @@ def test_dataset_item_rejects_missing_or_cross_scope_dataset() -> None:
         )
 
     dataset = service.create_dataset(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="failures",
         source="failure_case",
         schema={"type": "object"},
@@ -76,10 +76,10 @@ def test_dataset_item_rejects_missing_or_cross_scope_dataset() -> None:
 async def test_experiment_run_generates_evaluation_results_and_quality_gate() -> None:
     service = InMemoryEvaluationService()
     experiment = service.create_experiment(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="candidate",
-        agent_id="agent_1",
+        agent_id=1,
         baseline_agent_version_id="version_old",
         candidate_agent_version_id="version_new",
         dataset_id="dataset_1",
@@ -101,8 +101,8 @@ async def test_experiment_run_generates_evaluation_results_and_quality_gate() ->
     assert experiment_run.experiment_id == experiment.id
     assert service.results[0] == EvaluationResult(
         id=service.results[0].id,
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         experiment_run_id=experiment_run.id,
         evaluator_name="exact_match",
         score=1.0,

@@ -29,8 +29,8 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         agent = agents.create(
             Agent(
                 id="agent_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 name="support-agent",
                 description=None,
             )
@@ -49,8 +49,8 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         deployment = deployments.create(
             Deployment(
                 id="deployment_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 agent_id=agent.id,
                 agent_version_id=version.id,
                 environment="dev",
@@ -60,8 +60,8 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         run = runs.create(
             Run(
                 id="run_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 agent_id=agent.id,
                 agent_version_id=version.id,
                 input_ref="artifact://run_1/input",
@@ -72,8 +72,8 @@ def test_durable_agent_version_run_task_event_flow() -> None:
             Task(
                 id="task_1",
                 run_id=run.id,
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 idempotency_key="idem_1",
             )
         )
@@ -81,23 +81,23 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         first = events.append(
             event_id="event_record_1",
             run_id=run.id,
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             type="run.created",
             payload={"task_id": task.id},
         )
         second = events.append(
             event_id="event_record_2",
             run_id=run.id,
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             type="task.queued",
             payload={"task_id": task.id},
         )
         audits.append(
             audit_id="audit_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             action="run.create",
             resource_type="run",
             resource_id=run.id,
@@ -139,9 +139,9 @@ def test_durable_run_and_task_transitions_set_timestamps() -> None:
         run = runs.create(
             Run(
                 id="run_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
-                agent_id="agent_1",
+                tenant_id=1,
+                project_id=1,
+                agent_id=1,
                 agent_version_id="agent_version_1",
             )
         )
@@ -149,8 +149,8 @@ def test_durable_run_and_task_transitions_set_timestamps() -> None:
             Task(
                 id="task_1",
                 run_id=run.id,
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
             )
         )
 
@@ -176,9 +176,9 @@ def test_durable_deployment_transition_updates_control_state() -> None:
         deployment = deployments.create(
             Deployment(
                 id="deployment_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
-                agent_id="agent_1",
+                tenant_id=1,
+                project_id=1,
+                agent_id=1,
                 agent_version_id="agent_version_1",
                 environment="prod",
             )

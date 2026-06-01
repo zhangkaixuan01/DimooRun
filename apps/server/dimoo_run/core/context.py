@@ -5,19 +5,19 @@ from typing import Any
 
 @dataclass(frozen=True)
 class RuntimeContext:
-    tenant_id: str
-    project_id: str | None
-    run_id: str
-    task_id: str | None
-    agent_id: str
-    agent_version_id: str
-    deployment_id: str | None
-    user_id: str | None = None
-    service_account_id: str | None = None
+    tenant_id: int
+    project_id: int | None
+    run_id: int
+    task_id: int | None
+    agent_id: int
+    agent_version_id: int
+    deployment_id: int | None
+    user_id: int | None = None
+    service_account_id: int | None = None
     thread_id: str | None = None
-    session_id: str | None = None
+    session_id: int | None = None
     request_id: str | None = None
-    attempt_id: str | None = None
+    attempt_id: int | None = None
     trace_id: str | None = None
     correlation_id: str | None = None
     idempotency_key: str | None = None

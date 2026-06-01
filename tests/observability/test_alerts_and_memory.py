@@ -12,8 +12,8 @@ def test_semantic_store_provider_keeps_boundary_metadata() -> None:
     registry = SemanticStoreProviderRegistry()
 
     provider = registry.register(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="pgvector",
         embedding_model="text-embedding-3-small",
         embedding_gateway_id="gateway_1",
@@ -32,8 +32,8 @@ def test_alert_rule_creates_incident_without_blocking_runtime() -> None:
     channel = service.register_channel(
         NotificationChannel(
             id="channel_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             type="webhook",
             target_ref="secret:webhook",
         )
@@ -41,8 +41,8 @@ def test_alert_rule_creates_incident_without_blocking_runtime() -> None:
     service.register_rule(
         AlertRule(
             id="rule_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             name="failure-rate",
             signal="run_failed_rate_high",
             threshold=0.2,
@@ -51,8 +51,8 @@ def test_alert_rule_creates_incident_without_blocking_runtime() -> None:
     )
 
     incident = service.evaluate_signal(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         signal="run_failed_rate_high",
         value=0.5,
         source_ref="metric://run_failed_rate",
@@ -70,8 +70,8 @@ def test_alert_rule_requires_active_channel_in_same_scope() -> None:
     service.register_channel(
         NotificationChannel(
             id="inactive_channel",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             type="webhook",
             target_ref="secret:webhook",
             status="disabled",
@@ -91,8 +91,8 @@ def test_alert_rule_requires_active_channel_in_same_scope() -> None:
         service.register_rule(
             AlertRule(
                 id="rule_inactive",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 name="failure-rate",
                 signal="run_failed_rate_high",
                 threshold=0.2,
@@ -104,8 +104,8 @@ def test_alert_rule_requires_active_channel_in_same_scope() -> None:
         service.register_rule(
             AlertRule(
                 id="rule_cross_scope",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 name="failure-rate",
                 signal="run_failed_rate_high",
                 threshold=0.2,

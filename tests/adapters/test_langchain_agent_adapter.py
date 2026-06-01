@@ -17,11 +17,11 @@ class FakeRunnable:
 
 def make_context() -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
         task_id=None,
-        agent_id="agent_1",
+        agent_id=1,
         agent_version_id="agent_version_1",
         deployment_id=None,
         user_id="user_1",
@@ -39,8 +39,8 @@ async def test_langchain_agent_adapter_invoke_maps_metadata() -> None:
 
     assert result.output == {"answer": "hello"}
     assert runnable.config is not None
-    assert runnable.config["metadata"]["run_id"] == "run_1"
-    assert runnable.config["metadata"]["tenant_id"] == "tenant_1"
+    assert runnable.config["metadata"]["run_id"] == 1
+    assert runnable.config["metadata"]["tenant_id"] == 1
     assert runnable.config["metadata"]["agent_version_id"] == "agent_version_1"
 
 

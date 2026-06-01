@@ -15,10 +15,10 @@ class ReplayBuffer:
     def __init__(self, *, max_events_per_run: int = 1000, max_payload_bytes: int = 64_000) -> None:
         self.max_events_per_run = max_events_per_run
         self.max_payload_bytes = max_payload_bytes
-        self._events: dict[str, list[AgentEvent]] = {}
-        self._next_sequence: dict[str, int] = {}
+        self._events: dict[int, list[AgentEvent]] = {}
+        self._next_sequence: dict[int, int] = {}
 
-    def append(self, run_id: str, attempt_id: str | None, event: AgentEvent) -> AgentEvent:
+    def append(self, run_id: int, attempt_id: int | None, event: AgentEvent) -> AgentEvent:
         sequence = self._next_sequence.get(run_id, 1)
         payload = self._payload_or_ref(run_id, sequence, event.payload)
         stored = replace(
@@ -36,7 +36,7 @@ class ReplayBuffer:
         self._next_sequence[run_id] = sequence + 1
         return stored
 
-    def replay(self, run_id: str, last_event_id: str | None = None) -> list[AgentEvent]:
+    def replay(self, run_id: int, last_event_id: str | None = None) -> list[AgentEvent]:
         events = list(self._events.get(run_id, []))
         if last_event_id is None:
             return events
@@ -58,7 +58,7 @@ class ReplayBuffer:
 
     def _payload_or_ref(
         self,
-        run_id: str,
+        run_id: int,
         sequence: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
@@ -70,7 +70,7 @@ class ReplayBuffer:
             "truncated": True,
         }
 
-    def _parse_event_id(self, run_id: str, event_id: str) -> int:
+    def _parse_event_id(self, run_id: int, event_id: str) -> int:
         prefix = f"{run_id}:"
         if not event_id.startswith(prefix):
             raise ValueError("Last-Event-ID does not match run_id")

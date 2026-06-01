@@ -120,3 +120,16 @@ test("uses a typed Native API client as the console backend boundary", () => {
     assert.match(consoleClient, /createDimooRunClient/);
     assert.match(consoleClient, /mapNativeDeployment/);
 });
+
+test("persists the bearer session token returned by login", () => {
+    const authStore = read("src/stores/auth.ts");
+    assert.match(authStore, /payload\.access_token/);
+    assert.doesNotMatch(authStore, /setItem\(TOKEN_KEY,\s*"cookie"\)/);
+});
+
+test("parses FastAPI HTTPException detail errors", () => {
+    const generatedClient = read("src/api/generated/dimoorun.ts");
+    assert.match(generatedClient, /payload\?\.detail\?\.message/);
+    assert.match(generatedClient, /payload\?\.detail\?\.error_code/);
+    assert.match(generatedClient, /payload\?\.detail\?\.request_id/);
+});

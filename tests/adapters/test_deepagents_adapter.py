@@ -17,13 +17,13 @@ class FakeDeepAgent:
 
 def make_context() -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="agent_version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         user_id=None,
         service_account_id="svc_1",
         thread_id="thread_1",
@@ -49,9 +49,9 @@ async def test_deepagents_adapter_invoke_injects_runtime_context() -> None:
 
     assert result.output == {"result": "plan"}
     assert agent.config is not None
-    assert agent.config["metadata"]["run_id"] == "run_1"
+    assert agent.config["metadata"]["run_id"] == 1
     assert agent.config["configurable"]["thread_id"] == "thread_1"
-    assert agent.config["runtime_context"]["agent_id"] == "agent_1"
+    assert agent.config["runtime_context"]["agent_id"] == 1
 
 
 def test_deepagents_adapter_rejects_filesystem_when_capability_disabled() -> None:

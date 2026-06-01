@@ -7,19 +7,19 @@ from dimoo_run.policy.decisions import Decision, PolicyDecision
 
 @dataclass(frozen=True)
 class PolicyRequest:
-    tenant_id: str
-    project_id: str | None
+    tenant_id: int
+    project_id: int | None
     actor_id: str | None
     actor_type: str
     resource_type: str
-    resource_id: str | None
+    resource_id: int | None
     action: str
     risk_level: str | None = None
-    user_id: str | None = None
-    service_account_id: str | None = None
-    agent_id: str | None = None
-    agent_version_id: str | None = None
-    deployment_id: str | None = None
+    user_id: int | None = None
+    service_account_id: int | None = None
+    agent_id: int | None = None
+    agent_version_id: int | None = None
+    deployment_id: int | None = None
     environment: str | None = None
     runtime_context: dict[str, Any] = field(default_factory=dict)
     request_metadata: dict[str, Any] = field(default_factory=dict)
@@ -27,12 +27,12 @@ class PolicyRequest:
 
 @dataclass(frozen=True)
 class AuditRecord:
-    tenant_id: str
-    project_id: str | None
+    tenant_id: int
+    project_id: int | None
     actor_id: str | None
     actor_type: str
     resource_type: str
-    resource_id: str | None
+    resource_id: int | None
     action: str
     result: str
     reason: str | None = None
@@ -59,11 +59,11 @@ class StaticPolicyRule:
     action: str
     decision: Decision
     reason: str
-    tenant_id: str | None = None
-    project_id: str | None = None
+    tenant_id: int | None = None
+    project_id: int | None = None
     environment: str | None = None
     risk_level: str | None = None
-    resource_id: str | None = None
+    resource_id: int | None = None
     expires_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 

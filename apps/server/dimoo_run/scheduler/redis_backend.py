@@ -1,7 +1,6 @@
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
-from uuid import uuid4
 
 from dimoo_run.runtime.state_machine import assert_task_transition
 from dimoo_run.scheduler.in_memory import StaleFencingTokenError, TaskLeaseError
@@ -16,9 +15,9 @@ class RedisTaskBackend:
         self.redis_client = redis_client
         self.prefix = prefix
 
-    async def enqueue(self, task: dict[str, Any]) -> str:
+    async def enqueue(self, task: dict[str, Any]) -> int:
         self._require_client()
-        task_id = task.get("task_id") or f"task_{uuid4().hex[:12]}"
+        task_id = int(task.get("task_id") or await self._next_task_id())
         now = _now()
         record = {
             **task,
@@ -32,7 +31,7 @@ class RedisTaskBackend:
             "created_at": task.get("created_at") or now.isoformat(),
         }
         await self._hset(self._task_key(task_id), mapping=_encode_mapping(record))
-        await self._zadd(self._queue_key(record["queue"]), {task_id: _queue_score(record)})
+        await self._zadd(self._queue_key(record["queue"]), {str(task_id): _queue_score(record)})
         return task_id
 
     async def lease(
@@ -53,7 +52,7 @@ class RedisTaskBackend:
         if atomic_lease is not None:
             return atomic_lease
         for task_id in await self._zrange(self._queue_key(queue), 0, -1):
-            task = await self._task(str(task_id))
+            task = await self._task(int(task_id))
             if task.get("status") != "queued":
                 continue
             scheduled_at = _parse_dt(task.get("scheduled_at"))
@@ -66,13 +65,13 @@ class RedisTaskBackend:
             task["heartbeat_at"] = now.isoformat()
             task["fencing_token"] = int(task.get("fencing_token", 0)) + 1
             await self._hset(self._task_key(task["task_id"]), mapping=_encode_mapping(task))
-            await self._zrem(self._queue_key(queue), task["task_id"])
+            await self._zrem(self._queue_key(queue), str(task["task_id"]))
             return task
         return None
 
     async def heartbeat(
         self,
-        task_id: str,
+        task_id: int,
         worker_id: str,
         lease_seconds: int = 30,
     ) -> None:
@@ -82,7 +81,7 @@ class RedisTaskBackend:
         task["leased_until"] = (now + timedelta(seconds=lease_seconds)).isoformat()
         await self._hset(self._task_key(task_id), mapping=_encode_mapping(task))
 
-    async def complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    async def complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = await self._task(task_id)
         self._assert_fencing_token(task, fencing_token)
         self._assert_owner(task, worker_id)
@@ -97,7 +96,7 @@ class RedisTaskBackend:
 
     async def fail(
         self,
-        task_id: str,
+        task_id: int,
         worker_id: str,
         fencing_token: int,
         error: dict[str, Any],
@@ -131,9 +130,9 @@ class RedisTaskBackend:
         assert_task_transition(task["status"], "queued")
         task["status"] = "queued"
         await self._hset(self._task_key(task_id), mapping=_encode_mapping(task))
-        await self._zadd(self._queue_key(task["queue"]), {task_id: _queue_score(task)})
+        await self._zadd(self._queue_key(task["queue"]), {str(task_id): _queue_score(task)})
 
-    async def cancel(self, task_id: str) -> None:
+    async def cancel(self, task_id: int) -> None:
         task = await self._task(task_id)
         if task["status"] == "leased":
             assert_task_transition(task["status"], "running")
@@ -142,7 +141,7 @@ class RedisTaskBackend:
         task["status"] = "cancelled"
         task["finished_at"] = _now().isoformat()
         await self._hset(self._task_key(task_id), mapping=_encode_mapping(task))
-        await self._zrem(self._queue_key(task["queue"]), task_id)
+        await self._zrem(self._queue_key(task["queue"]), str(task_id))
         await self._publish(
             self._cancel_channel(),
             json.dumps(
@@ -156,7 +155,7 @@ class RedisTaskBackend:
             ),
         )
 
-    def mark_running(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def mark_running(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self._sync_task(task_id)
         self._assert_fencing_token(task, fencing_token)
         self._assert_owner(task, worker_id)
@@ -165,12 +164,12 @@ class RedisTaskBackend:
         task["started_at"] = task.get("started_at") or _now().isoformat()
         self._sync_hset(self._task_key(task_id), mapping=_encode_mapping(task))
 
-    def assert_can_complete(self, task_id: str, worker_id: str, fencing_token: int) -> None:
+    def assert_can_complete(self, task_id: int, worker_id: str, fencing_token: int) -> None:
         task = self._sync_task(task_id)
         self._assert_fencing_token(task, fencing_token)
         self._assert_owner(task, worker_id)
 
-    def will_retry(self, task_id: str) -> bool:
+    def will_retry(self, task_id: int) -> bool:
         task = self._sync_task(task_id)
         return int(task.get("attempt", 0)) + 1 < int(task.get("max_attempts", 3))
 
@@ -180,7 +179,7 @@ class RedisTaskBackend:
         requeued = 0
         for queue_name in queues:
             for task_id in await self._scan_task_ids():
-                task = await self._task(str(task_id))
+                task = await self._task(task_id)
                 if queue_name is not None and task.get("queue") != queue_name:
                     continue
                 leased_until = _parse_dt(task.get("leased_until"))
@@ -211,23 +210,23 @@ class RedisTaskBackend:
                 await self._hset(self._task_key(task["task_id"]), mapping=_encode_mapping(task))
                 await self._zadd(
                     self._queue_key(task["queue"]),
-                    {task["task_id"]: _queue_score(task)},
+                    {str(task["task_id"]): _queue_score(task)},
                 )
                 requeued += 1
         return requeued
 
-    async def _owned_task(self, task_id: str, worker_id: str) -> dict[str, Any]:
+    async def _owned_task(self, task_id: int, worker_id: str) -> dict[str, Any]:
         task = await self._task(task_id)
         self._assert_owner(task, worker_id)
         return task
 
-    async def _task(self, task_id: str) -> dict[str, Any]:
+    async def _task(self, task_id: int) -> dict[str, Any]:
         encoded = await self._hgetall(self._task_key(task_id))
         if not encoded:
             raise KeyError(task_id)
         return _decode_mapping(encoded)
 
-    def _sync_task(self, task_id: str) -> dict[str, Any]:
+    def _sync_task(self, task_id: int) -> dict[str, Any]:
         encoded = self._sync_hgetall(self._task_key(task_id))
         if not encoded:
             raise KeyError(task_id)
@@ -249,7 +248,7 @@ class RedisTaskBackend:
         self._require_client()
         return self.redis_client
 
-    def _task_key(self, task_id: str) -> str:
+    def _task_key(self, task_id: int) -> str:
         return f"{self.prefix}:task:{task_id}"
 
     def _queue_key(self, queue: str) -> str:
@@ -264,9 +263,12 @@ class RedisTaskBackend:
     async def _known_queues(self) -> list[str]:
         return ["default"]
 
-    async def _scan_task_ids(self) -> list[str]:
+    async def _scan_task_ids(self) -> list[int]:
         keys = await self._keys(f"{self.prefix}:task:*")
-        return [str(key).rsplit(":", 1)[-1] for key in keys]
+        return [int(str(key).rsplit(":", 1)[-1]) for key in keys]
+
+    async def _next_task_id(self) -> int:
+        return int(await _maybe_await(self._client().incr(f"{self.prefix}:task_id_seq")))
 
     async def _hset(self, key: str, *, mapping: dict[str, str]) -> Any:
         return await _maybe_await(self._client().hset(key, mapping=mapping))

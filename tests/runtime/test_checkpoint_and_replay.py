@@ -8,7 +8,7 @@ def test_checkpoint_index_stores_lookup_metadata_without_payload_parsing() -> No
     store = CheckpointIndexStore()
 
     checkpoint = store.add(
-        run_id="run_1",
+        run_id=1,
         thread_id="thread_1",
         checkpoint_id="checkpoint_1",
         payload_uri="framework://checkpoint/1",
@@ -23,13 +23,13 @@ def test_checkpoint_index_created_at_uses_fresh_timestamp() -> None:
     store = CheckpointIndexStore()
 
     first = store.add(
-        run_id="run_1",
+        run_id=1,
         thread_id="thread_1",
         checkpoint_id="checkpoint_1",
         payload_uri="framework://checkpoint/1",
     )
     second = store.add(
-        run_id="run_1",
+        run_id=1,
         thread_id="thread_1",
         checkpoint_id="checkpoint_2",
         payload_uri="framework://checkpoint/2",
@@ -43,11 +43,11 @@ async def test_replay_scheduler_creates_new_run_and_task() -> None:
     task_backend = InMemoryTaskBackend()
     scheduler = ReplayScheduler(run_store=run_store, task_backend=task_backend)
     source_run = await run_store.create_run(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         input_data={"message": "hello"},
     )
 

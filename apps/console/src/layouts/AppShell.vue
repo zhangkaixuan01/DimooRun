@@ -13,7 +13,7 @@
         <section v-for="group in navGroups" :key="group.label">
           <p>{{ group.label }}</p>
           <RouterLink v-for="item in group.items" :key="item.to" class="nav-item" :to="item.to">
-            <span>{{ item.icon }}</span>
+            <span class="nav-glyph" aria-hidden="true">{{ item.icon }}</span>
             {{ item.label }}
           </RouterLink>
         </section>
@@ -28,7 +28,7 @@
               {{ t("tenant") }}
               <select class="select" :value="scope.currentScope.tenant_id" @change="setTenant">
                 <option v-for="item in scope.tenantOptions" :key="item.tenant_id" :value="item.tenant_id">
-                  {{ item.tenant_id }}
+                  {{ scopeLabel(item.tenant_name, item.tenant_id) }}
                 </option>
               </select>
             </label>
@@ -36,7 +36,7 @@
               {{ t("project") }}
               <select class="select" :value="scope.currentScope.project_id" @change="setProject">
                 <option v-for="item in scope.projectOptions" :key="item.project_id" :value="item.project_id">
-                  {{ item.project_id }}
+                  {{ scopeLabel(item.project_name, item.project_id) }}
                 </option>
               </select>
             </label>
@@ -44,7 +44,7 @@
               {{ t("environment") }}
               <select class="select" :value="scope.currentScope.environment" @change="setEnvironment">
                 <option v-for="item in scope.environmentOptions" :key="item.environment" :value="item.environment">
-                  {{ item.environment }}
+                  {{ item.environment_name || item.environment }}
                 </option>
               </select>
             </label>
@@ -212,18 +212,22 @@ async function logout() {
 }
 
 function setTenant(event: Event) {
-  scope.setTenant((event.target as HTMLSelectElement).value);
+  scope.setTenant(Number((event.target as HTMLSelectElement).value));
   scopeVersion.value += 1;
 }
 
 function setProject(event: Event) {
-  scope.setProject((event.target as HTMLSelectElement).value);
+  scope.setProject(Number((event.target as HTMLSelectElement).value));
   scopeVersion.value += 1;
 }
 
 function setEnvironment(event: Event) {
   scope.setEnvironment((event.target as HTMLSelectElement).value);
   scopeVersion.value += 1;
+}
+
+function scopeLabel(name: string | null | undefined, id: number) {
+  return name || `#${id}`;
 }
 
 function animateContent() {
@@ -247,7 +251,7 @@ onUnmounted(() => ctx?.revert());
 .shell {
   display: grid;
   min-height: 100vh;
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: 284px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -255,9 +259,12 @@ onUnmounted(() => ctx?.revert());
   top: 0;
   height: 100vh;
   overflow: auto;
-  border-right: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-muted));
-  padding: 18px 12px;
+  border-right: 1px solid var(--color-sidebar-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-sidebar-raised) 56%, transparent), transparent 28%),
+    var(--color-sidebar);
+  padding: 16px 12px;
+  scrollbar-width: thin;
 }
 
 .brand {
@@ -265,20 +272,21 @@ onUnmounted(() => ctx?.revert());
   align-items: center;
   gap: 10px;
   border-radius: var(--radius-md);
-  color: var(--color-text);
-  padding: 7px 8px;
+  color: var(--color-sidebar-text);
+  padding: 8px;
   text-decoration: none;
 }
 
 .brand-mark {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--color-accent);
-  color: oklch(99% 0.004 232);
+  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-info));
+  color: oklch(98% 0.006 255);
   font-weight: 800;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 .brand strong,
@@ -288,7 +296,7 @@ onUnmounted(() => ctx?.revert());
 
 .brand small {
   margin-top: 2px;
-  color: var(--color-text-muted);
+  color: var(--color-sidebar-muted);
   font-size: 11px;
 }
 
@@ -300,7 +308,7 @@ onUnmounted(() => ctx?.revert());
 
 .nav p {
   margin: 0 0 6px 9px;
-  color: var(--color-text-soft);
+  color: color-mix(in srgb, var(--color-sidebar-muted) 76%, transparent);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -313,38 +321,39 @@ onUnmounted(() => ctx?.revert());
   align-items: center;
   gap: 9px;
   border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
+  color: var(--color-sidebar-muted);
   padding: 7px 8px;
   text-decoration: none;
 }
 
-.nav-item span {
+.nav-glyph {
   display: grid;
   width: 20px;
   height: 20px;
   place-items: center;
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in srgb, var(--color-sidebar-border) 78%, transparent);
   border-radius: 5px;
+  background: color-mix(in srgb, var(--color-sidebar-raised) 60%, transparent);
   font-size: 10px;
   font-weight: 800;
 }
 
 .nav-item:hover {
-  background: color-mix(in srgb, var(--color-surface-muted) 76%, transparent);
-  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-sidebar-raised) 74%, transparent);
+  color: var(--color-sidebar-text);
 }
 
 .nav-item.router-link-active {
-  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
-  background: var(--color-accent-soft);
-  color: var(--color-text);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 44%, var(--color-sidebar-border));
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-sidebar-raised));
+  color: var(--color-sidebar-text);
   font-weight: 700;
 }
 
-.nav-item.router-link-active span {
-  border-color: color-mix(in srgb, var(--color-accent) 58%, var(--color-border));
-  background: color-mix(in srgb, var(--color-surface) 42%, transparent);
-  color: var(--color-accent);
+.nav-item.router-link-active .nav-glyph {
+  border-color: color-mix(in srgb, var(--color-accent) 64%, var(--color-sidebar-border));
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: oklch(91% 0.045 259);
 }
 
 .main {
@@ -360,8 +369,8 @@ onUnmounted(() => ctx?.revert());
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
-  padding: 10px 20px;
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  padding: 11px 22px;
   backdrop-filter: blur(12px);
 }
 
@@ -392,7 +401,7 @@ label {
   align-self: end;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
+  background: var(--color-accent-quiet);
   color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 700;
@@ -410,7 +419,7 @@ label {
 .operator-pill {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
+  background: var(--color-surface-raised);
   color: var(--color-text);
   font-size: 12px;
   font-weight: 700;
@@ -426,7 +435,7 @@ label {
 }
 
 .content {
-  padding: 20px 22px 28px;
+  padding: 22px 24px 30px;
 }
 
 @media (max-width: 980px) {
@@ -438,7 +447,7 @@ label {
     position: relative;
     height: auto;
     border-right: 0;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-sidebar-border);
   }
 
   .nav {
@@ -458,6 +467,16 @@ label {
 
   .search {
     width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .nav {
+    grid-template-columns: 1fr;
+  }
+
+  .content {
+    padding: 18px 14px 24px;
   }
 }
 </style>

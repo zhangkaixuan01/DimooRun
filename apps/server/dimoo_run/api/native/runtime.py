@@ -26,9 +26,9 @@ from dimoo_run.streaming.replay_buffer import ReplayBuffer
 
 @dataclass
 class NativeAgent:
-    id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    tenant_id: int
+    project_id: int
     name: str
     description: str | None = None
     status: str = "active"
@@ -37,8 +37,8 @@ class NativeAgent:
 
 @dataclass
 class NativeAgentVersion:
-    id: str
-    agent_id: str
+    id: int
+    agent_id: int
     version: str
     package_uri: str
     framework: str
@@ -52,12 +52,12 @@ class NativeAgentVersion:
 
 @dataclass
 class NativeRun:
-    id: str
-    tenant_id: str
-    project_id: str
-    agent_id: str
-    agent_version_id: str
-    deployment_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int
+    agent_id: int
+    agent_version_id: int
+    deployment_id: int | None
     status: RunStatus
     input: dict[str, Any]
     output: dict[str, Any] | None = None
@@ -70,10 +70,10 @@ class NativeRun:
 
 @dataclass
 class NativeTask:
-    id: str
-    run_id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    run_id: int
+    tenant_id: int
+    project_id: int
     status: TaskStatus
     queue: str = "default"
     priority: int = 0
@@ -91,39 +91,44 @@ class NativeTask:
 
 class NativeRuntimeStore:
     def __init__(self) -> None:
-        self.agents: dict[str, NativeAgent] = {}
-        self.versions: dict[str, NativeAgentVersion] = {}
-        self.runs: dict[str, NativeRun] = {}
-        self.tasks: dict[str, NativeTask] = {}
+        self.agents: dict[int, NativeAgent] = {}
+        self.versions: dict[int, NativeAgentVersion] = {}
+        self.runs: dict[int, NativeRun] = {}
+        self.tasks: dict[int, NativeTask] = {}
+        self._next_agent_id = 1
+        self._next_version_id = 1
+        self._next_run_id = 1
+        self._next_task_id = 1
         self.idempotency = IdempotencyStore()
         self.replay_buffer = ReplayBuffer()
 
     def create_agent(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         name: str,
         description: str | None,
     ) -> NativeAgent:
         agent = NativeAgent(
-            id=f"agent_{uuid4().hex[:12]}",
+            id=self._next_agent_id,
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
             description=description,
         )
+        self._next_agent_id += 1
         self.agents[agent.id] = agent
         return agent
 
-    def list_agents(self, *, tenant_id: str, project_id: str) -> list[NativeAgent]:
+    def list_agents(self, *, tenant_id: int, project_id: int) -> list[NativeAgent]:
         return [
             agent
             for agent in self.agents.values()
             if agent.tenant_id == tenant_id and agent.project_id == project_id
         ]
 
-    def get_agent(self, agent_id: str, *, tenant_id: str, project_id: str) -> NativeAgent | None:
+    def get_agent(self, agent_id: int, *, tenant_id: int, project_id: int) -> NativeAgent | None:
         agent = self.agents.get(agent_id)
         if agent is None or agent.tenant_id != tenant_id or agent.project_id != project_id:
             return None
@@ -157,7 +162,7 @@ class NativeRuntimeStore:
         manifest: dict[str, Any],
     ) -> NativeAgentVersion:
         agent_version = NativeAgentVersion(
-            id=f"agent_version_{uuid4().hex[:12]}",
+            id=self._next_version_id,
             agent_id=agent.id,
             version=version,
             package_uri=package_uri,
@@ -167,13 +172,14 @@ class NativeRuntimeStore:
             capabilities=capabilities,
             manifest=manifest,
         )
+        self._next_version_id += 1
         self.versions[agent_version.id] = agent_version
         return agent_version
 
-    def list_versions(self, agent_id: str) -> list[NativeAgentVersion]:
+    def list_versions(self, agent_id: int) -> list[NativeAgentVersion]:
         return [version for version in self.versions.values() if version.agent_id == agent_id]
 
-    def get_version(self, agent_id: str, version: str) -> NativeAgentVersion | None:
+    def get_version(self, agent_id: int, version: str) -> NativeAgentVersion | None:
         for agent_version in self.versions.values():
             if agent_version.agent_id == agent_id and agent_version.version == version:
                 return agent_version
@@ -181,15 +187,15 @@ class NativeRuntimeStore:
 
     def get_version_by_id(
         self,
-        agent_id: str,
-        agent_version_id: str,
+        agent_id: int,
+        agent_version_id: int,
     ) -> NativeAgentVersion | None:
         agent_version = self.versions.get(agent_version_id)
         if agent_version is None or agent_version.agent_id != agent_id:
             return None
         return agent_version
 
-    def latest_version(self, agent_id: str) -> NativeAgentVersion | None:
+    def latest_version(self, agent_id: int) -> NativeAgentVersion | None:
         versions = self.list_versions(agent_id)
         if not versions:
             return None
@@ -198,8 +204,8 @@ class NativeRuntimeStore:
     def create_task_run(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         agent: NativeAgent,
         agent_version: NativeAgentVersion,
         input_data: dict[str, Any],
@@ -225,7 +231,7 @@ class NativeRuntimeStore:
             replayed = reservation.is_replay
 
         run = NativeRun(
-            id=f"run_{uuid4().hex[:12]}",
+            id=self._next_run_id,
             tenant_id=tenant_id,
             project_id=project_id,
             agent_id=agent.id,
@@ -236,14 +242,16 @@ class NativeRuntimeStore:
             thread_id=thread_id,
             idempotency_key=idempotency_key,
         )
+        self._next_run_id += 1
         task = NativeTask(
-            id=f"task_{uuid4().hex[:12]}",
+            id=self._next_task_id,
             run_id=run.id,
             tenant_id=tenant_id,
             project_id=project_id,
             status=TaskStatus.queued,
             idempotency_key=idempotency_key,
         )
+        self._next_task_id += 1
         self.runs[run.id] = run
         self.tasks[task.id] = task
         self.replay_buffer.append(
@@ -263,33 +271,33 @@ class NativeRuntimeStore:
             )
         return run, task, replayed
 
-    def get_run(self, run_id: str, *, tenant_id: str, project_id: str) -> NativeRun | None:
+    def get_run(self, run_id: int, *, tenant_id: int, project_id: int) -> NativeRun | None:
         run = self.runs.get(run_id)
         if run is None or run.tenant_id != tenant_id or run.project_id != project_id:
             return None
         return run
 
-    def list_runs(self, *, tenant_id: str, project_id: str) -> list[NativeRun]:
+    def list_runs(self, *, tenant_id: int, project_id: int) -> list[NativeRun]:
         return [
             run
             for run in self.runs.values()
             if run.tenant_id == tenant_id and run.project_id == project_id
         ]
 
-    def get_task(self, task_id: str, *, tenant_id: str, project_id: str) -> NativeTask | None:
+    def get_task(self, task_id: int, *, tenant_id: int, project_id: int) -> NativeTask | None:
         task = self.tasks.get(task_id)
         if task is None or task.tenant_id != tenant_id or task.project_id != project_id:
             return None
         return task
 
-    def list_tasks(self, *, tenant_id: str, project_id: str) -> list[NativeTask]:
+    def list_tasks(self, *, tenant_id: int, project_id: int) -> list[NativeTask]:
         return [
             task
             for task in self.tasks.values()
             if task.tenant_id == tenant_id and task.project_id == project_id
         ]
 
-    def list_run_events(self, run_id: str) -> list[AgentEvent]:
+    def list_run_events(self, run_id: int) -> list[AgentEvent]:
         return self.replay_buffer.replay(run_id)
 
     def cancel_run(self, run: NativeRun) -> NativeRun:
@@ -335,7 +343,7 @@ class SQLAlchemyNativeRuntimeStore:
         self.idempotency = idempotency_store or IdempotencyStore()
 
     @property
-    def agents(self) -> dict[str, NativeAgent]:
+    def agents(self) -> dict[int, NativeAgent]:
         return {
             agent.id: _agent_from_model(agent)
             for agent in self.session.scalars(select(Agent).where(Agent.is_deleted.is_(False)))
@@ -344,14 +352,13 @@ class SQLAlchemyNativeRuntimeStore:
     def create_agent(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         name: str,
         description: str | None,
     ) -> NativeAgent:
         agent = AgentRepository(self.session).create(
             Agent(
-                id=f"agent_{uuid4().hex[:12]}",
                 tenant_id=tenant_id,
                 project_id=project_id,
                 name=name,
@@ -361,13 +368,13 @@ class SQLAlchemyNativeRuntimeStore:
         self.session.flush()
         return _agent_from_model(agent)
 
-    def list_agents(self, *, tenant_id: str, project_id: str) -> list[NativeAgent]:
+    def list_agents(self, *, tenant_id: int, project_id: int) -> list[NativeAgent]:
         return [
             _agent_from_model(agent)
             for agent in AgentRepository(self.session).list_by_project(tenant_id, project_id)
         ]
 
-    def get_agent(self, agent_id: str, *, tenant_id: str, project_id: str) -> NativeAgent | None:
+    def get_agent(self, agent_id: int, *, tenant_id: int, project_id: int) -> NativeAgent | None:
         agent = AgentRepository(self.session).get_by_id(agent_id)
         if agent is None or agent.tenant_id != tenant_id or agent.project_id != project_id:
             return None
@@ -407,7 +414,6 @@ class SQLAlchemyNativeRuntimeStore:
     ) -> NativeAgentVersion:
         agent_version = AgentVersionRepository(self.session).create(
             AgentVersion(
-                id=f"agent_version_{uuid4().hex[:12]}",
                 agent_id=agent.id,
                 version=version,
                 package_uri=package_uri,
@@ -422,13 +428,13 @@ class SQLAlchemyNativeRuntimeStore:
         self.session.flush()
         return _version_from_model(agent_version)
 
-    def list_versions(self, agent_id: str) -> list[NativeAgentVersion]:
+    def list_versions(self, agent_id: int) -> list[NativeAgentVersion]:
         return [
             _version_from_model(version)
             for version in AgentVersionRepository(self.session).list_by_agent(agent_id)
         ]
 
-    def get_version(self, agent_id: str, version: str) -> NativeAgentVersion | None:
+    def get_version(self, agent_id: int, version: str) -> NativeAgentVersion | None:
         agent_version = AgentVersionRepository(self.session).get_by_agent_version(
             agent_id,
             version,
@@ -437,15 +443,15 @@ class SQLAlchemyNativeRuntimeStore:
 
     def get_version_by_id(
         self,
-        agent_id: str,
-        agent_version_id: str,
+        agent_id: int,
+        agent_version_id: int,
     ) -> NativeAgentVersion | None:
         agent_version = AgentVersionRepository(self.session).get_by_id(agent_version_id)
         if agent_version is None or agent_version.agent_id != agent_id:
             return None
         return _version_from_model(agent_version)
 
-    def latest_version(self, agent_id: str) -> NativeAgentVersion | None:
+    def latest_version(self, agent_id: int) -> NativeAgentVersion | None:
         versions = self.list_versions(agent_id)
         if not versions:
             return None
@@ -454,8 +460,8 @@ class SQLAlchemyNativeRuntimeStore:
     def create_task_run(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         agent: NativeAgent,
         agent_version: NativeAgentVersion,
         input_data: dict[str, Any],
@@ -492,7 +498,6 @@ class SQLAlchemyNativeRuntimeStore:
 
         run_model = RunRepository(self.session).create(
             Run(
-                id=f"run_{uuid4().hex[:12]}",
                 tenant_id=tenant_id,
                 project_id=project_id,
                 agent_id=agent.id,
@@ -504,7 +509,6 @@ class SQLAlchemyNativeRuntimeStore:
         )
         task_model = TaskRepository(self.session).create(
             Task(
-                id=f"task_{uuid4().hex[:12]}",
                 run_id=run_model.id,
                 tenant_id=tenant_id,
                 project_id=project_id,
@@ -530,7 +534,6 @@ class SQLAlchemyNativeRuntimeStore:
             payload={"task_id": task_model.id},
         )
         AuditLogRepository(self.session).append(
-            audit_id=f"audit_{uuid4().hex[:12]}",
             tenant_id=tenant_id,
             project_id=project_id,
             action="run.create",
@@ -546,13 +549,13 @@ class SQLAlchemyNativeRuntimeStore:
             )
         return _run_from_model(run_model), _task_from_model(task_model), replayed
 
-    def get_run(self, run_id: str, *, tenant_id: str, project_id: str) -> NativeRun | None:
+    def get_run(self, run_id: int, *, tenant_id: int, project_id: int) -> NativeRun | None:
         run = RunRepository(self.session).get_by_id(run_id)
         if run is None or run.tenant_id != tenant_id or run.project_id != project_id:
             return None
         return _run_from_model(run)
 
-    def list_runs(self, *, tenant_id: str, project_id: str) -> list[NativeRun]:
+    def list_runs(self, *, tenant_id: int, project_id: int) -> list[NativeRun]:
         return [
             _run_from_model(run)
             for run in self.session.scalars(
@@ -560,13 +563,13 @@ class SQLAlchemyNativeRuntimeStore:
             )
         ]
 
-    def get_task(self, task_id: str, *, tenant_id: str, project_id: str) -> NativeTask | None:
+    def get_task(self, task_id: int, *, tenant_id: int, project_id: int) -> NativeTask | None:
         task = TaskRepository(self.session).get_by_id(task_id)
         if task is None or task.tenant_id != tenant_id or task.project_id != project_id:
             return None
         return _task_from_model(task)
 
-    def list_tasks(self, *, tenant_id: str, project_id: str) -> list[NativeTask]:
+    def list_tasks(self, *, tenant_id: int, project_id: int) -> list[NativeTask]:
         return [
             _task_from_model(task)
             for task in self.session.scalars(
@@ -574,7 +577,7 @@ class SQLAlchemyNativeRuntimeStore:
             )
         ]
 
-    def list_run_events(self, run_id: str) -> list[AgentEvent]:
+    def list_run_events(self, run_id: int) -> list[AgentEvent]:
         return [
             AgentEvent(
                 type=event.type,

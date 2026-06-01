@@ -6,7 +6,7 @@ def test_run_graph_projector_maps_events_to_observation_nodes() -> None:
     projector = RunGraphProjector()
 
     graph = projector.project(
-        run_id="run_1",
+        run_id=1,
         attempt_id="attempt_1",
         events=[
             AgentEvent(
@@ -45,7 +45,7 @@ def test_run_graph_projector_maps_events_to_observation_nodes() -> None:
 
 def test_run_graph_projector_degrades_unknown_events_to_custom_nodes() -> None:
     graph = RunGraphProjector().project(
-        run_id="run_1",
+        run_id=1,
         attempt_id="attempt_1",
         events=[
             AgentEvent(
@@ -62,7 +62,7 @@ def test_run_graph_projector_degrades_unknown_events_to_custom_nodes() -> None:
 
 def test_run_graph_projector_creates_placeholder_parent_for_out_of_order_edges() -> None:
     graph = RunGraphProjector().project(
-        run_id="run_1",
+        run_id=1,
         attempt_id="attempt_1",
         events=[
             AgentEvent(

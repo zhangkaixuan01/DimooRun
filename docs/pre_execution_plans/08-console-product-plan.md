@@ -607,7 +607,7 @@ pending-actions:
 - [x] Runs 页面能过滤、搜索、进入 Run 详情。
 - [x] Run 详情能展示 Timeline、input/output、attempts、error、cost。
 - [x] Tasks 页面能展示 lease、heartbeat、retry、dead letter。
-- [x] API Keys 页面能创建、禁用、查看 scopes。
+- [x] Machine Identities 页面能在 Service Account 下创建、禁用、启用、删除 API Key，并查看 scopes。
 - [x] Compatibility 页面能展示 LangGraph assistants / threads / runs 映射。
 - [x] 高风险操作有确认弹窗和 AuditLog 提示。
 

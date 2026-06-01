@@ -24,7 +24,7 @@ def test_python_sdk_preserves_platform_error_code() -> None:
                 "error_code": "idempotency_key_conflict",
                 "message": "conflict",
                 "request_id": "req_123",
-                "details": {"run_id": "run_1"},
+                "details": {"run_id": 1},
             },
         )
 
@@ -39,7 +39,7 @@ def test_python_sdk_preserves_platform_error_code() -> None:
 
     assert exc.value.error_code == "idempotency_key_conflict"
     assert exc.value.request_id == "req_123"
-    assert exc.value.details == {"run_id": "run_1"}
+    assert exc.value.details == {"run_id": 1}
 
 
 def test_python_sdk_generates_unique_idempotency_key_per_create_run() -> None:
@@ -66,7 +66,7 @@ def test_python_sdk_allows_caller_supplied_idempotency_key() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         keys.append(request.headers["Idempotency-Key"])
-        return httpx.Response(status_code=202, json={"run_id": "run_1"})
+        return httpx.Response(status_code=202, json={"run_id": 1})
 
     client = DimooRun(
         api_key="test-key",
@@ -91,15 +91,15 @@ def test_python_sdk_can_create_run_against_native_api() -> None:
     authenticator = default_api_key_authenticator()
     scopes = {"agent:read", "agent:write", "agent:invoke"}
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="sdk",
         permissions=scopes,
         created_by="admin_1",
     )
     api_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="sdk-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -109,8 +109,8 @@ def test_python_sdk_can_create_run_against_native_api() -> None:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "X-Request-Id": "req_sdk_setup",
-        "X-Tenant-Id": "tenant_1",
-        "X-Project-Id": "project_1",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
     }
     agent = test_client.post("/v1/agents", headers=headers, json={"name": "support-agent"}).json()
     test_client.post(
@@ -125,8 +125,8 @@ def test_python_sdk_can_create_run_against_native_api() -> None:
             str(request.url).replace("https://api.example.test", ""),
             headers=dict(request.headers)
             | {
-                "X-Tenant-Id": "tenant_1",
-                "X-Project-Id": "project_1",
+                "X-Tenant-Id": "1",
+                "X-Project-Id": "1",
                 "X-Request-Id": "req_sdk",
             },
             content=request.content,

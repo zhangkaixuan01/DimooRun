@@ -161,6 +161,7 @@ onMounted(loadDashboard);
 .health-grid div {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-raised) 78%, var(--color-surface-muted));
   padding: 14px;
 }
 

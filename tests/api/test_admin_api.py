@@ -1,4 +1,5 @@
 import os
+import tempfile
 from uuid import uuid4
 
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
@@ -31,8 +32,6 @@ ADMIN_PATHS = [
     "/v1/catalog/items",
     "/v1/datasets",
     "/v1/experiments",
-    "/v1/service-accounts",
-    "/v1/api-keys",
     "/v1/schedules",
     "/v1/batch-runs",
     "/v1/notifications/channels",
@@ -68,14 +67,15 @@ ADMIN_PATHS = [
 def setup_function() -> None:
     os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
     os.environ["DIMOORUN_DEV_API_KEY"] = "dev-local-key"
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.gettempdir()}/dimoorun-admin-{uuid4().hex}.db"
     reset_api_key_authenticator()
 
 
 def admin_headers(request_id: str = "req_admin") -> dict[str, str]:
     return {
         "Authorization": "Bearer dev-local-key",
-        "X-Tenant-Id": "tenant_1",
-        "X-Project-Id": "project_1",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
         "X-Environment": "local",
         "X-Request-Id": request_id,
     }
@@ -84,13 +84,13 @@ def admin_headers(request_id: str = "req_admin") -> dict[str, str]:
 def scoped_admin_headers(
     request_id: str,
     *,
-    tenant_id: str = "tenant_1",
-    project_id: str = "project_1",
+    tenant_id: int = 1,
+    project_id: int = 1,
     environment: str = "local",
 ) -> dict[str, str]:
     headers = admin_headers(request_id)
-    headers["X-Tenant-Id"] = tenant_id
-    headers["X-Project-Id"] = project_id
+    headers["X-Tenant-Id"] = str(tenant_id)
+    headers["X-Project-Id"] = str(project_id)
     headers["X-Environment"] = environment
     return headers
 
@@ -107,7 +107,7 @@ def test_high_risk_admin_action_marks_audit_required() -> None:
     client = TestClient(create_app())
 
     response = client.post(
-        "/v1/human-tasks/task_1/approve",
+        "/v1/human-tasks/1/approve",
         headers=admin_headers("req_approve"),
         json={"decision_payload": {"approved": True}},
     )
@@ -163,8 +163,8 @@ def test_admin_collections_are_isolated_by_request_scope() -> None:
     assert created.status_code == 201
     item = created.json()["item"]
     resource_id = item["id"]
-    assert item["tenant_id"] == "tenant_1"
-    assert item["project_id"] == "project_1"
+    assert item["tenant_id"] == 1
+    assert item["project_id"] == 1
     assert item["environment"] == "local"
 
     same_scope = client.get(
@@ -173,11 +173,11 @@ def test_admin_collections_are_isolated_by_request_scope() -> None:
     )
     other_tenant = client.get(
         "/v1/policies",
-        headers=scoped_admin_headers("req_scoped_tenant", tenant_id="tenant_other"),
+        headers=scoped_admin_headers("req_scoped_tenant", tenant_id=2),
     )
     other_project = client.get(
         "/v1/policies",
-        headers=scoped_admin_headers("req_scoped_project", project_id="project_other"),
+        headers=scoped_admin_headers("req_scoped_project", project_id=2),
     )
     other_environment = client.get(
         "/v1/policies",
@@ -196,7 +196,7 @@ def test_admin_collections_are_isolated_by_request_scope() -> None:
     )
     blocked_delete = client.delete(
         f"/v1/policies/{resource_id}",
-        headers=scoped_admin_headers("req_scoped_delete", project_id="project_other"),
+        headers=scoped_admin_headers("req_scoped_delete", project_id=2),
     )
 
     assert blocked_update.status_code == 404
@@ -220,8 +220,8 @@ def test_policies_admin_collection_persists_to_database(tmp_path, monkeypatch) -
     try:
         record = session.get(Policy, created.json()["item"]["id"])
         assert record is not None
-        assert record.tenant_id == "tenant_1"
-        assert record.project_id == "project_1"
+        assert record.tenant_id == 1
+        assert record.project_id == 1
         assert record.metadata_json["name"] == policy_name
         assert record.metadata_json["source"] == "admin-api"
     finally:
@@ -282,7 +282,7 @@ def test_human_task_decision_actions_update_persisted_admin_record(tmp_path, mon
     client = TestClient(create_app())
 
     created = client.post(
-        "/v1/human-tasks/task_review_1/approve",
+        "/v1/human-tasks/1/approve",
         headers=scoped_admin_headers("req_human_task_approve"),
         json={"decision_payload": {"approved": True}},
     )
@@ -291,10 +291,10 @@ def test_human_task_decision_actions_update_persisted_admin_record(tmp_path, mon
     assert created.status_code == 200
     assert created.json()["item"]["status"] == "approved"
     assert created.json()["audit_required"] is True
-    assert any(item["id"] == "task_review_1" for item in listed.json()["items"])
+    assert any(item["id"] == 1 for item in listed.json()["items"])
     session = create_session_factory(database_url)()
     try:
-        record = session.get(HumanTask, "task_review_1")
+        record = session.get(HumanTask, 1)
         assert record is not None
         assert record.status == "approved"
         assert record.decision_ref == "inline:decision"
@@ -393,14 +393,14 @@ def test_published_surface_and_ingress_route_persist_with_parent_resources(tmp_p
     session = create_session_factory(database_url)()
     try:
         agent = Agent(
-            id=f"agent_{uuid4().hex[:8]}",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             name=f"surface-agent-{uuid4().hex[:8]}",
             status="active",
         )
+        session.add(agent)
+        session.flush()
         version = AgentVersion(
-            id=f"agent_version_{uuid4().hex[:8]}",
             agent_id=agent.id,
             version="1.0.0",
             package_uri="file://agent",
@@ -411,10 +411,11 @@ def test_published_surface_and_ingress_route_persist_with_parent_resources(tmp_p
             manifest_json={},
             status="ready",
         )
+        session.add(version)
+        session.flush()
         deployment = Deployment(
-            id=f"deployment_{uuid4().hex[:8]}",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             agent_id=agent.id,
             agent_version_id=version.id,
             environment="local",
@@ -423,7 +424,7 @@ def test_published_surface_and_ingress_route_persist_with_parent_resources(tmp_p
             replicas=1,
             config_json={},
         )
-        session.add_all([agent, version, deployment])
+        session.add(deployment)
         session.commit()
         deployment_id = deployment.id
     finally:
@@ -474,9 +475,9 @@ def test_scope_management_collections_are_seeded() -> None:
     assert tenants.status_code == 200
     assert projects.status_code == 200
     assert environments.status_code == 200
-    assert any(item["id"] == "tenant_1" for item in tenants.json()["items"])
-    assert any(item["id"] == "project_1" for item in projects.json()["items"])
-    assert any(item["id"] == "local" for item in environments.json()["items"])
+    assert any(item["id"] == 1 for item in tenants.json()["items"])
+    assert any(item["id"] == 1 for item in projects.json()["items"])
+    assert any(item["environment"] == "local" for item in environments.json()["items"])
 
 
 def test_console_admin_surface_collections_support_create_and_list() -> None:
@@ -488,8 +489,6 @@ def test_console_admin_surface_collections_support_create_and_list() -> None:
         "/v1/identity/projects",
         "/v1/identity/environments",
         "/v1/identity/roles",
-        "/v1/service-accounts",
-        "/v1/api-keys",
         "/v1/secrets",
         "/v1/model-gateways",
         "/v1/webhooks/subscriptions",
@@ -515,8 +514,8 @@ def test_machine_identity_service_account_api_key_lifecycle() -> None:
         json={
             "name": "ci-deployer",
             "description": "CI deployment identity",
-            "tenant_id": "tenant_1",
-            "project_id": "project_1",
+            "tenant_id": 1,
+            "project_id": 1,
             "permissions": ["agent:read", "agent:deploy"],
         },
     )
@@ -553,8 +552,8 @@ def test_machine_identity_service_account_api_key_lifecycle() -> None:
         "/v1/agents",
         headers={
             "Authorization": f"Bearer {payload['plain_key']}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
             "X-Request-Id": "req_key_allowed",
         },
     )
@@ -565,23 +564,57 @@ def test_machine_identity_service_account_api_key_lifecycle() -> None:
         headers=admin_headers("req_key_disable"),
     )
     assert disabled.status_code == 200
+    assert disabled.json()["item"]["status"] == "disabled"
 
     rejected = client.get(
         "/v1/agents",
         headers={
             "Authorization": f"Bearer {payload['plain_key']}",
-            "X-Tenant-Id": "tenant_1",
-            "X-Project-Id": "project_1",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
             "X-Request-Id": "req_key_rejected",
         },
     )
     assert rejected.status_code == 401
+
+    enabled = client.post(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}/enable",
+        headers=admin_headers("req_key_enable"),
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["item"]["status"] == "active"
+
+    allowed_again = client.get(
+        "/v1/agents",
+        headers={
+            "Authorization": f"Bearer {payload['plain_key']}",
+            "X-Tenant-Id": "1",
+            "X-Project-Id": "1",
+            "X-Request-Id": "req_key_allowed_again",
+        },
+    )
+    assert allowed_again.status_code == 200
+
+    deleted = client.delete(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}",
+        headers=admin_headers("req_key_delete"),
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["item"]["status"] == "deleted"
+
+    listed_after_delete = client.get(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys",
+        headers=admin_headers("req_key_list_after_delete"),
+    )
+    assert all(item["id"] != key_id for item in listed_after_delete.json()["items"])
 
     audit_logs = client.get("/v1/audit-logs", headers=admin_headers("req_audit_logs"))
     actions = [item.get("action") for item in audit_logs.json()["items"]]
     assert "identity.service_account.create" in actions
     assert "identity.api_key.create" in actions
     assert "identity.api_key.disable" in actions
+    assert "identity.api_key.enable" in actions
+    assert "identity.api_key.delete" in actions
 
 
 def test_machine_identity_service_account_update_and_delete() -> None:
@@ -592,8 +625,8 @@ def test_machine_identity_service_account_update_and_delete() -> None:
         headers=admin_headers("req_sa_update_create"),
         json={
             "name": "editable-sa",
-            "tenant_id": "tenant_1",
-            "project_id": "project_1",
+            "tenant_id": 1,
+            "project_id": 1,
             "permissions": ["agent:read", "run:read"],
         },
     )
@@ -628,8 +661,8 @@ def test_service_account_permission_reduction_disables_excessive_api_keys() -> N
         headers=admin_headers("req_sa_reduce_create"),
         json={
             "name": "reduced-sa",
-            "tenant_id": "tenant_1",
-            "project_id": "project_1",
+            "tenant_id": 1,
+            "project_id": 1,
             "permissions": ["agent:read", "run:read"],
         },
     )
@@ -640,6 +673,7 @@ def test_service_account_permission_reduction_disables_excessive_api_keys() -> N
         json={"name": "run-key", "scopes": ["run:read"]},
     )
     assert key.status_code == 201
+    key_id = key.json()["item"]["id"]
 
     updated = client.patch(
         f"/v1/identity/service-accounts/{service_account_id}",
@@ -654,21 +688,27 @@ def test_service_account_permission_reduction_disables_excessive_api_keys() -> N
     assert updated.status_code == 200
     assert listed_keys.json()["items"][0]["status"] == "disabled"
 
+    enable_denied = client.post(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys/{key_id}/enable",
+        headers=admin_headers("req_sa_reduce_key_enable_denied"),
+    )
+    assert enable_denied.status_code == 403
+
 
 def test_machine_identity_rejects_payload_scope_outside_actor_scope() -> None:
     client = TestClient(create_app())
     authenticator = default_api_key_authenticator()
     permissions = {"admin:read", "identity:service-account:write"}
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="limited-admin",
         permissions=permissions,
         created_by="test",
     )
     plain_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="limited-admin-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -685,8 +725,8 @@ def test_machine_identity_rejects_payload_scope_outside_actor_scope() -> None:
         headers=headers,
         json={
             "name": "cross-scope",
-            "tenant_id": "tenant_other",
-            "project_id": "project_1",
+            "tenant_id": 2,
+            "project_id": 1,
             "permissions": ["agent:read"],
         },
     )
@@ -699,7 +739,7 @@ def test_admin_artifact_read_returns_stable_not_found_response() -> None:
     client = TestClient(create_app())
 
     response = client.get(
-        "/v1/artifacts/artifact_missing",
+        "/v1/artifacts/999999",
         headers=admin_headers("req_artifact_read"),
     )
 

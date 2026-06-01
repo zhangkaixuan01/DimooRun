@@ -18,11 +18,11 @@ class ErrorResponse(BaseModel):
 
 
 class DeploymentRead(BaseModel):
-    id: str
-    tenant_id: str
-    project_id: str
-    agent_id: str
-    agent_version_id: str
+    id: int
+    tenant_id: int
+    project_id: int
+    agent_id: int
+    agent_version_id: int
     environment: str
     desired_status: DeploymentDesiredStatus
     runtime_status: DeploymentRuntimeStatus
@@ -31,12 +31,12 @@ class DeploymentRead(BaseModel):
 
 
 class AgentInstanceRead(BaseModel):
-    id: str
-    tenant_id: str
-    project_id: str
-    deployment_id: str
-    agent_id: str
-    agent_version_id: str
+    id: int
+    tenant_id: int
+    project_id: int
+    deployment_id: int
+    agent_id: int
+    agent_version_id: int
     worker_id: str
     execution_profile_id: str | None = None
     cache_key: str
@@ -46,15 +46,15 @@ class AgentInstanceRead(BaseModel):
 
 
 class RunRead(BaseModel):
-    id: str
-    tenant_id: str
-    project_id: str
-    user_id: str | None = None
-    service_account_id: str | None = None
-    agent_id: str
-    agent_version_id: str
-    deployment_id: str | None = None
-    session_id: str | None = None
+    id: int
+    tenant_id: int
+    project_id: int
+    user_id: int | None = None
+    service_account_id: int | None = None
+    agent_id: int
+    agent_version_id: int
+    deployment_id: int | None = None
+    session_id: int | None = None
     framework: str | None = None
     adapter: str | None = None
     thread_id: str | None = None

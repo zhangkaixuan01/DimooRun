@@ -1,16 +1,15 @@
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import uuid4
 
 
 @dataclass(frozen=True)
 class SemanticStoreProvider:
-    id: str
-    tenant_id: str
-    project_id: str
+    id: int
+    tenant_id: int
+    project_id: int
     name: str
     embedding_model: str
-    embedding_gateway_id: str | None
+    embedding_gateway_id: int | None
     connection_ref: str
     retention_policy_id: str | None
     status: str = "active"
@@ -19,22 +18,23 @@ class SemanticStoreProvider:
 
 class SemanticStoreProviderRegistry:
     def __init__(self) -> None:
-        self.providers: dict[str, SemanticStoreProvider] = {}
+        self.providers: dict[int, SemanticStoreProvider] = {}
+        self._next_provider_id = 0
 
     def register(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
+        tenant_id: int,
+        project_id: int,
         name: str,
         embedding_model: str,
-        embedding_gateway_id: str | None,
+        embedding_gateway_id: int | None,
         connection_ref: str,
         retention_policy_id: str | None,
         metadata: dict[str, Any] | None = None,
     ) -> SemanticStoreProvider:
         provider = SemanticStoreProvider(
-            id=str(uuid4()),
+            id=self._allocate_provider_id(),
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
@@ -47,5 +47,9 @@ class SemanticStoreProviderRegistry:
         self.providers[provider.id] = provider
         return provider
 
-    def get(self, provider_id: str) -> SemanticStoreProvider:
+    def get(self, provider_id: int) -> SemanticStoreProvider:
         return self.providers[provider_id]
+
+    def _allocate_provider_id(self) -> int:
+        self._next_provider_id += 1
+        return self._next_provider_id

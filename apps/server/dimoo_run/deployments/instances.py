@@ -1,15 +1,14 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.domain.enums import AgentInstanceStatus
 
 
 def build_cache_key(
     *,
-    deployment_id: str,
-    agent_version_id: str,
+    deployment_id: int,
+    agent_version_id: int,
     execution_profile_id: str | None,
 ) -> str:
     return f"{deployment_id}:{agent_version_id}:{execution_profile_id or 'default'}"
@@ -17,12 +16,12 @@ def build_cache_key(
 
 @dataclass
 class AgentInstanceRecord:
-    id: str
-    tenant_id: str
-    project_id: str
-    deployment_id: str
-    agent_id: str
-    agent_version_id: str
+    id: int
+    tenant_id: int
+    project_id: int
+    deployment_id: int
+    agent_id: int
+    agent_version_id: int
     worker_id: str
     execution_profile_id: str | None
     cache_key: str
@@ -55,21 +54,22 @@ class AgentInstanceRecord:
 class AgentInstanceRegistry:
     def __init__(self, *, now: Any | None = None) -> None:
         self._now = now or (lambda: datetime.now(UTC))
-        self.instances: dict[str, AgentInstanceRecord] = {}
+        self.instances: dict[int, AgentInstanceRecord] = {}
+        self._next_id = 1
 
     def register_loading(
         self,
         *,
-        tenant_id: str,
-        project_id: str,
-        deployment_id: str,
-        agent_id: str,
-        agent_version_id: str,
+        tenant_id: int,
+        project_id: int,
+        deployment_id: int,
+        agent_id: int,
+        agent_version_id: int,
         worker_id: str,
         execution_profile_id: str | None,
     ) -> AgentInstanceRecord:
         instance = AgentInstanceRecord(
-            id=str(uuid4()),
+            id=self._next_id,
             tenant_id=tenant_id,
             project_id=project_id,
             deployment_id=deployment_id,
@@ -84,14 +84,15 @@ class AgentInstanceRegistry:
             ),
             heartbeat_at=self._now(),
         )
+        self._next_id += 1
         self.instances[instance.id] = instance
         return instance
 
     def get_ready(
         self,
         *,
-        deployment_id: str,
-        agent_version_id: str,
+        deployment_id: int,
+        agent_version_id: int,
         execution_profile_id: str | None,
     ) -> AgentInstanceRecord | None:
         cache_key = build_cache_key(
@@ -109,24 +110,24 @@ class AgentInstanceRegistry:
                 return instance
         return None
 
-    def mark_ready(self, instance_id: str) -> AgentInstanceRecord:
+    def mark_ready(self, instance_id: int) -> AgentInstanceRecord:
         instance = self.instances[instance_id]
         instance.mark_ready(now=self._now())
         return instance
 
-    def mark_failed(self, instance_id: str, error: str) -> AgentInstanceRecord:
+    def mark_failed(self, instance_id: int, error: str) -> AgentInstanceRecord:
         instance = self.instances[instance_id]
         instance.mark_failed(error, now=self._now())
         return instance
 
-    def list_by_deployment(self, deployment_id: str) -> list[AgentInstanceRecord]:
+    def list_by_deployment(self, deployment_id: int) -> list[AgentInstanceRecord]:
         return [
             instance
             for instance in self.instances.values()
             if instance.deployment_id == deployment_id
         ]
 
-    def evict_deployment(self, deployment_id: str, *, reason: str) -> list[AgentInstanceRecord]:
+    def evict_deployment(self, deployment_id: int, *, reason: str) -> list[AgentInstanceRecord]:
         evicted = self.list_by_deployment(deployment_id)
         for instance in evicted:
             instance.mark_evicted(reason)

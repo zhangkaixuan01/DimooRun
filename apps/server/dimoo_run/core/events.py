@@ -7,8 +7,8 @@ from typing import Any
 class AgentEvent:
     type: str
     payload: dict[str, Any]
-    run_id: str | None = None
-    attempt_id: str | None = None
+    run_id: int | None = None
+    attempt_id: int | None = None
     sequence: int | None = None
     event_id: str | None = None
     framework: str | None = None

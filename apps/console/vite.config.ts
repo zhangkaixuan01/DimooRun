@@ -7,6 +7,10 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     host: "127.0.0.1",
+    watch: {
+      usePolling: process.env.CHOKIDAR_USEPOLLING === "true",
+      interval: 300,
+    },
   },
   build: {
     chunkSizeWarningLimit: 700,

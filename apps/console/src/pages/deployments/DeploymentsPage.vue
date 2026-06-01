@@ -52,7 +52,7 @@
       v-if="selected"
       :open="dialogOpen"
       :title="`${operation} ${selected.id}`"
-      :impact-target="selected.id"
+      :impact-target="String(selected.id)"
       :environment="selected.environment"
       :affects-new-runs="operation !== 'restart'"
       :affects-existing-runs="operation === 'restart'"
@@ -82,7 +82,7 @@ const deployments = ref<Deployment[]>([]);
 const dialogOpen = ref(false);
 const selected = ref<Deployment | null>(null);
 const operation = ref("pause");
-const pendingOperation = ref<string | null>(null);
+const pendingOperation = ref<number | null>(null);
 
 async function loadDeployments() {
   if (mode === "offline") return;

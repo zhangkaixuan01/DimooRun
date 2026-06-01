@@ -7,8 +7,8 @@ class IngressRoutePolicyError(ValueError):
 
 @dataclass(frozen=True)
 class IngressRouteConfig:
-    id: str
-    surface_id: str
+    id: int
+    surface_id: int
     path: str
     auth_mode: str
     custom_domain: str | None = None

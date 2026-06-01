@@ -32,13 +32,13 @@ class FakeInterruptGraph:
 
 def make_context() -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="agent_version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         user_id=None,
         service_account_id="svc_1",
         thread_id="thread_1",
@@ -55,7 +55,7 @@ async def test_langgraph_adapter_invoke_maps_runtime_context_to_configurable() -
     assert result.output == {"echo": "hello"}
     assert graph.config is not None
     assert graph.config["configurable"]["thread_id"] == "thread_1"
-    assert graph.config["configurable"]["run_id"] == "run_1"
+    assert graph.config["configurable"]["run_id"] == 1
     assert graph.config["metadata"]["agent_version_id"] == "agent_version_1"
 
 

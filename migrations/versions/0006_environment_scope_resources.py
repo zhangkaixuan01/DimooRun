@@ -6,7 +6,7 @@ Create Date: 2026-05-27
 """
 
 from alembic import op
-from sqlalchemy import JSON, Column, ForeignKey, String, UniqueConstraint, text
+from sqlalchemy import BigInteger, JSON, Column, ForeignKey, String, UniqueConstraint, text
 
 from migrations.table_helpers import audit_columns, drop_tables, id_column
 
@@ -22,8 +22,8 @@ def upgrade() -> None:
     op.create_table(
         "environments",
         id_column(),
-        Column("tenant_id", String(64), ForeignKey("tenants.id"), nullable=False),
-        Column("project_id", String(64), ForeignKey("projects.id"), nullable=False),
+        Column("tenant_id", BigInteger, ForeignKey("tenants.id"), nullable=False),
+        Column("project_id", BigInteger, ForeignKey("projects.id"), nullable=False),
         Column("name", String(255), nullable=False),
         Column("environment", String(128), nullable=False),
         Column("status", String(64), nullable=False, server_default="active"),

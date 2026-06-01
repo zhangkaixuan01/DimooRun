@@ -2,19 +2,18 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.policy.engine import AuditRecord, AuditSink, InMemoryAuditSink
 
 
 @dataclass
 class HumanTaskRecord:
-    id: str
-    tenant_id: str
-    project_id: str | None
-    run_id: str | None
-    attempt_id: str | None
-    task_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
+    run_id: int | None
+    attempt_id: int | None
+    task_id: int | None
     type: str
     status: str
     payload: dict[str, Any]
@@ -35,23 +34,24 @@ class HumanTaskService:
     ) -> None:
         self.audit_sink = audit_sink or InMemoryAuditSink()
         self._now = now or (lambda: datetime.now(UTC))
-        self.tasks: dict[str, HumanTaskRecord] = {}
+        self.tasks: dict[int, HumanTaskRecord] = {}
+        self._next_id = 1
 
     def create_approval(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
-        run_id: str | None,
-        attempt_id: str | None,
-        task_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
+        run_id: int | None,
+        attempt_id: int | None,
+        task_id: int | None,
         payload: dict[str, Any],
         requested_by: str | None,
         assignee_role: str | None = None,
         expires_at: datetime | None = None,
     ) -> HumanTaskRecord:
         task = HumanTaskRecord(
-            id=str(uuid4()),
+            id=self._next_id,
             tenant_id=tenant_id,
             project_id=project_id,
             run_id=run_id,
@@ -65,6 +65,7 @@ class HumanTaskService:
             expires_at=expires_at,
             created_at=self._now(),
         )
+        self._next_id += 1
         self.tasks[task.id] = task
         self.audit_sink.write(
             AuditRecord(
@@ -83,7 +84,7 @@ class HumanTaskService:
 
     def decide(
         self,
-        task_id: str,
+        task_id: int,
         *,
         actor_id: str,
         approved: bool,

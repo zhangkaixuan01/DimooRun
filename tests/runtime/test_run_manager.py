@@ -16,11 +16,11 @@ async def test_run_manager_creates_run_and_enqueues_task() -> None:
     manager = RunManager(run_store=run_store, task_backend=task_backend)
 
     run, task_id = await manager.create_run_task(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        agent_id=1,
         agent_version_id="version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         input_data={"message": "hello"},
     )
 
@@ -35,13 +35,13 @@ async def test_run_manager_removes_created_run_when_enqueue_fails() -> None:
 
     with pytest.raises(RuntimeError, match="enqueue failed"):
         await manager.create_run_task(
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
-            deployment_id="deployment_1",
+            deployment_id=1,
             input_data={"message": "hello"},
-            run_id="run_1",
+            run_id=1,
         )
 
     assert "run_1" not in run_store.runs
@@ -52,9 +52,9 @@ async def test_run_manager_rejects_cross_scope_deployment_run() -> None:
     gate.deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="prod",
             desired_status=DeploymentDesiredStatus.active,
@@ -69,10 +69,10 @@ async def test_run_manager_rejects_cross_scope_deployment_run() -> None:
     with pytest.raises(PermissionError, match="deployment_scope_mismatch"):
         await manager.create_run_task(
             tenant_id="tenant_2",
-            project_id="project_1",
-            agent_id="agent_1",
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
-            deployment_id="deployment_1",
+            deployment_id=1,
             input_data={"message": "hello"},
         )
 
@@ -82,9 +82,9 @@ async def test_run_manager_rejects_deployment_agent_version_mismatch() -> None:
     gate.deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="prod",
             desired_status=DeploymentDesiredStatus.active,
@@ -98,10 +98,10 @@ async def test_run_manager_rejects_deployment_agent_version_mismatch() -> None:
 
     with pytest.raises(PermissionError, match="deployment_agent_version_mismatch"):
         await manager.create_run_task(
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_2",
-            deployment_id="deployment_1",
+            deployment_id=1,
             input_data={"message": "hello"},
         )

@@ -14,9 +14,9 @@ def test_published_surface_requires_active_deployment() -> None:
     deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="prod",
             desired_status=DeploymentDesiredStatus.paused,
@@ -28,9 +28,9 @@ def test_published_surface_requires_active_deployment() -> None:
         registry.publish(
             PublishedSurfaceConfig(
                 id="surface_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
-                deployment_id="deployment_1",
+                tenant_id=1,
+                project_id=1,
+                deployment_id=1,
                 type="api",
             )
         )
@@ -41,9 +41,9 @@ def test_published_surface_requires_same_tenant_and_project_as_deployment() -> N
     deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="prod",
             desired_status=DeploymentDesiredStatus.active,
@@ -56,8 +56,8 @@ def test_published_surface_requires_same_tenant_and_project_as_deployment() -> N
             PublishedSurfaceConfig(
                 id="surface_1",
                 tenant_id="tenant_2",
-                project_id="project_1",
-                deployment_id="deployment_1",
+                project_id=1,
+                deployment_id=1,
                 type="api",
             )
         )
@@ -68,9 +68,9 @@ def test_published_surface_rejects_unknown_type() -> None:
     deployments.add(
         DeploymentRecord(
             id="deployment_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
-            agent_id="agent_1",
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
             agent_version_id="version_1",
             environment="prod",
             desired_status=DeploymentDesiredStatus.active,
@@ -82,9 +82,9 @@ def test_published_surface_rejects_unknown_type() -> None:
         registry.publish(
             PublishedSurfaceConfig(
                 id="surface_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
-                deployment_id="deployment_1",
+                tenant_id=1,
+                project_id=1,
+                deployment_id=1,
                 type="unknown",
             )
         )

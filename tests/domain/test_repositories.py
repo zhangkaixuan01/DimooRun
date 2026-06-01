@@ -20,8 +20,8 @@ def test_repository_create_get_list_update_and_soft_delete() -> None:
         agent = repository.create(
             Agent(
                 id="agent_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 name="support-agent",
                 description=None,
                 owner_id="user_1",
@@ -59,8 +59,8 @@ def test_audit_log_repository_rejects_soft_delete() -> None:
         audit_log = repository.create(
             AuditLog(
                 id="audit_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                tenant_id=1,
+                project_id=1,
                 action="agent.delete",
                 resource_type="agent",
                 resource_id="agent_1",
@@ -82,7 +82,7 @@ def test_repository_capabilities_match_model_shape() -> None:
         agent_version = agent_version_repository.create(
             AgentVersion(
                 id="agent_version_1",
-                agent_id="agent_1",
+                agent_id=1,
                 version="0.1.0",
                 package_uri="file://package",
                 framework="langgraph",
@@ -100,9 +100,9 @@ def test_repository_capabilities_match_model_shape() -> None:
         event = event_repository.create(
             Event(
                 id="event_1",
-                run_id="run_1",
-                tenant_id="tenant_1",
-                project_id="project_1",
+                run_id=1,
+                tenant_id=1,
+                project_id=1,
                 type="run.started",
                 sequence=1,
                 event_id="run_1:1",

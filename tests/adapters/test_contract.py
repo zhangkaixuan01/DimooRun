@@ -13,13 +13,13 @@ from dimoo_run.core.events import AgentEvent, AgentResult
 
 def test_runtime_context_contains_platform_execution_identity() -> None:
     context = RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="agent_version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         user_id=None,
         service_account_id="svc_1",
         thread_id="thread_1",
@@ -39,9 +39,9 @@ def test_runtime_context_contains_platform_execution_identity() -> None:
         metadata={"source": "test"},
     )
 
-    assert context.run_id == "run_1"
+    assert context.run_id == 1
     assert context.thread_id == "thread_1"
-    assert context.to_metadata()["tenant_id"] == "tenant_1"
+    assert context.to_metadata()["tenant_id"] == 1
     assert context.to_metadata()["request_id"] == "req_1"
     assert context.to_metadata()["trace_id"] == "trace_1"
     assert context.to_metadata()["idempotency_key"] == "idem_1"
@@ -51,11 +51,11 @@ def test_runtime_context_contains_platform_execution_identity() -> None:
 
 def test_runtime_context_metadata_cannot_override_platform_identity() -> None:
     context = RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
         task_id=None,
-        agent_id="agent_1",
+        agent_id=1,
         agent_version_id="agent_version_1",
         deployment_id=None,
         metadata={"tenant_id": "spoofed", "run_id": "spoofed"},
@@ -63,18 +63,18 @@ def test_runtime_context_metadata_cannot_override_platform_identity() -> None:
 
     metadata = context.to_metadata()
 
-    assert metadata["tenant_id"] == "tenant_1"
-    assert metadata["run_id"] == "run_1"
+    assert metadata["tenant_id"] == 1
+    assert metadata["run_id"] == 1
     assert metadata["metadata"] == {"tenant_id": "spoofed", "run_id": "spoofed"}
 
 
 def test_runtime_context_metadata_can_include_none_values_when_requested() -> None:
     context = RuntimeContext(
-        tenant_id="tenant_1",
+        tenant_id=1,
         project_id=None,
-        run_id="run_1",
+        run_id=1,
         task_id=None,
-        agent_id="agent_1",
+        agent_id=1,
         agent_version_id="agent_version_1",
         deployment_id=None,
     )
@@ -89,7 +89,7 @@ def test_agent_result_and_event_have_stable_shapes() -> None:
     event = AgentEvent(
         type="agent.stream_chunk",
         payload={"delta": "hello"},
-        run_id="run_1",
+        run_id=1,
         sequence=1,
     )
     result = AgentResult(output={"message": "done"}, events=[event], metadata={"latency_ms": 10})

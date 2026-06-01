@@ -19,11 +19,11 @@ class PolicyDeniedError(PermissionError):
 
 @dataclass
 class DeploymentRecord:
-    id: str
-    tenant_id: str
-    project_id: str
-    agent_id: str
-    agent_version_id: str
+    id: int
+    tenant_id: int
+    project_id: int
+    agent_id: int
+    agent_version_id: int
     environment: str
     desired_status: DeploymentDesiredStatus = DeploymentDesiredStatus.draft
     runtime_status: DeploymentRuntimeStatus = DeploymentRuntimeStatus.not_loaded
@@ -81,10 +81,10 @@ class StaticPolicyEngine:
 class AuditEntry:
     action: str
     resource_type: str
-    resource_id: str
+    resource_id: int
     actor_id: str | None
-    tenant_id: str | None
-    project_id: str | None
+    tenant_id: int | None
+    project_id: int | None
     request_id: str | None
     result: str
     metadata: dict[str, str] = field(default_factory=dict)
@@ -100,13 +100,19 @@ class InMemoryAuditSink:
 
 class InMemoryDeploymentStore:
     def __init__(self) -> None:
-        self.deployments: dict[str, DeploymentRecord] = {}
+        self.deployments: dict[int, DeploymentRecord] = {}
+        self._next_id = 1
 
     def add(self, deployment: DeploymentRecord) -> DeploymentRecord:
+        if deployment.id <= 0:
+            deployment.id = self._next_id
+            self._next_id += 1
+        else:
+            self._next_id = max(self._next_id, deployment.id + 1)
         self.deployments[deployment.id] = deployment
         return deployment
 
-    def get(self, deployment_id: str) -> DeploymentRecord:
+    def get(self, deployment_id: int) -> DeploymentRecord:
         try:
             return self.deployments[deployment_id]
         except KeyError as exc:
@@ -115,8 +121,8 @@ class InMemoryDeploymentStore:
     def list(
         self,
         *,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
     ) -> list[DeploymentRecord]:
         deployments = list(self.deployments.values())
         if tenant_id is not None:
@@ -150,11 +156,11 @@ class DeploymentRuntimeControlService:
 
     def activate(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None = None,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
         request_id: str | None = None,
     ) -> DeploymentRecord:
         return self._control(
@@ -169,11 +175,11 @@ class DeploymentRuntimeControlService:
 
     def pause(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None = None,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
         request_id: str | None = None,
     ) -> DeploymentRecord:
         return self._control(
@@ -188,11 +194,11 @@ class DeploymentRuntimeControlService:
 
     def resume(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None = None,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
         request_id: str | None = None,
     ) -> DeploymentRecord:
         return self._control(
@@ -207,11 +213,11 @@ class DeploymentRuntimeControlService:
 
     def drain(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None = None,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
         request_id: str | None = None,
     ) -> DeploymentRecord:
         deployment = self._control(
@@ -230,11 +236,11 @@ class DeploymentRuntimeControlService:
 
     def stop(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None = None,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
         request_id: str | None = None,
     ) -> DeploymentRecord:
         deployment = self._control(
@@ -252,11 +258,11 @@ class DeploymentRuntimeControlService:
 
     def restart(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None = None,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
         request_id: str | None = None,
     ) -> DeploymentRecord:
         self._control(
@@ -272,13 +278,13 @@ class DeploymentRuntimeControlService:
         self.summarize(deployment_id)
         return DeploymentRecord(**self.deployments.get(deployment_id).__dict__)
 
-    def list_instances(self, deployment_id: str) -> list[AgentInstanceRecord]:
+    def list_instances(self, deployment_id: int) -> list[AgentInstanceRecord]:
         self.deployments.get(deployment_id)
         return self.instances.list_by_deployment(deployment_id)
 
     def summarize(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         running_runs: int = 0,
         queue_backlog: int = 0,
@@ -296,12 +302,12 @@ class DeploymentRuntimeControlService:
 
     def assert_accepts_new_run(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
-        tenant_id: str | None = None,
-        project_id: str | None = None,
-        agent_id: str | None = None,
-        agent_version_id: str | None = None,
+        tenant_id: int | None = None,
+        project_id: int | None = None,
+        agent_id: int | None = None,
+        agent_version_id: int | None = None,
     ) -> None:
         deployment = self.deployments.get(deployment_id)
         self._assert_deployment_binding(
@@ -321,11 +327,11 @@ class DeploymentRuntimeControlService:
 
     def _control(
         self,
-        deployment_id: str,
+        deployment_id: int,
         *,
         actor_id: str | None,
-        tenant_id: str | None,
-        project_id: str | None,
+        tenant_id: int | None,
+        project_id: int | None,
         request_id: str | None,
         action: str,
         desired_status: DeploymentDesiredStatus,
@@ -396,10 +402,10 @@ class DeploymentRuntimeControlService:
         self,
         deployment: DeploymentRecord,
         *,
-        tenant_id: str | None,
-        project_id: str | None,
-        agent_id: str | None = None,
-        agent_version_id: str | None = None,
+        tenant_id: int | None,
+        project_id: int | None,
+        agent_id: int | None = None,
+        agent_version_id: int | None = None,
     ) -> None:
         if tenant_id is not None and deployment.tenant_id != tenant_id:
             raise PolicyDeniedError(
@@ -428,8 +434,8 @@ class DeploymentRuntimeControlService:
         action: str,
         deployment: DeploymentRecord,
         actor_id: str | None,
-        tenant_id: str | None,
-        project_id: str | None,
+        tenant_id: int | None,
+        project_id: int | None,
         request_id: str | None,
         result: str,
         metadata: dict[str, str] | None = None,

@@ -36,9 +36,9 @@ class StreamSubscriber:
 class StreamFanOutHub:
     def __init__(self, *, max_buffer_size: int = 100) -> None:
         self.max_buffer_size = max_buffer_size
-        self._subscribers: dict[str, dict[str, StreamSubscriber]] = {}
+        self._subscribers: dict[int, dict[str, StreamSubscriber]] = {}
 
-    def subscribe(self, run_id: str, subscriber_id: str) -> StreamSubscriber:
+    def subscribe(self, run_id: int, subscriber_id: str) -> StreamSubscriber:
         subscriber = StreamSubscriber(
             subscriber_id=subscriber_id,
             max_buffer_size=self.max_buffer_size,
@@ -46,10 +46,10 @@ class StreamFanOutHub:
         self._subscribers.setdefault(run_id, {})[subscriber_id] = subscriber
         return subscriber
 
-    def unsubscribe(self, run_id: str, subscriber_id: str) -> None:
+    def unsubscribe(self, run_id: int, subscriber_id: str) -> None:
         self._subscribers.get(run_id, {}).pop(subscriber_id, None)
 
-    def publish(self, run_id: str, event: AgentEvent) -> int:
+    def publish(self, run_id: int, event: AgentEvent) -> int:
         delivered = 0
         subscribers = list(self._subscribers.get(run_id, {}).values())
         for subscriber in subscribers:
@@ -60,7 +60,7 @@ class StreamFanOutHub:
                 self.unsubscribe(run_id, subscriber.subscriber_id)
         return delivered
 
-    def subscriber_count(self, run_id: str) -> int:
+    def subscriber_count(self, run_id: int) -> int:
         return len(self._subscribers.get(run_id, {}))
 
 
@@ -77,7 +77,7 @@ class RedisStreamFanOutBridge:
         self.channel_prefix = channel_prefix
         self._pubsubs: dict[str, Any] = {}
 
-    async def publish(self, run_id: str, event: AgentEvent) -> str | None:
+    async def publish(self, run_id: int, event: AgentEvent) -> str | None:
         payload = {
             "run_id": run_id,
             "attempt_id": event.attempt_id,
@@ -103,7 +103,7 @@ class RedisStreamFanOutBridge:
             )
         return str(stream_id) if stream_id is not None else None
 
-    async def replay(self, run_id: str, *, last_event_id: str | None = None) -> list[AgentEvent]:
+    async def replay(self, run_id: int, *, last_event_id: str | None = None) -> list[AgentEvent]:
         start = "-"
         if last_event_id is not None:
             start = f"({last_event_id}"
@@ -112,7 +112,7 @@ class RedisStreamFanOutBridge:
         )
         return [_event_from_payload(_event_payload(fields)) for _stream_id, fields in entries]
 
-    async def relay_once(self, run_id: str, hub: StreamFanOutHub) -> int:
+    async def relay_once(self, run_id: int, hub: StreamFanOutHub) -> int:
         pubsub = self._pubsubs.get(run_id)
         if pubsub is None:
             pubsub = self.redis_client.pubsub()

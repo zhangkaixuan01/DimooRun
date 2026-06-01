@@ -112,7 +112,7 @@ async def test_redis_backend_reports_missing_client_dependency() -> None:
     backend = RedisTaskBackend(redis_client=None)
 
     with pytest.raises(RedisUnavailableError):
-        await backend.enqueue({"run_id": "run_1"})
+        await backend.enqueue({"run_id": 1})
 
 
 async def test_redis_backend_leases_by_priority_and_sets_fencing_token() -> None:
@@ -137,7 +137,7 @@ async def test_redis_backend_leases_by_priority_and_sets_fencing_token() -> None
 async def test_redis_backend_uses_eval_for_atomic_lease_when_available() -> None:
     redis = EvalRedis()
     backend = RedisTaskBackend(redis)
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
 
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
@@ -150,7 +150,7 @@ async def test_redis_backend_uses_eval_for_atomic_lease_when_available() -> None
 
 async def test_redis_backend_checks_owner_and_fencing_token() -> None:
     backend = RedisTaskBackend(FakeRedis())
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
     assert leased is not None
@@ -168,7 +168,7 @@ async def test_redis_backend_fail_retries_then_dead_letters() -> None:
     redis = FakeRedis()
     backend = RedisTaskBackend(redis)
     task_id = await backend.enqueue(
-        {"queue": "default", "run_id": "run_1", "max_attempts": 2, "attempt": 1}
+        {"queue": "default", "run_id": 1, "max_attempts": 2, "attempt": 1}
     )
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
@@ -188,7 +188,7 @@ async def test_redis_backend_fail_retries_then_dead_letters() -> None:
 
 async def test_redis_backend_requeues_expired_lease_with_new_token() -> None:
     backend = RedisTaskBackend(FakeRedis())
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=-1)
     second = await backend.lease("default", worker_id="worker_2", lease_seconds=30)
 
@@ -200,7 +200,7 @@ async def test_redis_backend_requeues_expired_lease_with_new_token() -> None:
 
 async def test_redis_backend_dead_letters_expired_running_task_after_attempts() -> None:
     backend = RedisTaskBackend(FakeRedis())
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1", "max_attempts": 1})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1, "max_attempts": 1})
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=-1)
 
     assert leased is not None
@@ -215,7 +215,7 @@ async def test_redis_backend_dead_letters_expired_running_task_after_attempts() 
 
 async def test_redis_backend_reaper_consumes_attempt_before_requeue() -> None:
     backend = RedisTaskBackend(FakeRedis())
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1", "max_attempts": 3})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1, "max_attempts": 3})
     leased = await backend.lease("default", worker_id="worker_1", lease_seconds=-1)
 
     assert leased is not None
@@ -231,7 +231,7 @@ async def test_redis_backend_reaper_consumes_attempt_before_requeue() -> None:
 async def test_redis_backend_cancel_publishes_cross_instance_message() -> None:
     redis = FakeRedis()
     backend = RedisTaskBackend(redis)
-    task_id = await backend.enqueue({"queue": "default", "run_id": "run_1"})
+    task_id = await backend.enqueue({"queue": "default", "run_id": 1})
     await backend.lease("default", worker_id="worker_1", lease_seconds=30)
 
     await backend.cancel(task_id)
@@ -240,7 +240,7 @@ async def test_redis_backend_cancel_publishes_cross_instance_message() -> None:
     assert task["status"] == "cancelled"
     assert redis.published[0][0] == "dimoorun:cancel"
     assert json.loads(redis.published[0][1]) == {
-        "run_id": "run_1",
+        "run_id": 1,
         "status": "cancelled",
         "task_id": task_id,
         "worker_id": "worker_1",
@@ -253,9 +253,9 @@ async def test_redis_cancel_subscriber_reads_cancel_message() -> None:
         {
             "data": json.dumps(
                 {
-                    "run_id": "run_1",
+                    "run_id": 1,
                     "status": "cancelled",
-                    "task_id": "task_1",
+                    "task_id": 1,
                     "worker_id": "worker_1",
                 }
             )
@@ -265,8 +265,8 @@ async def test_redis_cancel_subscriber_reads_cancel_message() -> None:
     message = await RedisCancelSubscriber(redis).listen_once()
 
     assert message == {
-        "run_id": "run_1",
+        "run_id": 1,
         "status": "cancelled",
-        "task_id": "task_1",
+        "task_id": 1,
         "worker_id": "worker_1",
     }

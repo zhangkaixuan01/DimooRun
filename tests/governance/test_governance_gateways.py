@@ -28,13 +28,13 @@ from dimoo_run.tools.gateway import ToolDefinition, ToolGateway, ToolScopeMismat
 
 def context() -> RuntimeContext:
     return RuntimeContext(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
-        task_id="task_1",
-        agent_id="agent_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
+        task_id=1,
+        agent_id=1,
         agent_version_id="version_1",
-        deployment_id="deployment_1",
+        deployment_id=1,
         user_id="user_1",
         thread_id="thread_1",
     )
@@ -74,8 +74,8 @@ def test_tool_gateway_requires_policy_and_creates_human_task_for_high_risk_tool(
     gateway.register(
         ToolDefinition(
             id="delete_records",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             name="delete_records",
             risk_level="destructive",
             schema={"type": "object"},
@@ -136,16 +136,16 @@ def test_secret_provider_checks_policy_and_never_returns_secret_in_audit() -> No
     )
     provider = InMemorySecretProvider(policy_engine=engine)
     provider.put_secret(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="OPENAI_API_KEY",
         value="sk-secret",
     )
 
     with pytest.raises(SecretAccessDeniedError):
         provider.get_secret(
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             secret_name="OPENAI_API_KEY",
             context=context(),
         )
@@ -158,15 +158,15 @@ def test_secret_provider_records_allowed_secret_use_without_plaintext() -> None:
     audit_sink = InMemoryAuditSink()
     provider = InMemorySecretProvider(policy_engine=PolicyEngine(audit_sink=audit_sink))
     provider.put_secret(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="OPENAI_API_KEY",
         value="sk-secret",
     )
 
     secret = provider.get_secret(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         secret_name="OPENAI_API_KEY",
         context=context(),
     )
@@ -200,8 +200,8 @@ def test_model_gateway_enforces_budget_and_records_usage_snapshot() -> None:
     provider.register_gateway(
         ModelGatewayConfig(
             id="gateway_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             provider_type="newapi",
             base_url="https://newapi.example/v1",
             credential_ref="secret:newapi",
@@ -211,8 +211,8 @@ def test_model_gateway_enforces_budget_and_records_usage_snapshot() -> None:
     provider.set_policy(
         ModelPolicyConfig(
             id="policy_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             gateway_id="gateway_1",
             default_model="gpt-4.1-mini",
             allowed_models={"gpt-4.1-mini"},
@@ -240,7 +240,7 @@ def test_model_gateway_enforces_budget_and_records_usage_snapshot() -> None:
     assert request.base_url == "https://newapi.example/v1"
     assert request.credential_ref == "secret:newapi"
     assert request.model == "gpt-4.1-mini"
-    assert snapshot.run_id == "run_1"
+    assert snapshot.run_id == 1
     assert snapshot.total_tokens == 30
 
     with pytest.raises(BudgetExceededError):
@@ -268,8 +268,8 @@ def test_model_gateway_does_not_treat_approval_or_fallback_as_allow() -> None:
     provider.register_gateway(
         ModelGatewayConfig(
             id="gateway_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             provider_type="newapi",
             base_url="https://newapi.example/v1",
             credential_ref="secret:newapi",
@@ -278,8 +278,8 @@ def test_model_gateway_does_not_treat_approval_or_fallback_as_allow() -> None:
     provider.set_policy(
         ModelPolicyConfig(
             id="policy_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             gateway_id="gateway_1",
             default_model="gpt-4.1-mini",
             allowed_models={"gpt-4.1-mini"},
@@ -317,8 +317,8 @@ def test_model_gateway_runtime_policy_uses_use_action_not_create() -> None:
     provider.register_gateway(
         ModelGatewayConfig(
             id="gateway_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             provider_type="newapi",
             base_url="https://newapi.example/v1",
             credential_ref="secret:newapi",
@@ -327,8 +327,8 @@ def test_model_gateway_runtime_policy_uses_use_action_not_create() -> None:
     provider.set_policy(
         ModelPolicyConfig(
             id="policy_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             gateway_id="gateway_1",
             default_model="gpt-4.1-mini",
             allowed_models={"gpt-4.1-mini"},
@@ -351,8 +351,8 @@ def test_model_gateway_budget_require_approval_and_fallback_do_not_silently_allo
     provider.register_gateway(
         ModelGatewayConfig(
             id="gateway_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             provider_type="newapi",
             base_url="https://newapi.example/v1",
             credential_ref="secret:newapi",
@@ -361,8 +361,8 @@ def test_model_gateway_budget_require_approval_and_fallback_do_not_silently_allo
     provider.set_policy(
         ModelPolicyConfig(
             id="policy_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             gateway_id="gateway_1",
             default_model="gpt-4.1-mini",
             allowed_models={"gpt-4.1-mini"},
@@ -383,8 +383,8 @@ def test_model_gateway_budget_require_approval_and_fallback_do_not_silently_allo
     provider.set_policy(
         ModelPolicyConfig(
             id="policy_2",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             gateway_id="gateway_1",
             default_model="gpt-4.1-mini",
             allowed_models={"gpt-4.1-mini"},
@@ -416,8 +416,8 @@ def test_model_gateway_rejects_cross_scope_gateway_binding() -> None:
     provider.set_policy(
         ModelPolicyConfig(
             id="policy_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             gateway_id="gateway_1",
             default_model="gpt-4.1-mini",
             allowed_models={"gpt-4.1-mini"},
@@ -437,8 +437,8 @@ def test_catalog_prompt_assets_and_sandbox_policy_are_governed_boundaries() -> N
     item = catalog.register(
         CatalogItem(
             id="tool_catalog_1",
-            tenant_id="tenant_1",
-            project_id="project_1",
+            tenant_id=1,
+            project_id=1,
             type="ToolCatalogItem",
             name="Search",
             provider="builtin",
@@ -451,8 +451,8 @@ def test_catalog_prompt_assets_and_sandbox_policy_are_governed_boundaries() -> N
     )
     prompts = PromptAssetStore(policy_engine=PolicyEngine())
     prompt = prompts.create_prompt(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="support-system",
         version="1.0.0",
         content_ref="artifact://prompt/support/1.0.0",
@@ -480,11 +480,11 @@ def test_human_task_decision_is_audited_and_cannot_be_repeated() -> None:
     audit_sink = InMemoryAuditSink()
     hitl = HumanTaskService(audit_sink=audit_sink)
     task = hitl.create_approval(
-        tenant_id="tenant_1",
-        project_id="project_1",
-        run_id="run_1",
+        tenant_id=1,
+        project_id=1,
+        run_id=1,
         attempt_id=None,
-        task_id="task_1",
+        task_id=1,
         payload={"risk": "destructive"},
         requested_by="user_1",
     )

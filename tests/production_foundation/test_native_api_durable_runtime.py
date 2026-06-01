@@ -33,15 +33,15 @@ def durable_client() -> Iterator[tuple[TestClient, Session, str]]:
     authenticator = default_api_key_authenticator()
     scopes = {"agent:read", "agent:write", "agent:invoke", "agent:deploy"}
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="native",
         permissions=scopes,
         created_by="admin_1",
     )
     api_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="native-key",
         owner_type="service_account",
         owner_id=service_account.id,
@@ -59,8 +59,8 @@ def auth_headers(api_key: str, *, idempotency_key: str | None = None) -> dict[st
     headers = {
         "Authorization": f"Bearer {api_key}",
         "X-Request-Id": "req_durable",
-        "X-Tenant-Id": "tenant_1",
-        "X-Project-Id": "project_1",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
     }
     if idempotency_key is not None:
         headers["Idempotency-Key"] = idempotency_key
@@ -338,15 +338,15 @@ def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(
     authenticator = default_api_key_authenticator()
     scopes = {"agent:read", "agent:write", "agent:invoke", "agent:deploy"}
     service_account = authenticator.service_accounts.create(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="native",
         permissions=scopes,
         created_by="admin_1",
     )
     api_key, _ = authenticator.create_key(
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         name="native-key",
         owner_type="service_account",
         owner_id=service_account.id,

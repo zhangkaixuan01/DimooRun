@@ -42,11 +42,11 @@
               />
             </td>
             <td><StatusBadge :status="String(item.status || 'active')" :label="String(item.status || 'active')" /></td>
-            <td class="mono muted">{{ item.tenant_id || "-" }}</td>
-            <td class="mono muted">{{ item.project_id || "-" }}</td>
+            <td class="muted">{{ tenantName(item.tenant_id) }}</td>
+            <td class="muted">{{ projectName(item.project_id) }}</td>
             <td class="mono muted">{{ item.environment || "-" }}</td>
-            <td>{{ item.created_at || "-" }}</td>
-            <td>{{ item.updated_at || "-" }}</td>
+            <td>{{ formatDateTime(item.created_at) }}</td>
+            <td>{{ formatDateTime(item.updated_at) }}</td>
             <td class="mono muted">{{ metadataPreview(item) }}</td>
             <td>
               <div class="row-actions">
@@ -105,6 +105,7 @@ import ApiState from "../../components/ApiState.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
+import { formatDateTime } from "../../utils/dateTime";
 
 const props = defineProps<{
   title: string;
@@ -120,9 +121,11 @@ const mode = apiMode();
 const loading = ref(false);
 const creating = ref(false);
 const showCreate = ref(false);
-const mutatingId = ref<string | null>(null);
+const mutatingId = ref<number | null>(null);
 const error = ref<ConsoleApiError | null>(null);
 const items = ref<AdminResource[]>([]);
+const tenantOptions = ref<AdminResource[]>([]);
+const projectOptions = ref<AdminResource[]>([]);
 const createForm = reactive<Record<string, string>>({});
 
 const createFields = computed(() => fieldsForPath(props.resourcePath));
@@ -134,6 +137,7 @@ async function loadItems() {
   error.value = null;
   try {
     items.value = (await consoleClient.listAdminCollection(props.resourcePath)).items;
+    await loadScopeLabels();
   } catch (caught) {
     error.value = toConsoleApiError(caught);
   } finally {
@@ -223,15 +227,15 @@ function newItemPayloadFromForm(): Record<string, unknown> {
     const slug = slugify(name);
     return {
       name,
-      tenant_id: formValue("tenant_id") || scope.tenant_id,
+      tenant_id: numericId(formValue("tenant_id") || String(scope.tenant_id)),
       slug: slug || undefined,
     };
   }
   if (props.resourcePath === "/v1/identity/environments") {
     return {
       name,
-      tenant_id: formValue("tenant_id") || scope.tenant_id,
-      project_id: formValue("project_id") || scope.project_id,
+      tenant_id: numericId(formValue("tenant_id") || String(scope.tenant_id)),
+      project_id: numericId(formValue("project_id") || String(scope.project_id)),
       environment: formValue("environment") || name,
     };
   }
@@ -244,7 +248,7 @@ function newItemPayloadFromForm(): Record<string, unknown> {
       project_id: scope.project_id,
     };
   }
-  if (props.resourcePath === "/v1/service-accounts" || props.resourcePath === "/v1/identity/roles") {
+  if (props.resourcePath === "/v1/identity/roles") {
     return {
       name,
       description: formValue("description"),
@@ -264,6 +268,10 @@ function newItemPayloadFromForm(): Record<string, unknown> {
 
 function formValue(key: string): string {
   return String(createForm[key] || "").trim();
+}
+
+function numericId(value: string): number {
+  return Number(value);
 }
 
 function resetCreateForm() {
@@ -299,15 +307,15 @@ function fieldsForPath(path: string): Array<{
   if (path === "/v1/identity/projects") {
     return [
       { key: "name", label: t("name"), required: true, placeholder: "Support Platform" },
-      { key: "tenant_id", label: t("tenant"), required: true, defaultValue: scope.tenant_id },
+      { key: "tenant_id", label: t("tenant"), required: true, defaultValue: String(scope.tenant_id) },
     ];
   }
   if (path === "/v1/identity/environments") {
     return [
       { key: "name", label: t("name"), required: true, placeholder: "Production" },
       { key: "environment", label: t("environment"), required: true, placeholder: "prod" },
-      { key: "tenant_id", label: t("tenant"), required: true, defaultValue: scope.tenant_id },
-      { key: "project_id", label: t("project"), required: true, defaultValue: scope.project_id },
+      { key: "tenant_id", label: t("tenant"), required: true, defaultValue: String(scope.tenant_id) },
+      { key: "project_id", label: t("project"), required: true, defaultValue: String(scope.project_id) },
     ];
   }
   if (path === "/v1/identity/permissions") {
@@ -317,7 +325,7 @@ function fieldsForPath(path: string): Array<{
       { key: "action", label: t("action"), required: true, placeholder: "read" },
     ];
   }
-  if (path === "/v1/identity/roles" || path === "/v1/service-accounts") {
+  if (path === "/v1/identity/roles") {
     return [
       { key: "name", label: t("name"), required: true },
       { key: "description", label: t("description") },
@@ -326,14 +334,14 @@ function fieldsForPath(path: string): Array<{
   if (path === "/v1/published-surfaces") {
     return [
       { key: "name", label: t("name"), required: true, placeholder: "Public API" },
-      { key: "deployment_id", label: "Deployment ID", required: true, placeholder: "deployment_..." },
+      { key: "deployment_id", label: "Deployment ID", required: true, placeholder: "1" },
       { key: "type", label: "Type", defaultValue: "http" },
     ];
   }
   if (path === "/v1/ingress-routes") {
     return [
       { key: "name", label: t("name"), required: true, placeholder: "Public route" },
-      { key: "surface_id", label: "Surface ID", required: true, placeholder: "published_surface_..." },
+      { key: "surface_id", label: "Surface ID", required: true, placeholder: "1" },
       { key: "path", label: "Path", required: true, placeholder: "/api/support" },
       { key: "auth_mode", label: "Auth mode", defaultValue: "api_key" },
     ];
@@ -352,7 +360,7 @@ function fieldsForPath(path: string): Array<{
   if (path === "/v1/dataset-items") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "dataset_id", label: "Dataset ID", required: true, placeholder: "dataset_..." },
+      { key: "dataset_id", label: "Dataset ID", required: true, placeholder: "1" },
       { key: "input_ref", label: "Input ref", required: true },
       { key: "output_ref", label: "Output ref" },
       { key: "expected_ref", label: "Expected ref" },
@@ -396,7 +404,7 @@ function fieldsForPath(path: string): Array<{
   if (path === "/v1/alerts/rules") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "channel_id", label: "Channel ID", required: true, placeholder: "notification_channel_..." },
+      { key: "channel_id", label: "Channel ID", required: true, placeholder: "1" },
       { key: "signal", label: "Signal", defaultValue: "runtime.error_rate" },
       { key: "threshold", label: "Threshold", defaultValue: "1" },
     ];
@@ -430,10 +438,49 @@ function fieldsForPath(path: string): Array<{
 
 function parseFieldValue(key: string, value: string): unknown {
   if (["size_bytes", "threshold", "score", "max_containers", "idle_timeout_seconds"].includes(key)) return Number(value);
+  if (key.endsWith("_id")) return Number(value);
   if (key === "passed" || key === "access_log_enabled") {
     return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
   }
   return value;
+}
+
+async function loadScopeLabels() {
+  if (mode === "offline") return;
+  const hasTenantColumn = items.value.some((item) => item.tenant_id !== undefined && item.tenant_id !== null);
+  const hasProjectColumn = items.value.some((item) => item.project_id !== undefined && item.project_id !== null);
+  if (!hasTenantColumn && !hasProjectColumn) {
+    tenantOptions.value = [];
+    projectOptions.value = [];
+    return;
+  }
+  tenantOptions.value = (await consoleClient.listAdminCollection("/v1/identity/tenants")).items;
+  if (!hasProjectColumn) {
+    projectOptions.value = [];
+    return;
+  }
+  const projectPages = await Promise.all(
+    tenantOptions.value.map((tenant) =>
+      consoleClient.listAdminCollection("/v1/identity/projects", {
+        tenant_id: Number(tenant.id),
+      }),
+    ),
+  );
+  projectOptions.value = projectPages.flatMap((page) => page.items);
+}
+
+function tenantName(value: unknown): string {
+  return relatedName(tenantOptions.value, value);
+}
+
+function projectName(value: unknown): string {
+  return relatedName(projectOptions.value, value);
+}
+
+function relatedName(options: AdminResource[], value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  const match = options.find((item) => String(item.id) === String(value));
+  return match ? String(match.name || match.slug || match.environment || `#${match.id}`) : `#${String(value)}`;
 }
 
 function slugify(value: string): string {

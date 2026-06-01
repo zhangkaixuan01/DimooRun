@@ -37,7 +37,7 @@ def test_sqlalchemy_scheduler_metrics_snapshot_counts_runtime_queue() -> None:
 
 
 def _task(
-    task_id: str,
+    task_id: int,
     status: str,
     *,
     leased_until: datetime | None = None,
@@ -45,8 +45,8 @@ def _task(
     return Task(
         id=task_id,
         run_id=f"run_{task_id}",
-        tenant_id="tenant_1",
-        project_id="project_1",
+        tenant_id=1,
+        project_id=1,
         status=status,
         queue="default",
         leased_until=leased_until,

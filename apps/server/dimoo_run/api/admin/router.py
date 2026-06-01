@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated, Any
-from uuid import uuid4
 
 from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy import Boolean, Float, Integer, select
@@ -37,7 +36,7 @@ from dimoo_run.persistence.repositories import (
     ProjectRepository,
     TenantRepository,
 )
-from dimoo_run.security.api_keys import APIKeyScopeError, AuthenticatedActor
+from dimoo_run.security.api_keys import APIKeyError, APIKeyScopeError, AuthenticatedActor
 
 router = APIRouter(tags=["admin"], dependencies=[Depends(enforce_console_actor)])
 AdminPayload = Annotated[dict[str, Any] | None, Body()]
@@ -62,7 +61,7 @@ class AdminDbCollectionSpec:
     expose_name_from_metadata: bool = False
     environment_in_metadata: bool = True
 
-_COLLECTIONS: dict[str, dict[str, dict[str, Any]]] = {
+_COLLECTIONS: dict[str, dict[int, dict[str, Any]]] = {
     "policies": {},
     "tenants": {},
     "projects": {},
@@ -77,8 +76,6 @@ _COLLECTIONS: dict[str, dict[str, dict[str, Any]]] = {
     "dataset_items": {},
     "experiments": {},
     "replay_jobs": {},
-    "service_accounts": {},
-    "api_keys": {},
     "schedules": {},
     "batch_runs": {},
     "notification_channels": {},
@@ -103,6 +100,8 @@ _COLLECTIONS: dict[str, dict[str, dict[str, Any]]] = {
     "sandbox_policies": {},
     "container_pool_policies": {},
 }
+_COLLECTION_SEQUENCES: dict[str, int] = {collection: 0 for collection in _COLLECTIONS}
+_SLUG_SEQUENCES: dict[str, int] = {}
 
 _DB_COLLECTIONS: dict[str, AdminDbCollectionSpec] = {
     "policies": AdminDbCollectionSpec(
@@ -352,36 +351,46 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _resource_id(collection: str) -> str:
-    return f"{collection.rstrip('s')}_{uuid4().hex[:12]}"
+def _next_collection_id(collection: str) -> int:
+    _COLLECTION_SEQUENCES[collection] = _COLLECTION_SEQUENCES.get(collection, 0) + 1
+    return _COLLECTION_SEQUENCES[collection]
+
+
+def _default_slug(collection: str) -> str:
+    _SLUG_SEQUENCES[collection] = _SLUG_SEQUENCES.get(collection, 0) + 1
+    return f"{collection.rstrip('s')}-{_SLUG_SEQUENCES[collection]}"
 
 
 def _default_scope() -> tuple[str, str, str]:
     return (
-        os.getenv("DIMOORUN_DEFAULT_TENANT_ID", "tenant_1"),
-        os.getenv("DIMOORUN_DEFAULT_PROJECT_ID", "project_1"),
+        os.getenv("DIMOORUN_DEFAULT_TENANT_SLUG", "default-tenant"),
+        os.getenv("DIMOORUN_DEFAULT_PROJECT_SLUG", "default-project"),
         os.getenv("DIMOORUN_DEFAULT_ENVIRONMENT", "local"),
     )
 
 
 def _actor_can_access_target(
     actor: AuthenticatedActor,
-    tenant_id: str,
-    project_id: str | None,
+    tenant_id: int,
+    project_id: int | None,
 ) -> bool:
     if "*" in actor.scopes:
         return True
     if actor.tenant_id != tenant_id:
         return False
-    if actor.project_id is not None and project_id is not None and actor.project_id != project_id:
+    if (
+        actor.project_id is not None
+        and project_id is not None
+        and actor.project_id != project_id
+    ):
         return False
     return True
 
 
 def _scope_denied(
     request_id: str | None,
-    tenant_id: str,
-    project_id: str | None,
+    tenant_id: int,
+    project_id: int | None,
 ) -> dict[str, Any]:
     return {
         "error_code": "scope_not_allowed",
@@ -393,7 +402,7 @@ def _scope_denied(
 
 def _resource_not_found(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
 ) -> dict[str, Any]:
@@ -408,8 +417,8 @@ def _resource_not_found(
 
 def _resource_in_scope(
     resource: dict[str, Any],
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> bool:
     if tenant_id is not None and resource.get("tenant_id") != tenant_id:
@@ -426,14 +435,13 @@ def _append_identity_audit(
     *,
     action: str,
     resource_type: str,
-    resource_id: str | None,
+    resource_id: int | None,
     request_id: str | None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
     session = _open_scope_session()
     try:
         AuditLogRepository(session).append(
-            audit_id=_resource_id("audit_logs"),
             tenant_id=actor.tenant_id,
             project_id=actor.project_id,
             actor_id=actor.actor_id,
@@ -472,32 +480,38 @@ def _open_scope_session() -> Session:
 
 
 def _seed_scope_resources(session: Session) -> None:
-    tenant_id, project_id, environment = _default_scope()
-    if session.get(Tenant, tenant_id) is None:
-        session.add(
-            Tenant(
-                id=tenant_id,
-                name=os.getenv("DIMOORUN_DEFAULT_TENANT_NAME", "Default Tenant"),
-                slug=tenant_id,
-                status="active",
-            )
+    tenant_slug, project_slug, environment = _default_scope()
+    tenant = _tenant_by_slug(session, tenant_slug)
+    if tenant is None:
+        tenant = Tenant(
+            name=os.getenv("DIMOORUN_DEFAULT_TENANT_NAME", "Default Tenant"),
+            slug=tenant_slug,
+            status="active",
         )
-    if session.get(Project, project_id) is None:
-        session.add(
-            Project(
-                id=project_id,
-                tenant_id=tenant_id,
-                name=os.getenv("DIMOORUN_DEFAULT_PROJECT_NAME", "Default Project"),
-                slug=project_id,
-                status="active",
-            )
+        session.add(tenant)
+        session.flush()
+    project = _project_by_slug(session, project_slug, tenant.id)
+    if project is None:
+        project = Project(
+            tenant_id=tenant.id,
+            name=os.getenv("DIMOORUN_DEFAULT_PROJECT_NAME", "Default Project"),
+            slug=project_slug,
+            status="active",
         )
-    if session.get(Environment, environment) is None:
+        session.add(project)
+        session.flush()
+    existing_environment = session.scalar(
+        select(Environment).where(
+            Environment.tenant_id == tenant.id,
+            Environment.project_id == project.id,
+            Environment.environment == environment,
+        )
+    )
+    if existing_environment is None:
         session.add(
             Environment(
-                id=environment,
-                tenant_id=tenant_id,
-                project_id=project_id,
+                tenant_id=tenant.id,
+                project_id=project.id,
                 name=environment,
                 environment=environment,
                 status="active",
@@ -507,9 +521,45 @@ def _seed_scope_resources(session: Session) -> None:
     session.commit()
 
 
+def _tenant_by_id(session: Session, tenant_id: int | None) -> Tenant | None:
+    if tenant_id is None:
+        return None
+    return session.get(Tenant, tenant_id)
+
+
+def _project_by_id(
+    session: Session, project_id: int | None, tenant_id: int | None = None
+) -> Project | None:
+    if project_id is None:
+        return None
+    project = session.get(Project, project_id)
+    if tenant_id is not None:
+        return project if project is not None and project.tenant_id == tenant_id else None
+    return project
+
+
+def _tenant_by_slug(session: Session, slug: str) -> Tenant | None:
+    return session.scalar(select(Tenant).where(Tenant.slug == slug))
+
+
+def _project_by_slug(session: Session, slug: str, tenant_id: int) -> Project | None:
+    return session.scalar(select(Project).where(Project.tenant_id == tenant_id, Project.slug == slug))
+
+
+def _resolve_scope_ids(
+    session: Session, tenant_id: int | None, project_id: int | None
+) -> tuple[int | None, int | None]:
+    tenant = _tenant_by_id(session, tenant_id)
+    project = _project_by_id(session, project_id, tenant.id if tenant is not None else None)
+    return (
+        tenant.id if tenant is not None else tenant_id,
+        project.id if project is not None else project_id,
+    )
+
+
 def _scope_not_found(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
 ) -> dict[str, Any]:
@@ -553,7 +603,7 @@ def _validation_error(
 
 def _machine_identity_not_found(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
 ) -> dict[str, Any]:
@@ -584,8 +634,8 @@ def _serialize_scope_resource(resource: Tenant | Project | Environment) -> dict[
 def _list_scope_collection(
     collection: str,
     request_id: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
 ) -> dict[str, Any]:
     session = _open_scope_session()
     try:
@@ -594,14 +644,20 @@ def _list_scope_collection(
         if collection == "tenants":
             items = TenantRepository(session).list_active()
         elif collection == "projects":
-            default_tenant_id, _, _ = _default_scope()
-            items = ProjectRepository(session).list_by_tenant(tenant_id or default_tenant_id)
-        else:
-            default_tenant_id, default_project_id, _ = _default_scope()
-            items = EnvironmentRepository(session).list_by_project(
-                tenant_id or default_tenant_id,
-                project_id or default_project_id,
+            resolved_tenant_id, _ = _resolve_scope_ids(session, tenant_id, project_id)
+            items = (
+                ProjectRepository(session).list_by_tenant(resolved_tenant_id)
+                if resolved_tenant_id is not None
+                else []
             )
+        else:
+            resolved_tenant_id, resolved_project_id = _resolve_scope_ids(
+                session, tenant_id, project_id
+            )
+            items = EnvironmentRepository(session).list_by_project(
+                resolved_tenant_id,
+                resolved_project_id,
+            ) if resolved_tenant_id is not None and resolved_project_id is not None else []
         serialized = [_serialize_scope_resource(item) for item in items]
         return {"items": serialized, "count": len(serialized), "request_id": request_id}
     finally:
@@ -620,47 +676,68 @@ def _create_scope_resource(
     try:
         _seed_scope_resources(session)
         if collection == "tenants":
-            target_tenant_id = str(data.get("id") or _resource_id(collection))
-            if not _actor_can_access_target(actor, target_tenant_id, None):
+            slug = str(data.get("slug") or _default_slug(collection))
+            if "*" not in actor.scopes:
                 response.status_code = 403
-                return _scope_denied(request_id, target_tenant_id, None)
+                return {
+                    "error_code": "permission_denied",
+                    "message": "Global scope is required to create a tenant.",
+                    "request_id": request_id,
+                    "details": {},
+                }
             resource: Tenant | Project | Environment = Tenant(
-                id=target_tenant_id,
                 name=str(data.get("name") or "Tenant"),
-                slug=str(data.get("slug") or target_tenant_id),
+                slug=slug,
                 status=str(data.get("status") or "active"),
             )
         elif collection == "projects":
-            tenant_id, _, _ = _default_scope()
-            target_tenant_id = str(data.get("tenant_id") or tenant_id)
+            target_tenant_id = int(data.get("tenant_id") or actor.tenant_id)
             if not _actor_can_access_target(actor, target_tenant_id, None):
                 response.status_code = 403
                 return _scope_denied(request_id, target_tenant_id, None)
+            tenant = _tenant_by_id(session, target_tenant_id)
+            if tenant is None:
+                response.status_code = 404
+                return _scope_not_found("tenants", target_tenant_id, request_id, response)
             resource = Project(
-                id=str(data.get("id") or _resource_id(collection)),
-                tenant_id=target_tenant_id,
+                tenant_id=tenant.id,
                 name=str(data.get("name") or "Project"),
-                slug=str(data.get("slug") or data.get("id") or _resource_id(collection)),
+                slug=str(data.get("slug") or _default_slug(collection)),
                 status=str(data.get("status") or "active"),
             )
         else:
-            tenant_id, project_id, _ = _default_scope()
-            target_tenant_id = str(data.get("tenant_id") or tenant_id)
-            target_project_id = str(data.get("project_id") or project_id)
+            target_tenant_id = int(data.get("tenant_id") or actor.tenant_id)
+            raw_project_id = data.get("project_id") or actor.project_id
+            target_project_id = int(raw_project_id) if raw_project_id is not None else None
+            if not target_project_id:
+                response.status_code = 400
+                return {
+                    "error_code": "project_scope_required",
+                    "message": "A project scope is required to create an environment.",
+                    "request_id": request_id,
+                    "details": {},
+                }
             if not _actor_can_access_target(actor, target_tenant_id, target_project_id):
                 response.status_code = 403
                 return _scope_denied(request_id, target_tenant_id, target_project_id)
-            environment = str(data.get("environment") or _resource_id(collection))
+            tenant = _tenant_by_id(session, target_tenant_id)
+            project = _project_by_id(
+                session, target_project_id, tenant.id if tenant is not None else None
+            )
+            if tenant is None or project is None:
+                response.status_code = 404
+                return _scope_not_found("projects", target_project_id, request_id, response)
+            environment = str(data.get("environment") or _default_slug(collection))
             resource = Environment(
-                id=str(data.get("id") or environment),
-                tenant_id=target_tenant_id,
-                project_id=target_project_id,
+                tenant_id=tenant.id,
+                project_id=project.id,
                 name=str(data.get("name") or environment),
                 environment=environment,
                 status=str(data.get("status") or "active"),
                 metadata_json=dict(data.get("metadata") or {}),
             )
         session.add(resource)
+        session.flush()
         session.commit()
         _append_identity_audit(
             actor,
@@ -680,7 +757,7 @@ def _create_scope_resource(
 
 def _update_scope_resource(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     payload: dict[str, Any] | None,
     request_id: str | None,
     response: Response,
@@ -713,7 +790,7 @@ def _update_scope_resource(
 
 def _delete_scope_resource(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
 ) -> dict[str, Any]:
@@ -821,8 +898,8 @@ def _serialize_audit_log(record: AuditLog) -> dict[str, Any]:
 
 def _list_audit_logs(
     request_id: str | None,
-    tenant_id: str | None = None,
-    project_id: str | None = None,
+    tenant_id: int | None = None,
+    project_id: int | None = None,
 ) -> dict[str, Any]:
     session = _open_scope_session()
     try:
@@ -849,7 +926,6 @@ def _create_console_identity_resource(
     try:
         if collection == "roles":
             resource: ConsoleRole | ConsolePermission = ConsoleRole(
-                id=str(data.get("id") or _resource_id(collection)),
                 name=str(data.get("name") or data.get("code") or "role"),
                 description=(
                     str(data["description"]) if data.get("description") is not None else None
@@ -860,7 +936,6 @@ def _create_console_identity_resource(
             code = str(data.get("code") or data.get("name") or "permission:use")
             resource_name, action = _permission_parts(code)
             resource = ConsolePermission(
-                id=str(data.get("id") or _resource_id(collection)),
                 code=code,
                 resource=str(data.get("resource") or resource_name),
                 action=str(data.get("action") or action),
@@ -870,6 +945,7 @@ def _create_console_identity_resource(
                 status=str(data.get("status") or "active"),
             )
         session.add(resource)
+        session.flush()
         session.commit()
         response.status_code = 201
         return {
@@ -885,7 +961,7 @@ def _create_console_identity_resource(
 
 def _update_console_identity_resource(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     payload: dict[str, Any] | None,
     request_id: str | None,
     response: Response,
@@ -911,7 +987,6 @@ def _update_console_identity_resource(
                     if permission is not None:
                         session.add(
                             ConsoleRolePermission(
-                                id=_resource_id("role_permissions"),
                                 role_id=resource.id,
                                 permission_id=permission.id,
                             )
@@ -934,7 +1009,7 @@ def _update_console_identity_resource(
 
 def _delete_console_identity_resource(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
 ) -> dict[str, Any]:
@@ -1005,13 +1080,21 @@ def _db_record_environment(record: Any) -> str | None:
 
 def _db_record_in_scope(
     record: Any,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> bool:
-    if tenant_id is not None and hasattr(record, "tenant_id") and record.tenant_id != tenant_id:
+    if (
+        tenant_id is not None
+        and hasattr(record, "tenant_id")
+        and record.tenant_id != tenant_id
+    ):
         return False
-    if project_id is not None and hasattr(record, "project_id") and record.project_id != project_id:
+    if (
+        project_id is not None
+        and hasattr(record, "project_id")
+        and record.project_id != project_id
+    ):
         return False
     record_environment = _db_record_environment(record)
     if environment is not None and record_environment not in {None, environment}:
@@ -1046,8 +1129,8 @@ def _db_payload_attrs(
     spec: AdminDbCollectionSpec,
     payload: dict[str, Any] | None,
     *,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
     actor: AuthenticatedActor | None,
     existing: Any | None = None,
@@ -1056,7 +1139,6 @@ def _db_payload_attrs(
     columns = _model_columns(spec.model)
     attrs: dict[str, Any] = {} if existing is not None else dict(spec.defaults)
     if existing is None:
-        attrs["id"] = str(data.get("id") or _resource_id(collection))
         if "tenant_id" in columns:
             attrs["tenant_id"] = tenant_id
         if "project_id" in columns:
@@ -1097,8 +1179,8 @@ def _validate_db_payload(
     payload: dict[str, Any] | None,
     session: Session,
     *,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
     request_id: str | None,
     response: Response,
@@ -1121,7 +1203,7 @@ def _validate_db_payload(
         value = data.get(field_name)
         if value is None or value == "":
             continue
-        parent = session.get(parent_model, str(value))
+        parent = session.get(parent_model, int(value))
         if parent is None or getattr(parent, "is_deleted", False):
             return _validation_error(
                 collection,
@@ -1142,28 +1224,29 @@ def _validate_db_payload(
 def _list_db_collection(
     collection: str,
     request_id: str | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
     session = _open_scope_session()
     try:
         _seed_scope_resources(session)
+        resolved_tenant_id, resolved_project_id = _resolve_scope_ids(session, tenant_id, project_id)
         model = spec.model
         statement = select(model)
         if hasattr(model, "is_deleted"):
             statement = statement.where(model.is_deleted.is_(False))
         if tenant_id is not None and hasattr(model, "tenant_id"):
-            statement = statement.where(model.tenant_id == tenant_id)
+            statement = statement.where(model.tenant_id == resolved_tenant_id)
         if project_id is not None and hasattr(model, "project_id"):
-            statement = statement.where(model.project_id == project_id)
+            statement = statement.where(model.project_id == resolved_project_id)
         if hasattr(model, "created_at"):
             statement = statement.order_by(model.created_at.desc())
         records = [
             record
             for record in session.scalars(statement)
-            if _db_record_in_scope(record, tenant_id, project_id, environment)
+            if _db_record_in_scope(record, resolved_tenant_id, resolved_project_id, environment)
         ]
         items = [_serialize_db_admin_record(record, spec) for record in records]
         return {"items": items, "count": len(items), "request_id": request_id}
@@ -1177,21 +1260,22 @@ def _create_db_record(
     request_id: str | None,
     response: Response,
     actor: AuthenticatedActor | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
     session = _open_scope_session()
     try:
         _seed_scope_resources(session)
+        resolved_tenant_id, resolved_project_id = _resolve_scope_ids(session, tenant_id, project_id)
         validation_error = _validate_db_payload(
             collection,
             spec,
             payload,
             session,
-            tenant_id=tenant_id,
-            project_id=project_id,
+            tenant_id=resolved_tenant_id,
+            project_id=resolved_project_id,
             environment=environment,
             request_id=request_id,
             response=response,
@@ -1203,13 +1287,14 @@ def _create_db_record(
                 collection,
                 spec,
                 payload,
-                tenant_id=tenant_id,
-                project_id=project_id,
+                tenant_id=resolved_tenant_id,
+                project_id=resolved_project_id,
                 environment=environment,
                 actor=actor,
             )
         )
         session.add(record)
+        session.flush()
         session.commit()
         response.status_code = 201
         return {"item": _serialize_db_admin_record(record, spec), "request_id": request_id}
@@ -1222,12 +1307,12 @@ def _create_db_record(
 
 def _get_db_record_or_error(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
     session: Session,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> Any | dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
@@ -1243,26 +1328,28 @@ def _get_db_record_or_error(
 
 def _update_db_record(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     payload: dict[str, Any] | None,
     request_id: str | None,
     response: Response,
     actor: AuthenticatedActor | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
     session = _open_scope_session()
     try:
+        _seed_scope_resources(session)
+        resolved_tenant_id, resolved_project_id = _resolve_scope_ids(session, tenant_id, project_id)
         result = _get_db_record_or_error(
             collection,
             resource_id,
             request_id,
             response,
             session,
-            tenant_id,
-            project_id,
+            resolved_tenant_id,
+            resolved_project_id,
             environment,
         )
         if isinstance(result, dict):
@@ -1272,8 +1359,8 @@ def _update_db_record(
             spec,
             payload,
             session,
-            tenant_id=tenant_id,
-            project_id=project_id,
+            tenant_id=resolved_tenant_id,
+            project_id=resolved_project_id,
             environment=environment,
             request_id=request_id,
             response=response,
@@ -1285,8 +1372,8 @@ def _update_db_record(
             collection,
             spec,
             payload,
-            tenant_id=tenant_id,
-            project_id=project_id,
+            tenant_id=resolved_tenant_id,
+            project_id=resolved_project_id,
             environment=environment,
             actor=actor,
             existing=result,
@@ -1305,25 +1392,27 @@ def _update_db_record(
 
 def _delete_db_record(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
     actor: AuthenticatedActor | None,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
     session = _open_scope_session()
     try:
+        _seed_scope_resources(session)
+        resolved_tenant_id, resolved_project_id = _resolve_scope_ids(session, tenant_id, project_id)
         result = _get_db_record_or_error(
             collection,
             resource_id,
             request_id,
             response,
             session,
-            tenant_id,
-            project_id,
+            resolved_tenant_id,
+            resolved_project_id,
             environment,
         )
         if isinstance(result, dict):
@@ -1344,24 +1433,26 @@ def _delete_db_record(
 
 def _get_db_record(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
     session = _open_scope_session()
     try:
+        _seed_scope_resources(session)
+        resolved_tenant_id, resolved_project_id = _resolve_scope_ids(session, tenant_id, project_id)
         result = _get_db_record_or_error(
             collection,
             resource_id,
             request_id,
             response,
             session,
-            tenant_id,
-            project_id,
+            resolved_tenant_id,
+            resolved_project_id,
             environment,
         )
         if isinstance(result, dict):
@@ -1374,8 +1465,8 @@ def _get_db_record(
 def _list(
     collection: str,
     request_id: str | None,
-    tenant_id: str | None = None,
-    project_id: str | None = None,
+    tenant_id: int | None = None,
+    project_id: int | None = None,
     environment: str | None = None,
 ) -> dict[str, Any]:
     if collection in {"tenants", "projects", "environments"}:
@@ -1400,8 +1491,8 @@ def _create(
     request_id: str | None,
     response: Response,
     actor: AuthenticatedActor | None = None,
-    tenant_id: str | None = None,
-    project_id: str | None = None,
+    tenant_id: int | None = None,
+    project_id: int | None = None,
     environment: str | None = None,
 ) -> dict[str, Any]:
     if collection in {"tenants", "projects", "environments"}:
@@ -1421,8 +1512,9 @@ def _create(
             environment,
         )
     response.status_code = 201
+    resource_id = int((payload or {}).get("id") or _next_collection_id(collection))
     resource = {
-        "id": str((payload or {}).get("id") or _resource_id(collection)),
+        "id": resource_id,
         "status": str((payload or {}).get("status") or "active"),
         "tenant_id": tenant_id,
         "project_id": project_id,
@@ -1436,18 +1528,18 @@ def _create(
             if key not in {"metadata", "tenant_id", "project_id", "environment"}
         },
     }
-    _COLLECTIONS[collection][resource["id"]] = resource
+    _COLLECTIONS[collection][resource_id] = resource
     return {"item": resource, "request_id": request_id}
 
 
 def _update(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     payload: dict[str, Any] | None,
     request_id: str | None,
     response: Response,
-    tenant_id: str | None = None,
-    project_id: str | None = None,
+    tenant_id: int | None = None,
+    project_id: int | None = None,
     environment: str | None = None,
 ) -> dict[str, Any]:
     if collection in {"tenants", "projects", "environments"}:
@@ -1484,11 +1576,11 @@ def _update(
 
 def _delete(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
-    tenant_id: str | None = None,
-    project_id: str | None = None,
+    tenant_id: int | None = None,
+    project_id: int | None = None,
     environment: str | None = None,
 ) -> dict[str, Any]:
     if collection in {"tenants", "projects", "environments"}:
@@ -1517,11 +1609,11 @@ def _delete(
 
 def _get(
     collection: str,
-    resource_id: str,
+    resource_id: int,
     request_id: str | None,
     response: Response,
-    tenant_id: str | None = None,
-    project_id: str | None = None,
+    tenant_id: int | None = None,
+    project_id: int | None = None,
     environment: str | None = None,
 ) -> dict[str, Any]:
     if collection in _DB_COLLECTIONS:
@@ -1614,7 +1706,7 @@ def delete_policy(
 
 @router.get("/artifacts/{artifact_id}")
 def get_artifact(
-    artifact_id: str,
+    artifact_id: int,
     response: Response,
     x_request_id: RequestIdHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -1644,7 +1736,7 @@ def list_human_tasks(
 
 @router.post("/human-tasks/{task_id}/approve")
 def approve_human_task(
-    task_id: str,
+    task_id: int,
     response: Response,
     payload: AdminPayload = None,
     x_request_id: RequestIdHeader = None,
@@ -1666,7 +1758,7 @@ def approve_human_task(
 
 @router.post("/human-tasks/{task_id}/reject")
 def reject_human_task(
-    task_id: str,
+    task_id: int,
     response: Response,
     payload: AdminPayload = None,
     x_request_id: RequestIdHeader = None,
@@ -1687,14 +1779,14 @@ def reject_human_task(
 
 
 def _record_human_decision(
-    task_id: str,
+    task_id: int,
     *,
     decision: str,
     payload: dict[str, Any] | None,
     request_id: str | None,
     response: Response,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     if "human_tasks" in _DB_COLLECTIONS:
@@ -1710,7 +1802,6 @@ def _record_human_decision(
                 return _resource_not_found("human_tasks", task_id, request_id, response)
             if task is None:
                 task = spec.model(
-                    id=task_id,
                     tenant_id=tenant_id,
                     project_id=project_id,
                     type=str((payload or {}).get("type") or "approval"),
@@ -1811,9 +1902,17 @@ def create_identity_service_account(
     x_request_id: RequestIdHeader = None,
 ) -> dict[str, Any]:
     data = payload or {}
-    tenant_id, project_id, _ = _default_scope()
-    target_tenant_id = str(data.get("tenant_id") or tenant_id)
-    target_project_id = str(data.get("project_id") or project_id)
+    target_tenant_id = int(data.get("tenant_id") or actor.tenant_id)
+    raw_project_id = data.get("project_id") or actor.project_id
+    target_project_id = int(raw_project_id) if raw_project_id is not None else None
+    if target_project_id is None:
+        response.status_code = 400
+        return {
+            "error_code": "project_scope_required",
+            "message": "A project scope is required to create a service account.",
+            "request_id": x_request_id,
+            "details": {},
+        }
     if not _actor_can_access_target(actor, target_tenant_id, target_project_id):
         response.status_code = 403
         return _scope_denied(x_request_id, target_tenant_id, target_project_id)
@@ -1837,7 +1936,7 @@ def create_identity_service_account(
 
 @router.patch("/identity/service-accounts/{service_account_id}")
 def update_identity_service_account(
-    service_account_id: str,
+    service_account_id: int,
     actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
     response: Response,
     payload: AdminPayload = None,
@@ -1900,7 +1999,7 @@ def update_identity_service_account(
 
 
 def _disable_api_keys_outside_service_account_permissions(
-    service_account_id: str,
+    service_account_id: int,
     record: Any,
     actor: AuthenticatedActor,
 ) -> None:
@@ -1914,7 +2013,7 @@ def _disable_api_keys_outside_service_account_permissions(
 
 @router.delete("/identity/service-accounts/{service_account_id}")
 def delete_identity_service_account(
-    service_account_id: str,
+    service_account_id: int,
     actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
     response: Response,
     x_request_id: RequestIdHeader = None,
@@ -1950,7 +2049,7 @@ def delete_identity_service_account(
 
 @router.get("/identity/service-accounts/{service_account_id}/api-keys")
 def list_identity_service_account_api_keys(
-    service_account_id: str,
+    service_account_id: int,
     actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
     response: Response,
     x_request_id: RequestIdHeader = None,
@@ -1977,7 +2076,7 @@ def list_identity_service_account_api_keys(
 
 @router.post("/identity/service-accounts/{service_account_id}/api-keys", status_code=201)
 def create_identity_service_account_api_key(
-    service_account_id: str,
+    service_account_id: int,
     actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
     response: Response,
     payload: AdminPayload = None,
@@ -2032,13 +2131,93 @@ def create_identity_service_account_api_key(
 
 @router.post("/identity/service-accounts/{service_account_id}/api-keys/{key_id}/disable")
 def disable_identity_service_account_api_key(
-    service_account_id: str,
-    key_id: str,
+    service_account_id: int,
+    key_id: int,
     actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
     response: Response,
     x_request_id: RequestIdHeader = None,
 ) -> dict[str, Any]:
-    record = next(
+    record = _get_service_account_api_key(service_account_id, key_id)
+    if record is None:
+        return _machine_identity_not_found("api_keys", key_id, x_request_id, response)
+    if not _actor_can_access_target(actor, record.tenant_id, record.project_id):
+        response.status_code = 403
+        return _scope_denied(x_request_id, record.tenant_id, record.project_id)
+    record = default_api_key_authenticator().disable_key(key_id, actor_id=actor.actor_id)
+    _append_identity_audit(
+        actor,
+        action="identity.api_key.disable",
+        resource_type="api_key",
+        resource_id=key_id,
+        request_id=x_request_id,
+        metadata={"service_account_id": service_account_id},
+    )
+    return {"item": _serialize_api_key(record), "request_id": x_request_id}
+
+
+@router.post("/identity/service-accounts/{service_account_id}/api-keys/{key_id}/enable")
+def enable_identity_service_account_api_key(
+    service_account_id: int,
+    key_id: int,
+    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
+    response: Response,
+    x_request_id: RequestIdHeader = None,
+) -> dict[str, Any]:
+    record = _get_service_account_api_key(service_account_id, key_id)
+    if record is None:
+        return _machine_identity_not_found("api_keys", key_id, x_request_id, response)
+    if not _actor_can_access_target(actor, record.tenant_id, record.project_id):
+        response.status_code = 403
+        return _scope_denied(x_request_id, record.tenant_id, record.project_id)
+    try:
+        record = default_api_key_authenticator().enable_key(key_id, actor_id=actor.actor_id)
+    except (APIKeyError, KeyError) as exc:
+        response.status_code = 403 if isinstance(exc, APIKeyError) else 404
+        return {
+            "error_code": str(exc) if isinstance(exc, APIKeyError) else "api_key_not_found",
+            "message": "API key cannot be enabled for the current service account permissions.",
+            "request_id": x_request_id,
+            "details": {"service_account_id": service_account_id, "api_key_id": key_id},
+        }
+    _append_identity_audit(
+        actor,
+        action="identity.api_key.enable",
+        resource_type="api_key",
+        resource_id=key_id,
+        request_id=x_request_id,
+        metadata={"service_account_id": service_account_id},
+    )
+    return {"item": _serialize_api_key(record), "request_id": x_request_id}
+
+
+@router.delete("/identity/service-accounts/{service_account_id}/api-keys/{key_id}")
+def delete_identity_service_account_api_key(
+    service_account_id: int,
+    key_id: int,
+    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
+    response: Response,
+    x_request_id: RequestIdHeader = None,
+) -> dict[str, Any]:
+    record = _get_service_account_api_key(service_account_id, key_id)
+    if record is None:
+        return _machine_identity_not_found("api_keys", key_id, x_request_id, response)
+    if not _actor_can_access_target(actor, record.tenant_id, record.project_id):
+        response.status_code = 403
+        return _scope_denied(x_request_id, record.tenant_id, record.project_id)
+    record = default_api_key_authenticator().delete_key(key_id, actor_id=actor.actor_id)
+    _append_identity_audit(
+        actor,
+        action="identity.api_key.delete",
+        resource_type="api_key",
+        resource_id=key_id,
+        request_id=x_request_id,
+        metadata={"service_account_id": service_account_id},
+    )
+    return {"item": _serialize_api_key(record), "request_id": x_request_id}
+
+
+def _get_service_account_api_key(service_account_id: int, key_id: int) -> Any | None:
+    return next(
         (
             key
             for key in default_api_key_authenticator().list_keys(
@@ -2049,21 +2228,6 @@ def disable_identity_service_account_api_key(
         ),
         None,
     )
-    if record is None:
-        return _machine_identity_not_found("api_keys", key_id, x_request_id, response)
-    if not _actor_can_access_target(actor, record.tenant_id, record.project_id):
-        response.status_code = 403
-        return _scope_denied(x_request_id, record.tenant_id, record.project_id)
-    default_api_key_authenticator().disable_key(key_id, actor_id=actor.actor_id)
-    _append_identity_audit(
-        actor,
-        action="identity.api_key.disable",
-        resource_type="api_key",
-        resource_id=key_id,
-        request_id=x_request_id,
-        metadata={"service_account_id": service_account_id},
-    )
-    return {"item": _serialize_api_key(record), "request_id": x_request_id}
 
 
 def register_collection_routes(path: str, collection: str) -> None:
@@ -2096,7 +2260,7 @@ def register_collection_routes(path: str, collection: str) -> None:
         )
 
     async def update_item(
-        resource_id: str,
+        resource_id: int,
         response: Response,
         payload: AdminPayload = None,
         x_request_id: RequestIdHeader = None,
@@ -2116,7 +2280,7 @@ def register_collection_routes(path: str, collection: str) -> None:
         )
 
     async def delete_item(
-        resource_id: str,
+        resource_id: int,
         response: Response,
         x_request_id: RequestIdHeader = None,
         x_tenant_id: TenantIdHeader = None,
@@ -2151,8 +2315,6 @@ for _path, _collection in [
     ("/dataset-items", "dataset_items"),
     ("/experiments", "experiments"),
     ("/replay-jobs", "replay_jobs"),
-    ("/service-accounts", "service_accounts"),
-    ("/api-keys", "api_keys"),
     ("/schedules", "schedules"),
     ("/batch-runs", "batch_runs"),
     ("/notifications/channels", "notification_channels"),
@@ -2212,7 +2374,7 @@ def create_catalog_item(
 
 @router.post("/incidents/{incident_id}/acknowledge")
 def acknowledge_incident(
-    incident_id: str,
+    incident_id: int,
     response: Response,
     payload: AdminPayload = None,
     x_request_id: RequestIdHeader = None,
@@ -2234,7 +2396,7 @@ def acknowledge_incident(
 
 @router.post("/incidents/{incident_id}/resolve")
 def resolve_incident(
-    incident_id: str,
+    incident_id: int,
     response: Response,
     payload: AdminPayload = None,
     x_request_id: RequestIdHeader = None,
@@ -2255,14 +2417,14 @@ def resolve_incident(
 
 
 def _record_incident_decision(
-    incident_id: str,
+    incident_id: int,
     *,
     status: str,
     payload: dict[str, Any] | None,
     request_id: str | None,
     response: Response,
-    tenant_id: str | None,
-    project_id: str | None,
+    tenant_id: int | None,
+    project_id: int | None,
     environment: str | None,
 ) -> dict[str, Any]:
     if "incidents" in _DB_COLLECTIONS:
@@ -2283,8 +2445,7 @@ def _record_incident_decision(
                         "incidents",
                         spec,
                         {
-                            "id": incident_id,
-                            "name": incident_id,
+                            "name": f"Incident {incident_id}",
                             "status": status,
                             "metadata": {"decision_payload": decision_payload},
                         },

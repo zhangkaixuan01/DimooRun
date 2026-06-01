@@ -48,9 +48,9 @@ class AgentAdapter(Protocol):
     async def resume(
         self,
         agent: Any,
-        run_id: str,
+        run_id: int,
         payload: dict[str, Any],
         context: RuntimeContext,
     ) -> AgentResult: ...
 
-    async def cancel(self, run_id: str, context: RuntimeContext) -> None: ...
+    async def cancel(self, run_id: int, context: RuntimeContext) -> None: ...

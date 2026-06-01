@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
 from dimoo_run.artifacts.store import ArtifactChecksumMismatchError, ArtifactRecord
 from dimoo_run.observability.audit import InMemoryComplianceAuditLog
@@ -13,9 +12,9 @@ class RestoreValidationError(RuntimeError):
 
 @dataclass(frozen=True)
 class BackupPlan:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     name: str
     scope: str
     targets: list[str]
@@ -30,7 +29,7 @@ class BackupPlan:
 
 @dataclass(frozen=True)
 class RestoreValidationReport:
-    id: str
+    id: int
     backup_ref: str
     restore_scope: str
     passed: bool
@@ -40,13 +39,13 @@ class RestoreValidationReport:
 
 @dataclass(frozen=True)
 class RestoreJob:
-    id: str
-    tenant_id: str
-    project_id: str | None
+    id: int
+    tenant_id: int
+    project_id: int | None
     backup_ref: str
     restore_scope: str
     status: str
-    backup_plan_id: str | None = None
+    backup_plan_id: int | None = None
     validation_report: RestoreValidationReport | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -55,14 +54,17 @@ class RestoreJob:
 class BackupRestoreService:
     def __init__(self, *, audit_log: InMemoryComplianceAuditLog) -> None:
         self.audit_log = audit_log
-        self.plans: dict[str, BackupPlan] = {}
-        self.restore_jobs: dict[str, RestoreJob] = {}
+        self.plans: dict[int, BackupPlan] = {}
+        self.restore_jobs: dict[int, RestoreJob] = {}
+        self._next_plan_id = 0
+        self._next_report_id = 0
+        self._next_job_id = 0
 
     def create_plan(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         name: str,
         scope: str,
         targets: list[str],
@@ -78,7 +80,7 @@ class BackupRestoreService:
         if scope == "project" and project_id is None:
             raise ValueError("project_backup_requires_project_id")
         plan = BackupPlan(
-            id=str(uuid4()),
+            id=self._allocate_plan_id(),
             tenant_id=tenant_id,
             project_id=project_id,
             name=name,
@@ -97,13 +99,13 @@ class BackupRestoreService:
     def dry_run_restore(
         self,
         *,
-        tenant_id: str,
-        project_id: str | None,
+        tenant_id: int,
+        project_id: int | None,
         backup_ref: str,
         restore_scope: str,
         artifacts: list[tuple[ArtifactRecord, bytes]],
         actor_id: str | None,
-        backup_plan_id: str | None = None,
+        backup_plan_id: int | None = None,
     ) -> RestoreJob:
         if backup_plan_id is not None:
             plan = self.plans.get(backup_plan_id)
@@ -120,7 +122,7 @@ class BackupRestoreService:
         checks = [_validate_artifact(record, data) for record, data in artifacts]
         passed = all(check["passed"] for check in checks)
         report = RestoreValidationReport(
-            id=str(uuid4()),
+            id=self._allocate_report_id(),
             backup_ref=backup_ref,
             restore_scope=restore_scope,
             passed=passed,
@@ -128,7 +130,7 @@ class BackupRestoreService:
         )
         status = "dry_run_passed" if passed else "dry_run_failed"
         job = RestoreJob(
-            id=str(uuid4()),
+            id=self._allocate_job_id(),
             tenant_id=tenant_id,
             project_id=project_id,
             backup_ref=backup_ref,
@@ -152,6 +154,18 @@ class BackupRestoreService:
             metadata={"backup_ref": backup_ref, "restore_scope": restore_scope, "passed": passed},
         )
         return job
+
+    def _allocate_plan_id(self) -> int:
+        self._next_plan_id += 1
+        return self._next_plan_id
+
+    def _allocate_report_id(self) -> int:
+        self._next_report_id += 1
+        return self._next_report_id
+
+    def _allocate_job_id(self) -> int:
+        self._next_job_id += 1
+        return self._next_job_id
 
 
 def _validate_artifact(record: ArtifactRecord, data: bytes) -> dict[str, Any]:
