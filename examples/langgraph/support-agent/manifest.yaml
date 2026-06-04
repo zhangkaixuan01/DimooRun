@@ -1,0 +1,27 @@
+schema_version: "1.0"
+name: support-agent
+version: "0.1.0"
+runtime:
+  framework: langgraph
+  adapter: langgraph
+  entrypoint: agent:build_graph
+  python: ">=3.11"
+capabilities:
+  invoke: true
+  stream: true
+  checkpoint: true
+  resume: true
+  interrupt: true
+  human_in_loop: true
+  tool_events: true
+  model_events: true
+  token_usage: true
+  filesystem: false
+  subagents: false
+dependencies:
+  - langgraph==1.2.1
+  - langchain-core==1.4.0
+required_secrets: []
+security:
+  network_policy: restricted
+  allow_file_system_write: false

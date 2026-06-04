@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EnterpriseSupportAgentOutput",
+  "type": "object",
+  "required": ["answer"],
+  "properties": {
+    "answer": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "risk_level": {
+      "type": "string"
+    },
+    "approved": {
+      "type": "boolean"
+    },
+    "tool_events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "model_events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "token_usage": {
+      "type": "object"
+    },
+    "audit": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}
