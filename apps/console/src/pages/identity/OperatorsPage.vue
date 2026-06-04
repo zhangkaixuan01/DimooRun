@@ -57,7 +57,6 @@
               <p class="page-kicker">{{ t("identity") }}</p>
               <h2>{{ drawerMode === "create" ? t("create") : "编辑" }} {{ t("operators") }}</h2>
             </div>
-            <button class="button" type="button" @click="closeDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="saveOperator">
             <label class="field">
@@ -168,7 +167,6 @@
               <p class="page-kicker">{{ t("operators") }}</p>
               <h2>重置密码</h2>
             </div>
-            <button class="button" type="button" @click="closePasswordDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="resetPassword">
             <label class="field">

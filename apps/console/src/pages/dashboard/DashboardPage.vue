@@ -24,7 +24,7 @@
           <h2 class="panel-title">{{ t("runVolumeSuccessRate") }}</h2>
           <StatusBadge :status="mode === 'live' ? 'running' : mode" :label="modeLabel" />
         </div>
-        <div v-if="mode === 'demo'" class="panel-body"><RuntimeTrendChart /></div>
+        <div v-if="trendPoints.length > 0" class="panel-body"><RuntimeTrendChart :trend-points="trendPoints" /></div>
         <div v-else class="panel-body empty-panel">{{ t("noTrendData") }}</div>
       </section>
 
@@ -108,7 +108,17 @@ const summary = ref<DashboardSummary>({
 const humanTasks = ref<HumanTask[]>([]);
 const failedRuns = ref<Run[]>([]);
 const incidents = ref<AdminResource[]>([]);
-const modeLabel = computed(() => (mode === "live" ? t("live") : mode === "demo" ? t("demo") : t("offline")));
+const modeLabel = computed(() => (mode === "live" ? t("live") : t("offline")));
+const trendPoints = computed(() => {
+  const recentRuns = [...failedRuns.value, ...successfulRuns.value, ...runningRuns.value].slice(-12);
+  return recentRuns.map((run) => ({
+    label: run.startedAt ? run.startedAt.slice(11, 16) : String(run.id),
+    runs: 1,
+    successRate: run.status === "succeeded" ? 100 : run.status === "failed" ? 0 : 50,
+  }));
+});
+const successfulRuns = ref<Run[]>([]);
+const runningRuns = ref<Run[]>([]);
 
 async function loadDashboard() {
   if (mode === "offline") return;
@@ -124,6 +134,8 @@ async function loadDashboard() {
     summary.value = dashboardSummary;
     humanTasks.value = humanTasksPage.items;
     failedRuns.value = runsPage.items.filter((run) => run.status === "failed");
+    successfulRuns.value = runsPage.items.filter((run) => run.status === "succeeded");
+    runningRuns.value = runsPage.items.filter((run) => run.status === "running");
     incidents.value = incidentsPage.items.filter((incident) => incident.status !== "resolved");
   } catch (caught) {
     error.value = toConsoleApiError(caught);

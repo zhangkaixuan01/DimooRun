@@ -65,7 +65,6 @@
               <p class="page-kicker">{{ t("organizationScope") }}</p>
               <h2>{{ drawerMode === "create" ? t("create") : "编辑" }} {{ activeLabel }}</h2>
             </div>
-            <button class="button" type="button" @click="closeDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="saveItem">
             <label class="field">

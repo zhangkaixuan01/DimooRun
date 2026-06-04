@@ -1,15 +1,19 @@
-import { agents, deployments, events, humanTasks, runs, tasks } from "./mockData";
-import type { Agent, Deployment, HumanTask, ResourceId, Run, RuntimeEvent, Task } from "./types";
+import type { Agent, AgentVersion, Deployment, HumanTask, ResourceId, Run, RunAttempt, RuntimeEvent, Task, TaskCreateResult } from "./types";
 import {
   createDimooRunClient,
   DimooRunApiError,
-  type NativeAgentRead,
-  type NativeDeploymentRead,
-  type NativeEventRead,
-  type NativeRunRead,
-  type NativeTaskRead,
   type ConsoleLoginResponse,
   type ConsoleOperatorRead,
+  type NativeAgentRead,
+  type NativeAgentVersionRead,
+  type NativeDeploymentCreatePayload,
+  type NativeDeploymentRead,
+  type NativeDeploymentTaskCreatePayload,
+  type NativeDeploymentUpdatePayload,
+  type NativeEventRead,
+  type NativeRunRead,
+  type NativeTaskCreatePayload,
+  type NativeTaskRead,
 } from "./generated/dimoorun";
 import { readCurrentScope, SCOPE_KEY, type ConsoleScope } from "./scope";
 
@@ -18,7 +22,7 @@ export type CursorPage<T> = {
   nextCursor: string | null;
 };
 
-export type ApiMode = "live" | "demo" | "offline";
+export type ApiMode = "live" | "offline";
 
 export type ConsoleApiError = {
   errorCode: string;
@@ -66,6 +70,7 @@ export type MachineApiKeyCreate = {
   plain_key: string;
   request_id: string | null;
 };
+
 const TOKEN_KEY = "dimoorun.console.token";
 const OPERATOR_KEY = "dimoorun.console.operator";
 
@@ -77,17 +82,12 @@ export function apiBaseUrl(): string | null {
   return import.meta.env.VITE_DIMOORUN_API_BASE_URL || null;
 }
 
-export function isDemoMode(): boolean {
-  return import.meta.env.VITE_DIMOORUN_DEMO_MODE === "true";
-}
-
 export function apiMode(): ApiMode {
-  if (isDemoMode()) return "demo";
   return apiBaseUrl() ? "live" : "offline";
 }
 
 export function isApiConfigured(): boolean {
-  return apiMode() !== "offline";
+  return apiMode() === "live";
 }
 
 export function toConsoleApiError(error: unknown): ConsoleApiError {
@@ -171,70 +171,33 @@ function handleUnauthorized(error: unknown): void {
   }
 }
 
-function mapNativeAgent(agent: NativeAgentRead): Agent {
+function mapNativeAgent(
+  agent: NativeAgentRead,
+  counts: { versionCount?: number; deploymentCount?: number } = {},
+): Agent {
   return {
     id: agent.id,
     name: agent.name,
-    framework: "LangGraph",
-    adapter: "native",
-    version: "latest",
-    capabilities: [],
-    deployments: 0,
-    lastRunStatus: agent.status,
-    releasedAt: new Date().toISOString(),
+    description: agent.description,
+    status: agent.status,
+    createdAt: agent.created_at,
+    versionCount: counts.versionCount ?? 0,
+    deploymentCount: counts.deploymentCount ?? 0,
   };
 }
 
-function mapNativeRun(run: NativeRunRead): Run {
-  const status = run.status === "pending" ? "running" : run.status;
+function mapNativeAgentVersion(version: NativeAgentVersionRead): AgentVersion {
   return {
-    id: run.id,
-    agent: String(run.agent_id),
-    framework: "LangGraph",
-    adapter: "native",
-    version: String(run.agent_version_id),
-    actor: "api",
-    status: ["succeeded", "failed", "running", "timeout", "cancelled"].includes(status)
-      ? (status as Run["status"])
-      : "running",
-    latencyMs: 0,
-    costUsd: 0,
-    startedAt: new Date().toISOString(),
-    trigger: "api",
-    deployment: run.deployment_id ? String(run.deployment_id) : "direct",
-    traceId: run.thread_id || String(run.id),
-  };
-}
-
-function mapNativeEvent(event: NativeEventRead): RuntimeEvent {
-  return {
-    sequence: event.sequence,
-    eventId: event.event_id,
-    type: event.type,
-    status: event.visibility_level,
-    timestamp: new Date().toISOString(),
-    summary: JSON.stringify(event.payload),
-  };
-}
-
-function mapNativeTask(task: NativeTaskRead): Task {
-  return {
-    id: task.id,
-    runId: task.run_id,
-    status: ["queued", "leased", "running", "retrying", "dead_letter", "succeeded", "cancelled"].includes(task.status)
-      ? (task.status as Task["status"])
-      : "queued",
-    attempt: task.attempt,
-    queue: task.queue,
-    workerId: "native-worker",
-    heartbeatAt: "",
-    leaseUntil: "",
-    fencingToken: 0,
-    retryCount: Math.max(0, task.attempt - 1),
-    deadLetterReason: task.dead_letter_reason || undefined,
-    partitionKey: task.partition_key || undefined,
-    resourceClass: task.resource_class || undefined,
-    quotaBlockingReason: task.quota_blocking_reason as Task["quotaBlockingReason"],
+    id: version.id,
+    agentId: version.agent_id,
+    version: version.version,
+    packageUri: version.package_uri,
+    framework: version.framework,
+    adapter: version.adapter,
+    entrypoint: version.entrypoint,
+    capabilities: version.capabilities,
+    manifest: version.manifest,
+    status: version.status,
   };
 }
 
@@ -259,12 +222,83 @@ function mapNativeDeployment(deployment: NativeDeploymentRead): Deployment {
     desiredStatus,
     runtimeStatus,
     instances: deployment.replicas,
+    config: deployment.config ?? {},
     runningRuns: 0,
     queueBacklog: 0,
     worker: "native-worker",
     heartbeatAt: new Date().toISOString(),
     executionProfile: "default",
     modelGateway: "default",
+  };
+}
+
+function mapNativeRun(run: NativeRunRead): Run {
+  const status = run.status === "pending" ? "running" : run.status;
+  return {
+    id: run.id,
+    agent: String(run.agent_id),
+    framework: "LangGraph",
+    adapter: "native",
+    version: String(run.agent_version_id),
+    actor: "api",
+    status: ["succeeded", "failed", "running", "timeout", "cancelled"].includes(status)
+      ? (status as Run["status"])
+      : "running",
+    createdAt: run.created_at,
+    startedAt: run.started_at,
+    finishedAt: run.finished_at,
+    latencyMs: run.latency_ms,
+    trigger: "api",
+    deployment: run.deployment_id ? String(run.deployment_id) : "direct",
+    traceId: run.thread_id || String(run.id),
+    input: run.input,
+    output: run.output,
+    error: run.error,
+  };
+}
+
+function mapNativeEvent(event: NativeEventRead): RuntimeEvent {
+  return {
+    runId: event.run_id,
+    sequence: event.sequence,
+    eventId: event.event_id,
+    type: event.type,
+    status: event.visibility_level,
+    summary: `run ${event.run_id}: ${JSON.stringify(event.payload)}`,
+    payload: event.payload,
+  };
+}
+
+function mapNativeRunAttempt(attempt: Record<string, unknown>): RunAttempt {
+  return {
+    id: Number(attempt.id),
+    runId: Number(attempt.run_id),
+    taskId: attempt.task_id === null || attempt.task_id === undefined ? null : Number(attempt.task_id),
+    attemptNo: Number(attempt.attempt_no),
+    workerId: attempt.worker_id === null || attempt.worker_id === undefined ? null : String(attempt.worker_id),
+    status: String(attempt.status || "unknown"),
+    error: attempt.error === null || attempt.error === undefined ? null : String(attempt.error),
+  };
+}
+
+function mapNativeTask(task: NativeTaskRead): Task {
+  return {
+    id: task.id,
+    runId: task.run_id,
+    status: ["queued", "leased", "running", "retrying", "dead_letter", "succeeded", "cancelled"].includes(task.status)
+      ? (task.status as Task["status"])
+      : "queued",
+    attempt: task.attempt,
+    queue: task.queue,
+    workerId: "native-worker",
+    heartbeatAt: "",
+    leaseUntil: "",
+    fencingToken: 0,
+    retryCount: Math.max(0, task.attempt - 1),
+    deadLetterReason: task.dead_letter_reason || undefined,
+    partitionKey: task.partition_key || undefined,
+    resourceClass: task.resource_class || undefined,
+    quotaBlockingReason: task.quota_blocking_reason as Task["quotaBlockingReason"],
   };
 }
 
@@ -283,222 +317,6 @@ function mapAdminHumanTask(item: AdminResource): HumanTask {
   };
 }
 
-export const demoConsoleClient = {
-  async login(email: string, password: string): Promise<ConsoleLogin> {
-    if (!email || !password) throw new Error("Invalid credentials.");
-    return {
-      access_token: "demo-session-token",
-      token_type: "bearer",
-      expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-      request_id: null,
-      operator: {
-        id: 1,
-        email,
-        name: "Demo Operator",
-        roles: ["platform_admin"],
-        permissions: ["*"],
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_login_at: new Date().toISOString(),
-        password_changed_at: new Date().toISOString(),
-        allowed_scopes: [
-          {
-            tenant_id: 1,
-            tenant_name: "Default Tenant",
-            project_id: 1,
-            project_name: "Default Project",
-            environment: "local",
-            environment_name: "Local",
-          },
-        ],
-      },
-    };
-  },
-  async me(): Promise<ConsoleOperator> {
-    return {
-      id: 1,
-      email: "demo@local.dimoorun",
-      name: "Demo Operator",
-      roles: ["platform_admin"],
-      permissions: ["*"],
-      status: "active",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_login_at: new Date().toISOString(),
-      password_changed_at: new Date().toISOString(),
-      allowed_scopes: [
-        {
-          tenant_id: 1,
-          tenant_name: "Default Tenant",
-          project_id: 1,
-          project_name: "Default Project",
-          environment: "local",
-          environment_name: "Local",
-        },
-      ],
-    };
-  },
-  async logout() {
-    return { ok: true };
-  },
-  async changePassword() {
-    return { ok: true, request_id: null };
-  },
-  async getDashboardSummary() {
-    return {
-      runCountToday: 12840,
-      successRate: 0.987,
-      p95LatencyMs: 2100,
-      p99LatencyMs: 4300,
-      queueBacklog: 24,
-      workerReady: 6,
-      workerTotal: 7,
-      monthlyCostUsd: 4291,
-      pendingApprovals: humanTasks.filter((task) => task.status === "pending").length,
-      runningRuns: runs.filter((run) => run.status === "running").length,
-      activeIncidents: 2,
-    };
-  },
-  async listAgents() {
-    return page(agents);
-  },
-  async createAgent(payload: Record<string, unknown>) {
-    const agent: Agent = {
-      id: Date.now(),
-      name: String(payload.name || "demo-agent"),
-      framework: "LangGraph",
-      adapter: "native",
-      version: "latest",
-      capabilities: [],
-      deployments: 0,
-      lastRunStatus: "active",
-      releasedAt: new Date().toISOString(),
-    };
-    agents.unshift(agent);
-    return agent;
-  },
-  async archiveAgent(agentId: ResourceId) {
-    const agent = agents.find((item) => item.id === agentId);
-    if (!agent) throw new Error("Agent not found.");
-    agent.lastRunStatus = "archived";
-    return agent;
-  },
-  async listDeployments() {
-    return page(deployments);
-  },
-  async controlDeployment(deploymentId: ResourceId, operation: string) {
-    const deployment = deployments.find((item) => item.id === deploymentId);
-    if (!deployment) throw new Error("Deployment not found.");
-    deployment.desiredStatus = operation === "resume" || operation === "activate" ? "active" : operation as Deployment["desiredStatus"];
-    return deployment;
-  },
-  async listRuns() {
-    return page(runs);
-  },
-  async getRun(runId: ResourceId) {
-    return runs.find((run) => run.id === runId) ?? null;
-  },
-  async controlRun(runId: ResourceId, operation: string) {
-    const run = runs.find((item) => item.id === runId);
-    if (!run) throw new Error("Run not found.");
-    if (operation === "cancel") run.status = "cancelled";
-    return run;
-  },
-  async listRunEvents() {
-    return page(events);
-  },
-  async listTasks() {
-    return page(tasks);
-  },
-  async cancelTask(taskId: ResourceId) {
-    const task = tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error("Task not found.");
-    task.status = "cancelled";
-    return task;
-  },
-  async listEvents() {
-    return page(events);
-  },
-  async listHumanTasks() {
-    return page(humanTasks);
-  },
-  async decideHumanTask(taskId: ResourceId, decision: "approve" | "reject") {
-    const task = humanTasks.find((item) => item.id === taskId);
-    if (!task) throw new Error("Human task not found.");
-    task.status = decision === "approve" ? "approved" : "rejected";
-    return task;
-  },
-  async listAdminCollection(path: string, scopeOverride?: Partial<ConsoleScope>) {
-    void scopeOverride;
-    return page([{ id: 1, status: "active" }]);
-  },
-  async createAdminItem(path: string, payload: Record<string, unknown>) {
-    return { id: Number(payload.id || Date.now()), status: "active", ...payload };
-  },
-  async updateAdminItem(path: string, resourceId: ResourceId, payload: Record<string, unknown>) {
-    return { id: resourceId, status: "active", path, ...payload };
-  },
-  async deleteAdminItem(path: string, resourceId: ResourceId) {
-    return { id: resourceId, status: "deleted", path, deleted_at: new Date().toISOString() };
-  },
-  async revokeOperatorSessions() {
-    return undefined;
-  },
-  async listOperatorSessions(operatorId: ResourceId) {
-    return page<ConsoleOperatorSession>([
-      {
-        id: 1,
-        operator_id: operatorId,
-        status: "active",
-        last_used_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-        revoked_at: null,
-        revoke_reason: null,
-        ip_address: "127.0.0.1",
-        user_agent: "Demo Browser",
-      },
-    ]);
-  },
-  async resetOperatorPassword() {
-    return undefined;
-  },
-  async deleteOperator(operatorId: ResourceId) {
-    return { id: operatorId, status: "deleted" };
-  },
-  async listServiceAccounts() {
-    return page([{ id: 1, name: "demo-ci", status: "active", permissions: ["agent:read"] }]);
-  },
-  async createServiceAccount(payload: Record<string, unknown>) {
-    return { id: Date.now(), status: "active", ...payload };
-  },
-  async updateServiceAccount(serviceAccountId: ResourceId, payload: Record<string, unknown>) {
-    return { id: serviceAccountId, status: "active", ...payload };
-  },
-  async deleteServiceAccount(serviceAccountId: ResourceId) {
-    return { id: serviceAccountId, status: "deleted" };
-  },
-  async listServiceAccountApiKeys(serviceAccountId: ResourceId) {
-    return page([{ id: 1, owner_id: serviceAccountId, name: "demo-key", status: "active", scopes: ["agent:read"] }]);
-  },
-  async createServiceAccountApiKey(serviceAccountId: ResourceId, payload: Record<string, unknown>): Promise<MachineApiKeyCreate> {
-    return {
-      item: { id: Date.now(), owner_id: serviceAccountId, status: "active", ...payload },
-      plain_key: "dr_demo_key_shown_once",
-      request_id: null,
-    };
-  },
-  async disableServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId) {
-    return { id: keyId, owner_id: serviceAccountId, status: "disabled" };
-  },
-  async enableServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId) {
-    return { id: keyId, owner_id: serviceAccountId, status: "active" };
-  },
-  async deleteServiceAccountApiKey(serviceAccountId: ResourceId, keyId: ResourceId) {
-    return { id: keyId, owner_id: serviceAccountId, status: "deleted" };
-  },
-};
-
 export const liveConsoleClient = {
   async login(email: string, password: string): Promise<ConsoleLogin> {
     return nativeClient().login(email, password);
@@ -512,7 +330,7 @@ export const liveConsoleClient = {
   async changePassword(currentPassword: string, newPassword: string) {
     return nativeClient(crypto.randomUUID()).changePassword(currentPassword, newPassword);
   },
-  async getDashboardSummary() {
+  async getDashboardSummary(): Promise<DashboardSummary> {
     const [deploymentsPage, humanTasksPage, runsPage, incidentsPage] = await Promise.all([
       this.listDeployments(),
       this.listHumanTasks(),
@@ -536,24 +354,90 @@ export const liveConsoleClient = {
     };
   },
   async listAgents(): Promise<CursorPage<Agent>> {
-    const payload = await nativeClient().listAgents();
-    return page(payload.map(mapNativeAgent));
+    const client = nativeClient();
+    const [agents, deployments] = await Promise.all([
+      client.listAgents(),
+      client.listDeployments(),
+    ]);
+    const versionsByAgent = await Promise.all(
+      agents.map(async (agent) => [agent.id, await client.listAgentVersions(agent.id)] as const),
+    );
+    const versionCounts = new Map(
+      versionsByAgent.map(([agentId, versions]) => [agentId, versions.length]),
+    );
+    const deploymentCounts = deployments.reduce((counts, deployment) => {
+      counts.set(deployment.agent_id, (counts.get(deployment.agent_id) ?? 0) + 1);
+      return counts;
+    }, new Map<ResourceId, number>());
+    return page(
+      agents.map((agent) =>
+        mapNativeAgent(agent, {
+          versionCount: versionCounts.get(agent.id) ?? 0,
+          deploymentCount: deploymentCounts.get(agent.id) ?? 0,
+        }),
+      ),
+    );
   },
   async createAgent(payload: Record<string, unknown>): Promise<Agent> {
     const created = await nativeClient(crypto.randomUUID()).createAgent(payload);
     return mapNativeAgent(created);
   },
+  async updateAgent(agentId: ResourceId, payload: Record<string, unknown>): Promise<Agent> {
+    const updated = await nativeClient(crypto.randomUUID()).updateAgent(agentId, payload);
+    return mapNativeAgent(updated);
+  },
   async archiveAgent(agentId: ResourceId): Promise<Agent> {
     const archived = await nativeClient(crypto.randomUUID()).archiveAgent(agentId);
     return mapNativeAgent(archived);
+  },
+  async listAgentVersions(agentId: ResourceId): Promise<CursorPage<AgentVersion>> {
+    const payload = await nativeClient().listAgentVersions(agentId);
+    return page(payload.map(mapNativeAgentVersion));
+  },
+  async createAgentVersion(agentId: ResourceId, payload: Record<string, unknown>): Promise<AgentVersion> {
+    const created = await nativeClient(crypto.randomUUID()).createAgentVersion(agentId, payload);
+    return mapNativeAgentVersion(created);
+  },
+  async updateAgentVersion(agentId: ResourceId, version: string, payload: Record<string, unknown>): Promise<AgentVersion> {
+    const updated = await nativeClient(crypto.randomUUID()).updateAgentVersion(agentId, version, payload);
+    return mapNativeAgentVersion(updated);
+  },
+  async archiveAgentVersion(agentId: ResourceId, version: string): Promise<AgentVersion> {
+    const archived = await nativeClient(crypto.randomUUID()).archiveAgentVersion(agentId, version);
+    return mapNativeAgentVersion(archived);
   },
   async listDeployments(): Promise<CursorPage<Deployment>> {
     const payload = await nativeClient().listDeployments();
     return page(payload.map(mapNativeDeployment));
   },
+  async createDeployment(payload: NativeDeploymentCreatePayload): Promise<Deployment> {
+    const created = await nativeClient(crypto.randomUUID()).createDeployment(payload);
+    return mapNativeDeployment(created);
+  },
+  async updateDeployment(deploymentId: ResourceId, payload: NativeDeploymentUpdatePayload): Promise<Deployment> {
+    const updated = await nativeClient(crypto.randomUUID()).updateDeployment(deploymentId, payload);
+    return mapNativeDeployment(updated);
+  },
+  async archiveDeployment(deploymentId: ResourceId): Promise<Deployment> {
+    const archived = await nativeClient(crypto.randomUUID()).archiveDeployment(deploymentId);
+    return mapNativeDeployment(archived);
+  },
   async controlDeployment(deploymentId: ResourceId, operation: string): Promise<Deployment> {
     const payload = await nativeClient(crypto.randomUUID()).controlDeployment(deploymentId, operation);
     return mapNativeDeployment(payload);
+  },
+  async createDeploymentTask(deploymentId: ResourceId, payload: NativeDeploymentTaskCreatePayload): Promise<TaskCreateResult> {
+    const response = await nativeClient(crypto.randomUUID()).createDeploymentTask(
+      deploymentId,
+      payload,
+      crypto.randomUUID(),
+    );
+    return {
+      runId: response.run_id,
+      taskId: response.task_id,
+      status: response.status,
+      replayed: response.replayed,
+    };
   },
   async listRuns(): Promise<CursorPage<Run>> {
     const payload = await nativeClient().listRuns();
@@ -567,9 +451,32 @@ export const liveConsoleClient = {
     const payload = await nativeClient(crypto.randomUUID()).controlRun(runId, operation);
     return mapNativeRun(payload);
   },
+  async replayRun(runId: ResourceId, agentVersionId?: ResourceId | null): Promise<Run> {
+    const payload = await nativeClient(crypto.randomUUID()).replayRun(runId, {
+      agent_version_id: agentVersionId ?? undefined,
+    });
+    return mapNativeRun(payload);
+  },
+  async createTask(agentId: ResourceId, payload: NativeTaskCreatePayload): Promise<TaskCreateResult> {
+    const response = await nativeClient(crypto.randomUUID()).createTask(
+      agentId,
+      payload,
+      crypto.randomUUID(),
+    );
+    return {
+      runId: response.run_id,
+      taskId: response.task_id,
+      status: response.status,
+      replayed: response.replayed,
+    };
+  },
   async listRunEvents(runId: ResourceId): Promise<CursorPage<RuntimeEvent>> {
     const payload = await nativeClient().listRunEvents(runId);
     return page(payload.map(mapNativeEvent));
+  },
+  async listRunAttempts(runId: ResourceId): Promise<CursorPage<RunAttempt>> {
+    const payload = await nativeClient().listRunAttempts(runId);
+    return page(payload.map(mapNativeRunAttempt));
   },
   async listTasks(): Promise<CursorPage<Task>> {
     const payload = await nativeClient().listTasks();
@@ -580,7 +487,8 @@ export const liveConsoleClient = {
     return mapNativeTask(payload as NativeTaskRead);
   },
   async listEvents(): Promise<CursorPage<RuntimeEvent>> {
-    return page([]);
+    const payload = await nativeClient().listEvents();
+    return page(payload.map(mapNativeEvent));
   },
   async listHumanTasks(): Promise<CursorPage<HumanTask>> {
     const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/human-tasks");
@@ -667,4 +575,4 @@ export const liveConsoleClient = {
   },
 };
 
-export const consoleClient = isDemoMode() ? demoConsoleClient : liveConsoleClient;
+export const consoleClient = liveConsoleClient;

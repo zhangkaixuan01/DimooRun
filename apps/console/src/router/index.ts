@@ -154,12 +154,7 @@ export const routes: RouteRecordRaw[] = [
     component: AdminCollectionPage,
     props: { title: "Backup Plans", kicker: "Enterprise Ops", description: "Backup schedules and retention policy.", resourcePath: "/v1/backups/plans", seedName: "backup-plan" },
   },
-  {
-    path: "/published-surfaces/ingress-routes",
-    name: "ingress-routes",
-    component: AdminCollectionPage,
-    props: { title: "Ingress Routes", kicker: "Runtime", description: "Ingress routes for published runtime surfaces.", resourcePath: "/v1/ingress-routes", seedName: "ingress-route" },
-  },
+  { path: "/published-surfaces/ingress-routes", redirect: "/published-surfaces" },
   {
     path: "/ops/restore-jobs",
     name: "restore-jobs",

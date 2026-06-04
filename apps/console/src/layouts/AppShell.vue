@@ -106,7 +106,7 @@ const route = useRoute();
 const contentRef = ref<HTMLElement | null>(null);
 const scopeVersion = ref(0);
 const mode = apiMode();
-const modeLabel = computed(() => (mode === "live" ? t("live") : mode === "demo" ? t("demo") : t("offline")));
+const modeLabel = computed(() => (mode === "live" ? t("live") : t("offline")));
 const showScopeSelector = computed(() => {
   const path = route.path;
   if (path.startsWith("/identity")) return false;
@@ -129,7 +129,6 @@ const navGroups = computed(() => [
       { label: t("agents"), to: "/agents", icon: "A" },
       { label: t("deployments"), to: "/deployments", icon: "D" },
       { label: t("publishedSurfaces"), to: "/published-surfaces", icon: "P" },
-      { label: t("ingressRoutes"), to: "/published-surfaces/ingress-routes", icon: "I" },
       { label: t("runs"), to: "/runs", icon: "R" },
       { label: t("tasks"), to: "/tasks", icon: "T" },
     ],

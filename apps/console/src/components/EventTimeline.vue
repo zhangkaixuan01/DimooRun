@@ -2,14 +2,19 @@
   <ol class="timeline">
     <li v-for="event in events" :key="event.eventId" class="timeline-item">
       <span class="dot" :data-status="event.status" />
-      <div class="timeline-card">
+      <button
+        class="timeline-card"
+        type="button"
+        :data-selected="event.eventId === selectedEventId"
+        @click="emit('select', event)"
+      >
         <div class="timeline-top">
           <strong>{{ event.type }}</strong>
           <span class="mono">#{{ event.sequence }}</span>
         </div>
         <p>{{ event.summary }}</p>
         <time>{{ formatDateTime(event.timestamp) }}</time>
-      </div>
+      </button>
     </li>
   </ol>
 </template>
@@ -20,6 +25,10 @@ import { formatDateTime } from "../utils/dateTime";
 
 defineProps<{
   events: RuntimeEvent[];
+  selectedEventId?: string | null;
+}>();
+const emit = defineEmits<{
+  select: [event: RuntimeEvent];
 }>();
 </script>
 
@@ -55,10 +64,19 @@ defineProps<{
 }
 
 .timeline-card {
+  width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
+  color: var(--color-text);
   padding: 10px 12px;
+  text-align: left;
+}
+
+.timeline-card:hover,
+.timeline-card[data-selected="true"] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent-soft) 48%, var(--color-surface-raised));
 }
 
 .timeline-top {

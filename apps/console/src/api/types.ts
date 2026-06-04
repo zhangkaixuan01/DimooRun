@@ -4,13 +4,24 @@ export type ResourceId = number;
 export type Agent = {
   id: ResourceId;
   name: string;
-  framework: "LangGraph" | "LangChain" | "DeepAgents";
-  adapter: string;
+  description: string | null;
+  status: string;
+  createdAt: string | null;
+  versionCount: number;
+  deploymentCount: number;
+};
+
+export type AgentVersion = {
+  id: ResourceId;
+  agentId: ResourceId;
   version: string;
-  capabilities: string[];
-  deployments: number;
-  lastRunStatus: string;
-  releasedAt: string;
+  packageUri: string;
+  framework: string;
+  adapter: string;
+  entrypoint: string;
+  capabilities: Record<string, unknown>;
+  manifest: Record<string, unknown>;
+  status: string;
 };
 
 export type Deployment = {
@@ -21,6 +32,7 @@ export type Deployment = {
   desiredStatus: "active" | "paused" | "draining" | "stopped";
   runtimeStatus: "ready" | "degraded" | "warming_up";
   instances: number;
+  config: Record<string, unknown>;
   runningRuns: number;
   queueBacklog: number;
   worker: string;
@@ -37,22 +49,38 @@ export type Run = {
   version: string;
   actor: string;
   status: "succeeded" | "failed" | "running" | "timeout" | "cancelled";
-  latencyMs: number;
-  costUsd: number;
-  startedAt: string;
-  finishedAt?: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  latencyMs: number | null;
+  costUsd?: number;
   trigger: "api" | "schedule" | "replay" | "batch" | "compatibility";
   deployment: string;
   traceId: string;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
 };
 
 export type RuntimeEvent = {
+  runId: ResourceId;
   sequence: number;
   eventId: string;
   type: string;
   status: string;
-  timestamp: string;
+  timestamp?: string;
   summary: string;
+  payload?: Record<string, unknown>;
+};
+
+export type RunAttempt = {
+  id: ResourceId;
+  runId: ResourceId;
+  taskId: ResourceId | null;
+  attemptNo: number;
+  workerId: string | null;
+  status: string;
+  error: string | null;
 };
 
 export type Task = {
@@ -75,6 +103,13 @@ export type Task = {
     limit: number;
     current: number;
   };
+};
+
+export type TaskCreateResult = {
+  runId: ResourceId;
+  taskId: ResourceId;
+  status: string;
+  replayed: boolean;
 };
 
 export type HumanTask = {

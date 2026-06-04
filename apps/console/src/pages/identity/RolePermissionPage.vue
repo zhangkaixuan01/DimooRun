@@ -63,7 +63,6 @@
               <p class="page-kicker">{{ t("rolesPermissions") }}</p>
               <h2>{{ roleDrawerMode === "create" ? t("create") : "编辑" }} {{ t("roles") }}</h2>
             </div>
-            <button class="button" type="button" @click="closeRoleDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="saveRole">
             <label class="field">

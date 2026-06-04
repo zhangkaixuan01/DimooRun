@@ -53,7 +53,7 @@ const router = useRouter();
 const email = ref(import.meta.env.VITE_DIMOORUN_LOGIN_EMAIL || "admin@local.dimoorun");
 const password = ref("");
 const mode = apiMode();
-const modeLabel = computed(() => (mode === "live" ? t("live") : mode === "demo" ? t("demo") : t("offline")));
+const modeLabel = computed(() => (mode === "live" ? t("live") : t("offline")));
 
 async function submit() {
   await auth.login(email.value, password.value);

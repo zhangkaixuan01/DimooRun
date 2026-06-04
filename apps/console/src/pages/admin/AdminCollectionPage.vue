@@ -50,10 +50,16 @@
             <td class="mono muted">{{ metadataPreview(item) }}</td>
             <td>
               <div class="row-actions">
+                <button class="button" type="button" @click="openDetailDrawer(item)">
+                  {{ t("view") }}
+                </button>
+                <button class="button" type="button" :disabled="mutatingId === item.id || !canWrite" @click="openEditDrawer(item)">
+                  {{ t("edit") }}
+                </button>
                 <button class="button" type="button" :disabled="mutatingId === item.id || !canWrite" @click="toggleStatus(item)">
                   {{ item.status === "disabled" ? t("enable") : t("disable") }}
                 </button>
-                <button class="button danger" type="button" :disabled="mutatingId === item.id || !canWrite" @click="deleteItem(item)">
+                <button class="button danger" type="button" :disabled="mutatingId === item.id || !canWrite" @click="openDeleteConfirm(item)">
                   {{ t("delete") }}
                 </button>
               </div>
@@ -71,7 +77,6 @@
               <p class="page-kicker">{{ labelFor(kicker) }}</p>
               <h2>{{ t("create") }} {{ labelFor(title) }}</h2>
             </div>
-            <button class="button" type="button" @click="closeCreateDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="createItem">
             <label v-for="field in createFields" :key="field.key" class="field">
@@ -93,6 +98,65 @@
         </aside>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="detailItem" class="drawer-layer" @click.self="closeDetailDrawer">
+        <aside class="drawer wide-drawer" :aria-label="t('details')" role="dialog" aria-modal="true">
+          <header class="drawer-header">
+            <div>
+              <p class="page-kicker">{{ labelFor(kicker) }}</p>
+              <h2>{{ t("details") }} #{{ detailItem.id }}</h2>
+            </div>
+          </header>
+          <div class="drawer-form">
+            <pre class="json-preview">{{ formatJson(detailItem) }}</pre>
+            <div class="drawer-actions">
+              <button class="button" type="button" @click="closeDetailDrawer">{{ t("cancel") }}</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="editItem" class="drawer-layer" @click.self="closeEditDrawer">
+        <aside class="drawer wide-drawer" :aria-label="t('edit')" role="dialog" aria-modal="true">
+          <header class="drawer-header">
+            <div>
+              <p class="page-kicker">{{ labelFor(kicker) }}</p>
+              <h2>{{ t("edit") }} #{{ editItem.id }}</h2>
+            </div>
+          </header>
+          <form class="drawer-form" @submit.prevent="saveEditDrawer">
+            <label class="field">
+              {{ t("payload") }}
+              <textarea v-model="editPayloadJson" class="textarea code-input" rows="18"></textarea>
+            </label>
+            <p v-if="editError" class="form-error">{{ editError }}</p>
+            <div class="drawer-actions">
+              <button class="button" type="button" @click="closeEditDrawer">{{ t("cancel") }}</button>
+              <button class="button primary" type="submit" :disabled="mutatingId === editItem.id">
+                {{ mutatingId === editItem.id ? t("saving") : t("save") }}
+              </button>
+            </div>
+          </form>
+        </aside>
+      </div>
+    </Teleport>
+
+    <DangerConfirmDialog
+      :open="Boolean(deleteTarget)"
+      :title="t('confirmDelete')"
+      :message="t('confirmDeleteCopy')"
+      :items="deleteConfirmItems"
+      :confirm-label="t('delete')"
+      :cancel-label="t('cancel')"
+      :busy-label="t('saving')"
+      :busy="Boolean(deleteTarget && mutatingId === deleteTarget.id)"
+      :error="deleteError"
+      @cancel="closeDeleteConfirm"
+      @confirm="runConfirmedDelete"
+    />
   </section>
 </template>
 
@@ -102,6 +166,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError } from "../../api/client";
 import { readCurrentScope } from "../../api/scope";
 import ApiState from "../../components/ApiState.vue";
+import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
@@ -126,10 +191,21 @@ const error = ref<ConsoleApiError | null>(null);
 const items = ref<AdminResource[]>([]);
 const tenantOptions = ref<AdminResource[]>([]);
 const projectOptions = ref<AdminResource[]>([]);
+const detailItem = ref<AdminResource | null>(null);
+const editItem = ref<AdminResource | null>(null);
+const deleteTarget = ref<AdminResource | null>(null);
+const deleteError = ref<ConsoleApiError | null>(null);
+const editPayloadJson = ref("{}");
+const editError = ref("");
 const createForm = reactive<Record<string, string>>({});
 
 const createFields = computed(() => fieldsForPath(props.resourcePath));
 const canWrite = computed(() => auth.can(writePermissionForPath(props.resourcePath)));
+const deleteConfirmItems = computed(() => deleteTarget.value ? [
+  { label: t("id"), value: String(deleteTarget.value.id) },
+  { label: t("name"), value: String(deleteTarget.value.name || deleteTarget.value.label || "-") },
+  { label: t("status"), value: String(deleteTarget.value.status || "-") },
+] : []);
 
 async function loadItems() {
   if (mode === "offline") return;
@@ -174,6 +250,59 @@ function closeCreateDrawer() {
   resetCreateForm();
 }
 
+function openDetailDrawer(item: AdminResource) {
+  detailItem.value = item;
+}
+
+function closeDetailDrawer() {
+  detailItem.value = null;
+}
+
+function openEditDrawer(item: AdminResource) {
+  if (!canWrite.value) return;
+  editItem.value = item;
+  editError.value = "";
+  editPayloadJson.value = JSON.stringify(editPayloadForItem(item), null, 2);
+}
+
+function closeEditDrawer() {
+  editItem.value = null;
+  editError.value = "";
+  editPayloadJson.value = "{}";
+}
+
+async function saveEditDrawer() {
+  if (!editItem.value || mode === "offline" || !canWrite.value) return;
+  const payload = parseEditPayload();
+  if (!payload) return;
+  await updateItem(editItem.value, payload);
+  if (!error.value) closeEditDrawer();
+}
+
+function parseEditPayload(): Record<string, unknown> | null {
+  editError.value = "";
+  try {
+    const parsed = JSON.parse(editPayloadJson.value);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      editError.value = t("jsonObjectRequired");
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    editError.value = t("invalidJson");
+    return null;
+  }
+}
+
+function editPayloadForItem(item: AdminResource): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(item)) {
+    if (["id", "created_at", "created_by", "updated_at", "updated_by", "deleted_at", "deleted_by", "is_deleted"].includes(key)) continue;
+    payload[key] = value;
+  }
+  return payload;
+}
+
 async function updateName(item: AdminResource, name: string) {
   if (mode === "offline" || !canWrite.value || !name || name === item.name) return;
   await updateItem(item, { name });
@@ -184,15 +313,28 @@ async function toggleStatus(item: AdminResource) {
   await updateItem(item, { status: item.status === "disabled" ? "active" : "disabled" });
 }
 
-async function deleteItem(item: AdminResource) {
-  if (mode === "offline" || !canWrite.value) return;
-  mutatingId.value = item.id;
-  error.value = null;
+function openDeleteConfirm(item: AdminResource) {
+  if (!canWrite.value) return;
+  deleteTarget.value = item;
+  deleteError.value = null;
+}
+
+function closeDeleteConfirm() {
+  if (deleteTarget.value && mutatingId.value === deleteTarget.value.id) return;
+  deleteTarget.value = null;
+  deleteError.value = null;
+}
+
+async function runConfirmedDelete() {
+  if (!deleteTarget.value || mode === "offline" || !canWrite.value) return;
+  mutatingId.value = deleteTarget.value.id;
+  deleteError.value = null;
   try {
-    const deleted = await consoleClient.deleteAdminItem(props.resourcePath, item.id);
+    const deleted = await consoleClient.deleteAdminItem(props.resourcePath, deleteTarget.value.id);
     replaceItem(deleted);
+    deleteTarget.value = null;
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
+    deleteError.value = toConsoleApiError(caught);
   } finally {
     mutatingId.value = null;
   }
@@ -497,6 +639,10 @@ function metadataPreview(item: AdminResource): string {
   return JSON.stringify(metadata);
 }
 
+function formatJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
 function labelFor(value: string): string {
   const key = value.replace(/[^a-zA-Z0-9]+(.)/g, (_, char: string) => char.toUpperCase()).replace(/^./, (char) => char.toLowerCase());
   if (key in {
@@ -548,6 +694,9 @@ watch(
   () => props.resourcePath,
   () => {
     closeCreateDrawer();
+    closeDetailDrawer();
+    closeEditDrawer();
+    closeDeleteConfirm();
     loadItems();
   },
 );
@@ -588,6 +737,10 @@ watch(createFields, resetCreateForm, { immediate: true });
   box-shadow: var(--shadow-popover);
 }
 
+.wide-drawer {
+  width: min(640px, 100%);
+}
+
 .drawer-header {
   display: flex;
   align-items: flex-start;
@@ -626,8 +779,42 @@ watch(createFields, resetCreateForm, { immediate: true });
 
 .row-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   white-space: nowrap;
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.code-input,
+.json-preview {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.json-preview {
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-muted) 50%, transparent);
+  padding: 12px;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-weight: 700;
 }
 
 @media (max-width: 920px) {

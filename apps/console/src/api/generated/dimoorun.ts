@@ -3,6 +3,21 @@ export type ResourceId = number;
 export type NativeAgentRead = {
   id: ResourceId;
   name: string;
+  description: string | null;
+  status: string;
+  created_at: string | null;
+};
+
+export type NativeAgentVersionRead = {
+  id: ResourceId;
+  agent_id: ResourceId;
+  version: string;
+  package_uri: string;
+  framework: string;
+  adapter: string;
+  entrypoint: string;
+  capabilities: Record<string, unknown>;
+  manifest: Record<string, unknown>;
   status: string;
 };
 
@@ -16,6 +31,7 @@ export type NativeDeploymentRead = {
   desired_status: string;
   runtime_status: string;
   replicas: number;
+  config: Record<string, unknown>;
   last_runtime_error: string | null;
 };
 
@@ -29,6 +45,10 @@ export type NativeRunRead = {
   output?: Record<string, unknown> | null;
   error?: Record<string, unknown> | null;
   thread_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  latency_ms: number | null;
 };
 
 export type NativeTaskCreateResponse = {
@@ -36,6 +56,33 @@ export type NativeTaskCreateResponse = {
   task_id: ResourceId;
   status: string;
   replayed: boolean;
+};
+
+export type NativeTaskCreatePayload = {
+  input: Record<string, unknown>;
+  version?: string | null;
+  thread_id?: string | null;
+};
+
+export type NativeDeploymentCreatePayload = {
+  agent_id: ResourceId;
+  agent_version_id: ResourceId;
+  environment: string;
+  desired_status?: string;
+  replicas?: number;
+  config?: Record<string, unknown>;
+};
+
+export type NativeDeploymentUpdatePayload = {
+  agent_version_id?: ResourceId | null;
+  environment?: string | null;
+  replicas?: number | null;
+  config?: Record<string, unknown> | null;
+};
+
+export type NativeDeploymentTaskCreatePayload = {
+  input: Record<string, unknown>;
+  thread_id?: string | null;
 };
 
 export type NativeTaskRead = {
@@ -93,6 +140,7 @@ export type ConsoleLoginResponse = {
 };
 
 export type NativeEventRead = {
+  run_id: ResourceId;
   event_id: string;
   sequence: number;
   type: string;
@@ -174,10 +222,41 @@ export function createDimooRunClient(options: ClientOptions) {
       request<NativeAgentRead>(options, `/v1/agents/${agentId}`, {
         method: "DELETE",
       }),
+    createAgentVersion: (agentId: ResourceId, payload: Record<string, unknown>) =>
+      request<NativeAgentVersionRead>(options, `/v1/agents/${agentId}/versions`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    listAgentVersions: (agentId: ResourceId) =>
+      request<NativeAgentVersionRead[]>(options, `/v1/agents/${agentId}/versions`),
+    updateAgentVersion: (agentId: ResourceId, version: string, payload: Record<string, unknown>) =>
+      request<NativeAgentVersionRead>(options, `/v1/agents/${agentId}/versions/${encodeURIComponent(version)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    archiveAgentVersion: (agentId: ResourceId, version: string) =>
+      request<NativeAgentVersionRead>(options, `/v1/agents/${agentId}/versions/${encodeURIComponent(version)}`, {
+        method: "DELETE",
+      }),
     listDeployments: () => request<NativeDeploymentRead[]>(options, "/v1/deployments"),
+    createDeployment: (payload: NativeDeploymentCreatePayload) =>
+      request<NativeDeploymentRead>(options, "/v1/deployments", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    updateDeployment: (deploymentId: ResourceId, payload: NativeDeploymentUpdatePayload) =>
+      request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    archiveDeployment: (deploymentId: ResourceId) =>
+      request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}`, {
+        method: "DELETE",
+      }),
     listRuns: () => request<NativeRunRead[]>(options, "/v1/runs"),
     getRun: (runId: ResourceId) => request<NativeRunRead>(options, `/v1/runs/${runId}`),
     listRunEvents: (runId: ResourceId) => request<NativeEventRead[]>(options, `/v1/runs/${runId}/events`),
+    listEvents: () => request<NativeEventRead[]>(options, "/v1/events"),
     listRunAttempts: (runId: ResourceId) => request<Record<string, unknown>[]>(options, `/v1/runs/${runId}/attempts`),
     listTasks: () => request<NativeTaskRead[]>(options, "/v1/tasks"),
     controlDeployment: (deploymentId: ResourceId, operation: string) =>
@@ -187,6 +266,11 @@ export function createDimooRunClient(options: ClientOptions) {
     controlRun: (runId: ResourceId, operation: string) =>
       request<NativeRunRead>(options, `/v1/runs/${runId}/${operation}`, {
         method: "POST",
+      }),
+    replayRun: (runId: ResourceId, payload: { agent_version_id?: ResourceId | null } = {}) =>
+      request<NativeRunRead>(options, `/v1/runs/${runId}/replay`, {
+        method: "POST",
+        body: JSON.stringify(payload),
       }),
     cancelTask: (taskId: ResourceId) =>
       request<Record<string, unknown>>(options, `/v1/tasks/${taskId}/cancel`, {
@@ -213,13 +297,21 @@ export function createDimooRunClient(options: ClientOptions) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    createTask: (agentId: ResourceId, input: Record<string, unknown>, idempotencyKey: string) =>
+    createTask: (agentId: ResourceId, payload: NativeTaskCreatePayload, idempotencyKey: string) =>
       request<NativeTaskCreateResponse>(options, `/v1/agents/${agentId}/tasks`, {
         method: "POST",
         headers: {
           "Idempotency-Key": idempotencyKey,
         },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify(payload),
+      }),
+    createDeploymentTask: (deploymentId: ResourceId, payload: NativeDeploymentTaskCreatePayload, idempotencyKey: string) =>
+      request<NativeTaskCreateResponse>(options, `/v1/deployments/${deploymentId}/tasks`, {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify(payload),
       }),
   };
 }

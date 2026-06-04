@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import * as echarts from "echarts/core";
 import { BarChart, LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
@@ -19,6 +19,33 @@ const { t } = useI18n();
 const chartRef = ref<HTMLElement | null>(null);
 let chart: echarts.ECharts | undefined;
 
+const props = withDefaults(defineProps<{
+  trendPoints?: Array<{
+    label: string;
+    runs: number;
+    successRate: number;
+  }>;
+}>(), {
+  trendPoints: () => [
+    { label: "00", runs: 42, successRate: 97 },
+    { label: "02", runs: 64, successRate: 98 },
+    { label: "04", runs: 58, successRate: 99 },
+    { label: "06", runs: 77, successRate: 98 },
+    { label: "08", runs: 63, successRate: 97 },
+    { label: "10", runs: 82, successRate: 99 },
+    { label: "12", runs: 71, successRate: 98 },
+    { label: "14", runs: 89, successRate: 99 },
+    { label: "16", runs: 66, successRate: 97 },
+    { label: "18", runs: 74, successRate: 98 },
+    { label: "20", runs: 86, successRate: 99 },
+    { label: "22", runs: 92, successRate: 99 },
+  ],
+});
+
+const labels = computed(() => props.trendPoints.map((point) => point.label));
+const runCounts = computed(() => props.trendPoints.map((point) => point.runs));
+const successRates = computed(() => props.trendPoints.map((point) => point.successRate));
+
 function renderChart() {
   if (!chartRef.value) return;
   chart ??= echarts.init(chartRef.value);
@@ -30,7 +57,7 @@ function renderChart() {
     tooltip: { trigger: "axis" },
     xAxis: {
       type: "category",
-      data: ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"],
+      data: labels.value,
       axisTick: { show: false },
       axisLine: { lineStyle: { color: dark ? "#566274" : "#c6d0dc" } },
       axisLabel: { color: dark ? "#b2bdcb" : "#596a7f" },
@@ -44,14 +71,14 @@ function renderChart() {
       {
         name: "runs",
         type: "bar",
-        data: [42, 64, 58, 77, 63, 82, 71, 89, 66, 74, 86, 92],
+        data: runCounts.value,
         barMaxWidth: 18,
         itemStyle: { borderRadius: [4, 4, 0, 0] },
       },
       {
         name: "success",
         type: "line",
-        data: [97, 98, 99, 98, 97, 99, 98, 99, 97, 98, 99, 99],
+        data: successRates.value,
         smooth: true,
         symbolSize: 6,
       },
@@ -68,6 +95,7 @@ onMounted(() => {
   window.addEventListener("resize", resizeChart);
 });
 watch(() => preferences.theme, renderChart);
+watch(() => props.trendPoints, renderChart, { deep: true });
 onUnmounted(() => {
   window.removeEventListener("resize", resizeChart);
   chart?.dispose();

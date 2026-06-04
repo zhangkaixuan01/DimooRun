@@ -114,7 +114,6 @@
               <p class="page-kicker">{{ t("machineIdentity") }}</p>
               <h2>{{ serviceAccountDrawerMode === "create" ? t("create") : "编辑" }} {{ t("serviceAccounts") }}</h2>
             </div>
-            <button class="button" type="button" @click="closeServiceAccountDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="createServiceAccount">
             <label class="field">
@@ -166,7 +165,6 @@
               <p class="page-kicker">{{ t("machineIdentity") }}</p>
               <h2>{{ t("createApiKey") }}</h2>
             </div>
-            <button class="button" type="button" @click="closeKeyDrawer">{{ t("cancel") }}</button>
           </header>
           <form class="drawer-form" @submit.prevent="createApiKey">
             <label class="field">
