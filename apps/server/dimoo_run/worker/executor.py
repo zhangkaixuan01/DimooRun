@@ -77,27 +77,26 @@ class WorkerExecutor:
         )
         self._append(run_id, attempt.attempt_id, AgentEvent(type="attempt.started", payload={}))
 
-        run = self.run_store.get_run(run_id)
-        spec = self.agent_specs[run.agent_version_id]
-        adapter = self.adapters[spec.adapter]
-        runtime_config = {
-            **spec.runtime_config,
-            **leased.get("override_config", {}),
-        }
-        context = RuntimeContext(
-            tenant_id=run.tenant_id,
-            project_id=run.project_id,
-            run_id=run.run_id,
-            task_id=task_id,
-            agent_id=run.agent_id,
-            agent_version_id=run.agent_version_id,
-            deployment_id=run.deployment_id,
-            thread_id=run.thread_id,
-            framework=getattr(adapter, "framework", spec.adapter),
-            adapter=spec.adapter,
-        )
-
         try:
+            run = self.run_store.get_run(run_id)
+            spec = self._agent_spec(run.agent_version_id)
+            adapter = self._adapter(spec.adapter)
+            runtime_config = {
+                **spec.runtime_config,
+                **leased.get("override_config", {}),
+            }
+            context = RuntimeContext(
+                tenant_id=run.tenant_id,
+                project_id=run.project_id,
+                run_id=run.run_id,
+                task_id=task_id,
+                agent_id=run.agent_id,
+                agent_version_id=run.agent_version_id,
+                deployment_id=run.deployment_id,
+                thread_id=run.thread_id,
+                framework=getattr(adapter, "framework", spec.adapter),
+                adapter=spec.adapter,
+            )
             agent = await adapter.load(spec.package_uri, spec.manifest, runtime_config)
             timeout_seconds = runtime_config.get("timeout_seconds") or runtime_config.get("timeout")
             execution = self._execute_agent(adapter, agent, leased, context, attempt.attempt_id)
@@ -257,6 +256,18 @@ class WorkerExecutor:
             ),
         )
         return status
+
+    def _agent_spec(self, agent_version_id: int) -> AgentRuntimeSpec:
+        spec = self.agent_specs.get(agent_version_id)
+        if spec is None:
+            raise RuntimeError("worker_agent_version_not_found")
+        return spec
+
+    def _adapter(self, adapter_name: str) -> AgentAdapter:
+        adapter = self.adapters.get(adapter_name)
+        if adapter is None:
+            raise RuntimeError("worker_adapter_not_found")
+        return adapter
 
     async def _execute_agent(
         self,

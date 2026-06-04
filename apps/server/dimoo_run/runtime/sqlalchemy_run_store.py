@@ -153,6 +153,7 @@ class SQLAlchemyRunStore:
         assert_run_attempt_transition(attempt.status, "succeeded")
         attempt.status = "succeeded"
         attempt.finished_at = datetime.now(UTC)
+        attempt.latency_ms = _latency_ms(attempt.started_at, attempt.finished_at)
         self.session.flush()
 
     def fail_attempt(self, attempt_id: int, error: dict[str, Any]) -> None:
@@ -161,6 +162,7 @@ class SQLAlchemyRunStore:
         attempt.status = "failed"
         attempt.error = _error_message(error)
         attempt.finished_at = datetime.now(UTC)
+        attempt.latency_ms = _latency_ms(attempt.started_at, attempt.finished_at)
         self.session.flush()
 
     def timeout_attempt(self, attempt_id: int, error: dict[str, Any]) -> None:
@@ -169,6 +171,7 @@ class SQLAlchemyRunStore:
         attempt.status = "timeout"
         attempt.error = _error_message(error)
         attempt.finished_at = datetime.now(UTC)
+        attempt.latency_ms = _latency_ms(attempt.started_at, attempt.finished_at)
         self.session.flush()
 
     def _run_model(self, run_id: int) -> Run:
@@ -229,3 +232,13 @@ def _decode_ref(value: str | None) -> dict[str, Any]:
 def _error_message(error: dict[str, Any]) -> str:
     message = error.get("message")
     return str(message if message is not None else error)
+
+
+def _latency_ms(started_at: datetime | None, finished_at: datetime | None) -> int | None:
+    if started_at is None or finished_at is None:
+        return None
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    if finished_at.tzinfo is None:
+        finished_at = finished_at.replace(tzinfo=UTC)
+    return max(0, int((finished_at - started_at).total_seconds() * 1000))

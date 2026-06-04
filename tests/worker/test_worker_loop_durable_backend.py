@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 
 class FakeCancelSubscriber:
-    async def listen_once(self) -> dict[str, str]:
+    async def listen_once(self) -> dict[str, int | str]:
         return {
             "run_id": 1,
             "task_id": 1,
@@ -28,28 +28,73 @@ class FakeCancelHandler:
         return "adapter_cancelled"
 
 
+class FakeExecuteOnce:
+    def __init__(self) -> None:
+        self.called = False
+
+    async def __call__(self, *, queue: str, lease_seconds: int) -> object:
+        self.called = True
+        assert queue == "default"
+        assert lease_seconds == 30
+        return object()
+
+
+class StopAfterExecuteOnce:
+    def __init__(self, loop: WorkerLoop) -> None:
+        self.loop = loop
+        self.calls = 0
+
+    async def __call__(self, *, queue: str, lease_seconds: int) -> object:
+        _ = queue, lease_seconds
+        self.calls += 1
+        self.loop.stop()
+        return object()
+
+
+def test_worker_loop_uses_executor_callback_before_lease_only_path() -> None:
+    execute_once = FakeExecuteOnce()
+    loop = WorkerLoop(worker_id="worker_1", execute_once=execute_once)
+
+    heartbeat = loop.run_once()
+
+    assert heartbeat.status == "executed"
+    assert execute_once.called is True
+
+
+def test_worker_loop_run_forever_uses_executor_callback() -> None:
+    loop = WorkerLoop(worker_id="worker_1", poll_interval_seconds=0)
+    execute_once = StopAfterExecuteOnce(loop)
+    loop.execute_once = execute_once
+
+    loop.run_forever()
+
+    assert execute_once.calls == 1
+    assert loop.heartbeat.status == "executed"
+
+
 def test_worker_loop_can_lease_durable_task_and_mark_it_running() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = Session(engine)
     session.add(
         Run(
-            id="run_1",
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="agent_version_1",
+            agent_version_id=1,
             input_ref='json:{"message":"hello"}',
         )
     )
     session.flush()
+    run_id = session.query(Run.id).scalar()
+    assert run_id is not None
     backend = SQLAlchemyTaskBackend(session, now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
     task_id = anyio.run(
         backend.enqueue,
         {
             "tenant_id": 1,
             "project_id": 1,
-            "run_id": 1,
+            "run_id": run_id,
             "queue": "default",
         },
     )
@@ -68,26 +113,26 @@ def test_worker_loop_horizontal_scaling_leases_distinct_tasks() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = Session(engine)
+    run_ids: list[int] = []
     for index in range(3):
-        session.add(
-            Run(
-                id=f"run_{index}",
-                tenant_id=1,
-                project_id=1,
-                agent_id=1,
-                agent_version_id="agent_version_1",
-                input_ref='json:{"message":"hello"}',
-            )
+        run = Run(
+            tenant_id=1,
+            project_id=1,
+            agent_id=1,
+            agent_version_id=1,
+            input_ref=f'json:{{"message":"hello {index}"}}',
         )
-    session.flush()
+        session.add(run)
+        session.flush()
+        run_ids.append(run.id)
     backend = SQLAlchemyTaskBackend(session, now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
-    for index in range(3):
+    for run_id in run_ids:
         anyio.run(
             backend.enqueue,
             {
                 "tenant_id": 1,
                 "project_id": 1,
-                "run_id": f"run_{index}",
+                "run_id": run_id,
                 "queue": "default",
             },
         )
@@ -116,4 +161,4 @@ def test_worker_loop_consumes_cancel_message_for_worker() -> None:
     heartbeat = loop.run_once()
 
     assert heartbeat.status == "cancel_requested"
-    assert handler.cancelled == ("run_1", "task_1")
+    assert handler.cancelled == (1, 1)

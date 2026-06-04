@@ -1,4 +1,7 @@
+import json
+
 import pytest
+from dimoo_run.adapters.langgraph.adapter import LangGraphAdapter
 from dimoo_run.packages.manifest import AgentManifest, load_manifest
 from pydantic import ValidationError
 
@@ -42,6 +45,41 @@ security:
     assert manifest.runtime.entrypoint == "agent:build_graph"
     assert manifest.capabilities.invoke is True
     assert manifest.security.allow_file_system_write is False
+
+
+def test_support_agent_example_manifest_matches_langgraph_adapter_capabilities() -> None:
+    manifest = load_manifest("examples/langgraph/support-agent/manifest.yaml")
+    with open("examples/langgraph/support-agent/langgraph.json", encoding="utf-8") as f:
+        langgraph_config = json.load(f)
+
+    adapter_capabilities = LangGraphAdapter().capabilities.model_dump()
+    manifest_capabilities = manifest.capabilities.model_dump()
+
+    assert manifest.runtime.framework == "langgraph"
+    assert manifest.runtime.adapter == "langgraph"
+    assert manifest.runtime.entrypoint == "agent:build_graph"
+    assert langgraph_config["dependencies"] == ["."]
+    assert langgraph_config["graphs"] == {"support_agent": "./agent.py:build_graph"}
+    assert manifest_capabilities == adapter_capabilities
+
+
+def test_enterprise_support_agent_example_declares_real_llm_secret_and_tools() -> None:
+    manifest = load_manifest("examples/langgraph/enterprise-support-agent/manifest.yaml")
+    with open("examples/langgraph/enterprise-support-agent/langgraph.json", encoding="utf-8") as f:
+        langgraph_config = json.load(f)
+
+    assert manifest.name == "enterprise-support-agent"
+    assert manifest.runtime.framework == "langgraph"
+    assert manifest.runtime.adapter == "langgraph"
+    assert manifest.runtime.entrypoint == "agent:build_graph"
+    assert langgraph_config["dependencies"] == ["."]
+    assert langgraph_config["graphs"] == {
+        "enterprise_support_agent": "./agent.py:build_graph"
+    }
+    assert manifest.required_secrets == ["MODEL_GATEWAY_API_KEY"]
+    assert manifest.capabilities.tool_events is True
+    assert manifest.capabilities.model_events is True
+    assert manifest.capabilities.token_usage is True
 
 
 def test_manifest_rejects_unsupported_adapter() -> None:

@@ -68,7 +68,11 @@ async def run_conformance_suite(
 
     tests["cancel"] = "not_exercised"
 
-    tests["checkpoint"] = "not_exercised"
+    tests["checkpoint"] = (
+        "declared"
+        if capabilities is not None and getattr(capabilities, "checkpoint", False)
+        else "unsupported"
+    )
     tests["interrupt"] = "not_exercised"
     tests["idempotency"] = "not_exercised"
     tests["error_mapping"] = "not_exercised"

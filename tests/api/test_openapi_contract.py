@@ -11,6 +11,7 @@ def test_openapi_schema_contains_error_response_and_runtime_control_paths() -> N
 
     assert "ErrorResponse" in schema["components"]["schemas"]
     assert "/v1/deployments/{deployment_id}/activate" in schema["paths"]
+    assert "/v1/deployments/{deployment_id}/tasks" in schema["paths"]
     assert "/v1/deployments/{deployment_id}/instances" in schema["paths"]
     assert "/v1/human-tasks/{task_id}/approve" in schema["paths"]
     assert "/v1/auth/login" in schema["paths"]
@@ -43,13 +44,18 @@ def test_implemented_deployment_routes_do_not_document_501_response() -> None:
         ("/v1/agents", "get"),
         ("/v1/agents", "post"),
         ("/v1/agents/{agent_id}", "get"),
+        ("/v1/agents/{agent_id}", "patch"),
+        ("/v1/agents/{agent_id}", "delete"),
         ("/v1/agents/{agent_id}/versions", "get"),
         ("/v1/agents/{agent_id}/versions", "post"),
         ("/v1/agents/{agent_id}/versions/{version}", "get"),
+        ("/v1/agents/{agent_id}/versions/{version}", "patch"),
+        ("/v1/agents/{agent_id}/versions/{version}", "delete"),
         ("/v1/agents/{agent_id}/tasks", "post"),
         ("/v1/runs/{run_id}", "get"),
         ("/v1/runs", "get"),
         ("/v1/runs/{run_id}/events", "get"),
+        ("/v1/events", "get"),
         ("/v1/runs/{run_id}/attempts", "get"),
         ("/v1/tasks", "get"),
         ("/v1/tasks/{task_id}", "get"),
@@ -62,6 +68,7 @@ def test_implemented_deployment_routes_do_not_document_501_response() -> None:
         ("/v1/deployments/{deployment_id}/drain", "post"),
         ("/v1/deployments/{deployment_id}/stop", "post"),
         ("/v1/deployments/{deployment_id}/restart", "post"),
+        ("/v1/deployments/{deployment_id}/tasks", "post"),
     ]
 
     for path, method in paths:
@@ -80,6 +87,7 @@ def test_deployment_routes_document_request_scope_headers() -> None:
         schema["paths"]["/v1/deployments/{deployment_id}/drain"]["post"],
         schema["paths"]["/v1/deployments/{deployment_id}/stop"]["post"],
         schema["paths"]["/v1/deployments/{deployment_id}/restart"]["post"],
+        schema["paths"]["/v1/deployments/{deployment_id}/tasks"]["post"],
     ]
 
     for operation in operations:

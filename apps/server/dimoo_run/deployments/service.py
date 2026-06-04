@@ -139,6 +139,13 @@ class InMemoryDeploymentStore:
         self.deployments[deployment.id] = deployment
         return deployment
 
+    def archive(self, deployment_id: int) -> DeploymentRecord:
+        deployment = self.get(deployment_id)
+        deployment.desired_status = DeploymentDesiredStatus.archived
+        deployment.runtime_status = DeploymentRuntimeStatus.stopped
+        del self.deployments[deployment_id]
+        return deployment
+
 
 class DeploymentRuntimeControlService:
     def __init__(

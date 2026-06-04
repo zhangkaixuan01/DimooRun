@@ -2,6 +2,7 @@ services:
   server:
     volumes:
       - ./apps/server:/app/apps/server
+      - ./examples:/app/examples
       - ./migrations:/app/migrations
       - ./alembic.ini:/app/alembic.ini
       - ./pyproject.toml:/app/pyproject.toml
@@ -17,6 +18,7 @@ services:
     volumes:
       - ./apps/server:/app/apps/server
       - ./apps/worker:/app/apps/worker
+      - ./examples:/app/examples
       - ./migrations:/app/migrations
       - ./alembic.ini:/app/alembic.ini
       - ./pyproject.toml:/app/pyproject.toml

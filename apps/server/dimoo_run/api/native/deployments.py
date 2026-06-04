@@ -8,7 +8,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from dimoo_run.api.dependencies import AuthorizationHeader, RequestIdHeader, authenticate_api_key
+from dimoo_run.api.dependencies import (
+    AuthorizationHeader,
+    IdempotencyKeyHeader,
+    RequestIdHeader,
+    authenticate_api_key,
+)
 from dimoo_run.api.native.dependencies import get_native_runtime
 from dimoo_run.api.native.runtime import (
     NativeRuntimeStore,
@@ -27,6 +32,7 @@ from dimoo_run.domain.models import Deployment
 from dimoo_run.domain.schemas import AgentInstanceRead, DeploymentRead, ErrorResponse
 from dimoo_run.persistence.database import create_session_factory
 from dimoo_run.persistence.repositories import AuditLogRepository, DeploymentRepository
+from dimoo_run.runtime.idempotency import IdempotencyConflictError
 
 router = APIRouter(tags=["native-deployments"])
 ActorIdHeader = Annotated[str | None, Header(alias="X-Actor-Id")]
@@ -88,8 +94,20 @@ class SQLAlchemyDeploymentStore:
             runtime_status=deployment.runtime_status.value,
             last_runtime_error=deployment.last_runtime_error,
         )
+        model.agent_version_id = deployment.agent_version_id
+        model.environment = deployment.environment
         model.replicas = deployment.replicas
         model.config_json = deployment.config_json
+        self.session.flush()
+        return deployment_from_model(model)
+
+    def archive(self, deployment_id: int) -> DeploymentRecord:
+        model = DeploymentRepository(self.session).get_by_id(deployment_id)
+        if model is None:
+            raise DeploymentNotFoundError(deployment_id)
+        model.desired_status = DeploymentDesiredStatus.archived.value
+        model.runtime_status = DeploymentRuntimeStatus.stopped.value
+        model.is_deleted = True
         self.session.flush()
         return deployment_from_model(model)
 
@@ -174,6 +192,25 @@ class DeploymentCreate(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class DeploymentTaskCreate(BaseModel):
+    input: dict[str, Any] = Field(default_factory=dict)
+    thread_id: str | None = None
+
+
+class DeploymentTaskCreateResponse(BaseModel):
+    run_id: int
+    task_id: int
+    status: str
+    replayed: bool = False
+
+
+class DeploymentUpdate(BaseModel):
+    agent_version_id: int | None = None
+    environment: str | None = Field(default=None, min_length=1)
+    replicas: int | None = Field(default=None, ge=1)
+    config: dict[str, Any] | None = None
+
+
 @router.post(
     "/deployments",
     response_model=DeploymentRead,
@@ -216,6 +253,14 @@ def create_deployment(
             request_id=x_request_id,
             details={"agent_id": payload.agent_id},
         )
+    if agent.status != "active":
+        return error_response(
+            status_code=409,
+            error_code="agent_not_active",
+            message="Agent must be active before it can be deployed.",
+            request_id=x_request_id,
+            details={"agent_id": payload.agent_id, "status": agent.status},
+        )
     agent_version = runtime.get_version_by_id(payload.agent_id, payload.agent_version_id)
     if agent_version is None:
         return error_response(
@@ -226,6 +271,18 @@ def create_deployment(
             details={
                 "agent_id": payload.agent_id,
                 "agent_version_id": payload.agent_version_id,
+            },
+        )
+    if agent_version.status != "ready":
+        return error_response(
+            status_code=409,
+            error_code="agent_version_not_ready",
+            message="Agent version must be ready before it can be deployed.",
+            request_id=x_request_id,
+            details={
+                "agent_id": payload.agent_id,
+                "agent_version_id": payload.agent_version_id,
+                "status": agent_version.status,
             },
         )
     for deployment in service.deployments.list(tenant_id=x_tenant_id, project_id=x_project_id):
@@ -364,6 +421,167 @@ def get_deployment(
     return deployment_to_read(deployment)
 
 
+@router.patch(
+    "/deployments/{deployment_id}",
+    response_model=DeploymentRead,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
+def update_deployment(
+    deployment_id: int,
+    payload: DeploymentUpdate,
+    service: DeploymentControlDep,
+    runtime: NativeRuntimeDep,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+    authorization: AuthorizationHeader = None,
+) -> DeploymentRead | JSONResponse:
+    scope_error = require_scope(
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        request_id=x_request_id,
+    )
+    if scope_error is not None:
+        return scope_error
+    assert x_tenant_id is not None
+    assert x_project_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:deploy",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    try:
+        deployment = service.deployments.get(deployment_id)
+    except DeploymentNotFoundError:
+        return deployment_not_found(deployment_id, x_request_id)
+    if not deployment_in_scope(deployment, tenant_id=x_tenant_id, project_id=x_project_id):
+        return deployment_not_found(deployment_id, x_request_id)
+    if payload.agent_version_id is not None:
+        version = runtime.get_version_by_id(deployment.agent_id, payload.agent_version_id)
+        if version is None:
+            return error_response(
+                status_code=404,
+                error_code="agent_version_not_found",
+                message="Agent version was not found.",
+                request_id=x_request_id,
+                details={
+                    "agent_id": deployment.agent_id,
+                    "agent_version_id": payload.agent_version_id,
+                },
+            )
+        if version.status != "ready":
+            return error_response(
+                status_code=409,
+                error_code="agent_version_not_ready",
+                message="Agent version must be ready before it can be deployed.",
+                request_id=x_request_id,
+                details={
+                    "agent_id": deployment.agent_id,
+                    "agent_version_id": payload.agent_version_id,
+                    "status": version.status,
+                },
+            )
+        deployment.agent_version_id = payload.agent_version_id
+    if payload.environment is not None and payload.environment != deployment.environment:
+        for existing in service.deployments.list(tenant_id=x_tenant_id, project_id=x_project_id):
+            if (
+                existing.id != deployment.id
+                and existing.agent_id == deployment.agent_id
+                and existing.environment == payload.environment
+            ):
+                return error_response(
+                    status_code=409,
+                    error_code="deployment_already_exists",
+                    message="Deployment already exists for this agent and environment.",
+                    request_id=x_request_id,
+                    details={
+                        "agent_id": deployment.agent_id,
+                        "environment": payload.environment,
+                    },
+                )
+        deployment.environment = payload.environment
+    if payload.replicas is not None:
+        deployment.replicas = payload.replicas
+    if payload.config is not None:
+        deployment.config_json = payload.config
+    updated = service.deployments.save(deployment)
+    service.audit_sink.write(
+        AuditEntry(
+            action="deployment.update",
+            resource_type="deployment",
+            resource_id=deployment.id,
+            actor_id=auth.actor_id,
+            tenant_id=x_tenant_id,
+            project_id=x_project_id,
+            request_id=x_request_id,
+            result="allowed",
+            metadata={},
+        )
+    )
+    return deployment_to_read(updated)
+
+
+@router.delete(
+    "/deployments/{deployment_id}",
+    response_model=DeploymentRead,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def archive_deployment(
+    deployment_id: int,
+    service: DeploymentControlDep,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+    authorization: AuthorizationHeader = None,
+) -> DeploymentRead | JSONResponse:
+    scope_error = require_scope(
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        request_id=x_request_id,
+    )
+    if scope_error is not None:
+        return scope_error
+    assert x_tenant_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:deploy",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    try:
+        deployment = service.deployments.get(deployment_id)
+    except DeploymentNotFoundError:
+        return deployment_not_found(deployment_id, x_request_id)
+    if not deployment_in_scope(deployment, tenant_id=x_tenant_id, project_id=x_project_id):
+        return deployment_not_found(deployment_id, x_request_id)
+    archived = service.deployments.archive(deployment_id)
+    service.audit_sink.write(
+        AuditEntry(
+            action="deployment.archive",
+            resource_type="deployment",
+            resource_id=deployment_id,
+            actor_id=auth.actor_id,
+            tenant_id=x_tenant_id,
+            project_id=x_project_id,
+            request_id=x_request_id,
+            result="allowed",
+            metadata={},
+        )
+    )
+    return deployment_to_read(archived)
+
+
 @router.get(
     "/deployments/{deployment_id}/instances",
     response_model=list[AgentInstanceRead],
@@ -401,6 +619,142 @@ def list_deployment_instances(
         return [instance_to_read(instance) for instance in service.list_instances(deployment_id)]
     except DeploymentNotFoundError:
         return deployment_not_found(deployment_id, x_request_id)
+
+
+@router.post(
+    "/deployments/{deployment_id}/tasks",
+    status_code=202,
+    response_model=DeploymentTaskCreateResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
+def create_deployment_task(
+    deployment_id: int,
+    payload: DeploymentTaskCreate,
+    service: DeploymentControlDep,
+    runtime: NativeRuntimeDep,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+    authorization: AuthorizationHeader = None,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> DeploymentTaskCreateResponse | JSONResponse:
+    scope_error = require_scope(
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        request_id=x_request_id,
+    )
+    if scope_error is not None:
+        return scope_error
+    assert x_tenant_id is not None
+    assert x_project_id is not None
+    auth = authenticate_api_key(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:invoke",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    try:
+        deployment = service.deployments.get(deployment_id)
+    except DeploymentNotFoundError:
+        return deployment_not_found(deployment_id, x_request_id)
+    if not deployment_in_scope(deployment, tenant_id=x_tenant_id, project_id=x_project_id):
+        return deployment_not_found(deployment_id, x_request_id)
+    if deployment.desired_status != DeploymentDesiredStatus.active:
+        return error_response(
+            status_code=409,
+            error_code="deployment_not_active",
+            message="Deployment must be active before it can accept new tasks.",
+            request_id=x_request_id,
+            details={
+                "deployment_id": deployment_id,
+                "desired_status": deployment.desired_status.value,
+            },
+        )
+    agent = runtime.get_agent(
+        deployment.agent_id,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+    )
+    version = runtime.get_version_by_id(deployment.agent_id, deployment.agent_version_id)
+    if agent is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_not_found",
+            message="Deployment agent was not found.",
+            request_id=x_request_id,
+            details={"agent_id": deployment.agent_id, "deployment_id": deployment_id},
+        )
+    if agent.status != "active":
+        return error_response(
+            status_code=409,
+            error_code="agent_not_active",
+            message="Deployment agent must be active before it can accept new tasks.",
+            request_id=x_request_id,
+            details={
+                "agent_id": deployment.agent_id,
+                "deployment_id": deployment_id,
+                "status": agent.status,
+            },
+        )
+    if version is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_version_not_found",
+            message="Deployment agent version was not found.",
+            request_id=x_request_id,
+            details={
+                "agent_id": deployment.agent_id,
+                "agent_version_id": deployment.agent_version_id,
+                "deployment_id": deployment_id,
+            },
+        )
+    if version.status != "ready":
+        return error_response(
+            status_code=409,
+            error_code="agent_version_not_ready",
+            message="Deployment agent version must be ready before it can accept new tasks.",
+            request_id=x_request_id,
+            details={
+                "agent_id": deployment.agent_id,
+                "agent_version_id": deployment.agent_version_id,
+                "deployment_id": deployment_id,
+                "status": version.status,
+            },
+        )
+    try:
+        run, task, replayed = runtime.create_task_run(
+            tenant_id=x_tenant_id,
+            project_id=x_project_id,
+            agent=agent,
+            agent_version=version,
+            input_data=payload.input,
+            thread_id=payload.thread_id,
+            idempotency_key=idempotency_key,
+            endpoint=f"/v1/deployments/{deployment_id}/tasks",
+            request_body=payload.model_dump(mode="json"),
+            deployment_id=deployment.id,
+        )
+    except IdempotencyConflictError:
+        return error_response(
+            status_code=409,
+            error_code="idempotency_key_conflict",
+            message="Idempotency key was reused with a different request.",
+            request_id=x_request_id,
+            details={"idempotency_key": idempotency_key},
+        )
+    return DeploymentTaskCreateResponse(
+        run_id=run.id,
+        task_id=task.id,
+        status=task.status.value,
+        replayed=replayed,
+    )
 
 
 def control_response(
@@ -645,7 +999,8 @@ def restart_deployment(
 
 
 def deployment_to_read(deployment: DeploymentRecord) -> DeploymentRead:
-    return DeploymentRead.model_validate(deployment.__dict__)
+    payload = {**deployment.__dict__, "config": deployment.config_json}
+    return DeploymentRead.model_validate(payload)
 
 
 def deployment_from_model(deployment: Deployment) -> DeploymentRecord:

@@ -2,8 +2,10 @@ from pathlib import Path
 
 from alembic.command import downgrade, upgrade
 from alembic.config import Config
+from dimoo_run.domain.models import Tenant
 from dimoo_run.persistence.database import Base
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, select
+from sqlalchemy.orm import Session
 
 
 def test_migration_scripts_are_frozen_contracts() -> None:
@@ -54,3 +56,28 @@ def test_alembic_core_indexes_match_orm_metadata(tmp_path) -> None:  # type: ign
         orm_indexes = {index.name for index in Base.metadata.tables[table_name].indexes}
         database_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
         assert orm_indexes <= database_indexes, table_name
+
+
+def test_alembic_head_matches_task_columns_required_by_orm(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    database_path = tmp_path / "dimoorun.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path}")
+
+    upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path}")
+    task_columns = {column["name"] for column in inspect(engine).get_columns("tasks")}
+
+    assert "metadata_json" in task_columns
+
+
+def test_sqlite_metadata_create_all_autoincrements_mixin_ids() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        tenant = Tenant(name="Default Tenant", slug="default-tenant", status="active")
+        session.add(tenant)
+        session.flush()
+
+        assert tenant.id == 1
+        assert session.scalar(select(Tenant).where(Tenant.slug == "default-tenant")) == tenant

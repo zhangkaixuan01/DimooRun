@@ -20,7 +20,14 @@ from sqlalchemy.pool import StaticPool
 
 
 @fixture()
-def durable_client() -> Iterator[tuple[TestClient, Session, str]]:
+def durable_client(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[tuple[TestClient, Session, str]]:
+    auth_database_path = tmp_path / "auth.db"
+    auth_database_url = f"sqlite:///{auth_database_path}"
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "dev")
+    monkeypatch.setenv("DATABASE_URL", auth_database_url)
     reset_api_key_authenticator()
     engine = create_engine(
         "sqlite://",
@@ -79,7 +86,13 @@ def test_native_api_can_use_sqlalchemy_runtime_store(
     version = client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0", "package_uri": "file://support-agent"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     ).json()
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -113,7 +126,13 @@ def test_native_api_durable_runtime_replays_idempotent_create(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     )
 
     first = client.post(
@@ -176,7 +195,13 @@ def test_native_api_cancel_responses_reflect_sqlalchemy_state(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -217,7 +242,13 @@ def test_native_api_cancel_uses_runtime_state_machine(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -253,7 +284,13 @@ def test_native_api_exposes_dead_letter_task_details(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -291,7 +328,13 @@ def test_native_api_exposes_task_runtime_scheduling_details(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -328,13 +371,14 @@ def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    reset_api_key_authenticator()
     database_path = tmp_path / "runtime.db"
     database_url = f"sqlite:///{database_path}"
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "dev")
     monkeypatch.setenv("DIMOORUN_NATIVE_RUNTIME_STORE", "sqlalchemy")
     monkeypatch.setenv("DATABASE_URL", database_url)
+    reset_api_key_authenticator()
     authenticator = default_api_key_authenticator()
     scopes = {"agent:read", "agent:write", "agent:invoke", "agent:deploy"}
     service_account = authenticator.service_accounts.create(
@@ -363,7 +407,13 @@ def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",

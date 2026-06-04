@@ -22,8 +22,8 @@ class LangGraphAdapter:
         self.capabilities = CapabilityModel(
             invoke=True,
             stream=True,
-            checkpoint=False,
-            resume=False,
+            checkpoint=True,
+            resume=True,
             interrupt=True,
             human_in_loop=True,
             tool_events=True,
@@ -88,8 +88,17 @@ class LangGraphAdapter:
         context: RuntimeContext,
     ) -> AgentResult:
         self.capabilities.require("resume", self.framework)
-        _ = agent, run_id, payload, context
-        raise CapabilityNotSupportedError(capability="resume", framework=self.framework)
+        _ = run_id
+        try:
+            from langgraph.types import Command
+        except ImportError as exc:  # pragma: no cover - dependency wiring issue
+            raise CapabilityNotSupportedError(
+                capability="resume",
+                framework=self.framework,
+            ) from exc
+
+        output = await call_invoke(agent, Command(resume=payload), self._config(context))
+        return AgentResult(output=output if isinstance(output, dict) else {"output": output})
 
     async def cancel(self, run_id: int, context: RuntimeContext) -> None:
         self.capabilities.require("interrupt", self.framework)

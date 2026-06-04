@@ -382,7 +382,10 @@ def test_alert_rule_admin_collection_persists_with_parent_channel(tmp_path, monk
         session.close()
 
 
-def test_published_surface_and_ingress_route_persist_with_parent_resources(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_published_surface_and_ingress_route_persist_with_parent_resources(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
     database_url = f"sqlite:///{tmp_path / 'admin-surfaces.db'}"
     monkeypatch.setenv("DATABASE_URL", database_url)
     engine = create_engine(database_url)
@@ -615,6 +618,38 @@ def test_machine_identity_service_account_api_key_lifecycle() -> None:
     assert "identity.api_key.disable" in actions
     assert "identity.api_key.enable" in actions
     assert "identity.api_key.delete" in actions
+
+
+def test_top_level_api_keys_lists_accessible_machine_keys_without_plain_secret() -> None:
+    client = TestClient(create_app())
+
+    service_account = client.post(
+        "/v1/identity/service-accounts",
+        headers=admin_headers("req_sa_for_keys"),
+        json={
+            "name": "api-key-index-sa",
+            "tenant_id": 1,
+            "project_id": 1,
+            "permissions": ["agent:read"],
+        },
+    )
+    assert service_account.status_code == 201
+    service_account_id = service_account.json()["item"]["id"]
+    created_key = client.post(
+        f"/v1/identity/service-accounts/{service_account_id}/api-keys",
+        headers=admin_headers("req_top_level_key_create"),
+        json={"name": "indexed-key", "scopes": ["agent:read"]},
+    )
+    assert created_key.status_code == 201
+
+    response = client.get("/v1/api-keys", headers=admin_headers("req_top_level_key_list"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["items"][0]["name"] == "indexed-key"
+    assert body["items"][0]["owner_id"] == service_account_id
+    assert "plain_key" not in body["items"][0]
 
 
 def test_machine_identity_service_account_update_and_delete() -> None:

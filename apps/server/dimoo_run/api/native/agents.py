@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Response
@@ -26,11 +27,22 @@ NativeRuntimeDep = Annotated[
     NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     Depends(get_native_runtime),
 ]
+SUPPORTED_AGENT_RUNTIMES = {
+    "langgraph": "langgraph",
+    "langchain-agent": "langchain-agent",
+    "deepagents": "deepagents",
+}
 
 
 class AgentCreate(BaseModel):
     name: str
     description: str | None = None
+
+
+class AgentUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
 
 
 class AgentRead(BaseModel):
@@ -40,16 +52,28 @@ class AgentRead(BaseModel):
     name: str
     description: str | None = None
     status: str
+    created_at: datetime | None = None
 
 
 class AgentVersionCreate(BaseModel):
     version: str
-    package_uri: str = "file://."
-    framework: str = "langgraph"
-    adapter: str = "langgraph"
-    entrypoint: str = "agent:create_agent"
+    package_uri: str
+    framework: str
+    adapter: str
+    entrypoint: str
     capabilities: dict[str, Any] = Field(default_factory=dict)
     manifest: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentVersionUpdate(BaseModel):
+    version: str | None = None
+    package_uri: str | None = None
+    framework: str | None = None
+    adapter: str | None = None
+    entrypoint: str | None = None
+    capabilities: dict[str, Any] | None = None
+    manifest: dict[str, Any] | None = None
+    status: str | None = None
 
 
 class AgentVersionRead(BaseModel):
@@ -112,6 +136,31 @@ def _agent_to_read(agent: NativeAgent) -> AgentRead:
 
 def _version_to_read(version: NativeAgentVersion) -> AgentVersionRead:
     return AgentVersionRead.model_validate(version.__dict__)
+
+
+def _validate_agent_runtime(
+    *,
+    framework: str,
+    adapter: str,
+    request_id: str | None,
+) -> JSONResponse | None:
+    expected_framework = SUPPORTED_AGENT_RUNTIMES.get(adapter)
+    if expected_framework == framework:
+        return None
+    return error_response(
+        status_code=400,
+        error_code="unsupported_agent_runtime",
+        message="AgentVersion framework and adapter must use a supported runtime pair.",
+        request_id=request_id,
+        details={
+            "framework": framework,
+            "adapter": adapter,
+            "supported": [
+                {"framework": framework_name, "adapter": adapter_name}
+                for adapter_name, framework_name in SUPPORTED_AGENT_RUNTIMES.items()
+            ],
+        },
+    )
 
 
 @router.post("/agents", status_code=201, response_model=AgentRead)
@@ -203,7 +252,7 @@ def get_agent(
 @router.patch("/agents/{agent_id}", response_model=AgentRead)
 def update_agent(
     agent_id: int,
-    payload: AgentCreate,
+    payload: AgentUpdate,
     runtime: NativeRuntimeDep,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -229,7 +278,17 @@ def update_agent(
             request_id=x_request_id,
             details={"agent_id": agent_id},
         )
-    agent = runtime.update_agent(existing, name=payload.name, description=payload.description)
+    fields_set = payload.model_fields_set
+    agent = runtime.update_agent(
+        existing,
+        name=payload.name if "name" in fields_set and payload.name is not None else existing.name,
+        description=payload.description if "description" in fields_set else existing.description,
+        status=(
+            payload.status
+            if "status" in fields_set and payload.status is not None
+            else existing.status
+        ),
+    )
     return _agent_to_read(agent)
 
 
@@ -294,6 +353,13 @@ def create_agent_version(
             request_id=x_request_id,
             details={"agent_id": agent_id},
         )
+    runtime_error = _validate_agent_runtime(
+        framework=payload.framework,
+        adapter=payload.adapter,
+        request_id=x_request_id,
+    )
+    if runtime_error is not None:
+        return runtime_error
     version = runtime.create_version(agent=agent, **payload.model_dump())
     return _version_to_read(version)
 
@@ -326,9 +392,25 @@ def get_agent_version(
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> AgentVersionRead | JSONResponse:
-    agent = get_agent(agent_id, runtime, authorization, x_tenant_id, x_project_id, x_request_id)
-    if isinstance(agent, JSONResponse):
-        return agent
+    auth = _auth(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:write",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    tenant_id, project_id = auth
+    agent = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
+    if agent is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_not_found",
+            message="Agent was not found.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id},
+        )
     agent_version = runtime.get_version(agent_id, version)
     if agent_version is None:
         return error_response(
@@ -339,6 +421,105 @@ def get_agent_version(
             details={"agent_id": agent_id, "version": version},
         )
     return _version_to_read(agent_version)
+
+
+@router.patch("/agents/{agent_id}/versions/{version}", response_model=AgentVersionRead)
+def update_agent_version(
+    agent_id: int,
+    version: str,
+    payload: AgentVersionUpdate,
+    runtime: NativeRuntimeDep,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> AgentVersionRead | JSONResponse:
+    auth = _auth(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:write",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    tenant_id, project_id = auth
+    agent = runtime.get_agent(agent_id, tenant_id=tenant_id, project_id=project_id)
+    if agent is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_not_found",
+            message="Agent was not found.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id},
+        )
+    existing = runtime.get_version(agent_id, version)
+    if existing is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_version_not_found",
+            message="Agent version was not found.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id, "version": version},
+        )
+    next_version = payload.version or existing.version
+    if next_version != existing.version and runtime.get_version(agent_id, next_version) is not None:
+        return error_response(
+            status_code=409,
+            error_code="agent_version_conflict",
+            message="Agent version already exists.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id, "version": next_version},
+        )
+    next_framework = payload.framework or existing.framework
+    next_adapter = payload.adapter or existing.adapter
+    runtime_error = _validate_agent_runtime(
+        framework=next_framework,
+        adapter=next_adapter,
+        request_id=x_request_id,
+    )
+    if runtime_error is not None:
+        return runtime_error
+    updated = runtime.update_version(
+        existing,
+        version=next_version,
+        package_uri=payload.package_uri or existing.package_uri,
+        framework=next_framework,
+        adapter=next_adapter,
+        entrypoint=payload.entrypoint or existing.entrypoint,
+        capabilities=(
+            payload.capabilities if payload.capabilities is not None else existing.capabilities
+        ),
+        manifest=payload.manifest if payload.manifest is not None else existing.manifest,
+        status=payload.status or existing.status,
+    )
+    return _version_to_read(updated)
+
+
+@router.delete("/agents/{agent_id}/versions/{version}", response_model=AgentVersionRead)
+def delete_agent_version(
+    agent_id: int,
+    version: str,
+    runtime: NativeRuntimeDep,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> AgentVersionRead | JSONResponse:
+    agent = get_agent(agent_id, runtime, authorization, x_tenant_id, x_project_id, x_request_id)
+    if isinstance(agent, JSONResponse):
+        return agent
+    existing = runtime.get_version(agent_id, version)
+    if existing is None:
+        return error_response(
+            status_code=404,
+            error_code="agent_version_not_found",
+            message="Agent version was not found.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id, "version": version},
+        )
+    archived = runtime.archive_version(existing)
+    return _version_to_read(archived)
 
 
 @router.post("/agents/{agent_id}/invoke", status_code=202, response_model=AgentTaskCreateResponse)
@@ -410,6 +591,26 @@ def create_agent_task(
             message="Agent has no runnable version.",
             request_id=x_request_id,
             details={"agent_id": agent_id, "version": payload.version},
+        )
+    if agent.status != "active":
+        return error_response(
+            status_code=409,
+            error_code="agent_not_active",
+            message="Agent must be active before it can accept new tasks.",
+            request_id=x_request_id,
+            details={"agent_id": agent_id, "status": agent.status},
+        )
+    if version.status != "ready":
+        return error_response(
+            status_code=409,
+            error_code="agent_version_not_ready",
+            message="Agent version must be ready before it can accept new tasks.",
+            request_id=x_request_id,
+            details={
+                "agent_id": agent_id,
+                "version": version.version,
+                "status": version.status,
+            },
         )
     try:
         run, task, replayed = runtime.create_task_run(

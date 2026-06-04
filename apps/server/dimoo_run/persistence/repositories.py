@@ -156,7 +156,7 @@ class EnvironmentRepository(
         super().__init__(session, Environment)
 
 
-class AgentVersionRepository(StatusRepositoryMixin[AgentVersion], BaseRepository[AgentVersion]):
+class AgentVersionRepository(ArchivableRepositoryMixin[AgentVersion], BaseRepository[AgentVersion]):
     def __init__(self, session: Session) -> None:
         super().__init__(session, AgentVersion)
 
@@ -164,6 +164,7 @@ class AgentVersionRepository(StatusRepositoryMixin[AgentVersion], BaseRepository
         statement = select(AgentVersion).where(
             AgentVersion.agent_id == agent_id,
             AgentVersion.is_deleted.is_(False),
+            AgentVersion.status != "archived",
         )
         return list(self.session.scalars(statement))
 
@@ -172,6 +173,7 @@ class AgentVersionRepository(StatusRepositoryMixin[AgentVersion], BaseRepository
             AgentVersion.agent_id == agent_id,
             AgentVersion.version == version,
             AgentVersion.is_deleted.is_(False),
+            AgentVersion.status != "archived",
         )
         return self.session.scalar(statement)
 

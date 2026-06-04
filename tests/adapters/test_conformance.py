@@ -6,6 +6,8 @@ from dimoo_run.core.context import RuntimeContext
 
 class FakeGraph:
     async def ainvoke(self, input_data, config):  # type: ignore[no-untyped-def]
+        if input_data.__class__.__name__ == "Command":
+            return {"resumed": True}
         return {"ok": input_data["ok"]}
 
     async def astream(self, input_data, config):  # type: ignore[no-untyped-def]
@@ -21,6 +23,7 @@ def make_context() -> RuntimeContext:
         agent_id=1,
         agent_version_id="agent_version_1",
         deployment_id=1,
+        thread_id="thread_1",
     )
 
 
@@ -39,8 +42,8 @@ async def test_conformance_report_records_versions_and_results() -> None:
     assert report.framework_version
     assert report.tests["invoke"] == "passed"
     assert report.tests["stream"] == "passed"
-    assert report.tests["resume"] == "unsupported"
+    assert report.tests["resume"] == "passed"
     assert report.tests["cancel"] == "not_exercised"
-    assert report.tests["checkpoint"] == "not_exercised"
+    assert report.tests["checkpoint"] == "declared"
     assert report.tests["idempotency"] == "not_exercised"
     assert report.failed == []

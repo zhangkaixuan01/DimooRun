@@ -1,8 +1,10 @@
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from dimoo_run.api.compat.auth import ProjectIdHeader, TenantIdHeader
 from dimoo_run.api.dependencies import (
@@ -17,6 +19,7 @@ from dimoo_run.api.native.runtime import (
     NativeRuntimeStore,
     SQLAlchemyNativeRuntimeStore,
 )
+from dimoo_run.domain.models import RunAttempt
 
 router = APIRouter(tags=["native-runs"])
 NativeRuntimeDep = Annotated[
@@ -38,14 +41,33 @@ class RunRead(BaseModel):
     error: dict[str, Any] | None = None
     thread_id: str | None = None
     idempotency_key: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    latency_ms: int | None = None
 
 
 class EventRead(BaseModel):
+    run_id: int
     event_id: str
     sequence: int
     type: str
     payload: dict[str, Any]
     visibility_level: str
+
+
+class RunAttemptRead(BaseModel):
+    id: int
+    run_id: int
+    task_id: int | None
+    attempt_no: int
+    worker_id: str | None
+    status: str
+    error: str | None = None
+
+
+class ReplayRunRequest(BaseModel):
+    agent_version_id: int | None = None
 
 
 def _auth(
@@ -79,6 +101,13 @@ def _auth(
 def _run_to_read(run: NativeRun) -> RunRead:
     payload = run.__dict__.copy()
     payload["status"] = run.status.value
+    started_at = payload.get("started_at")
+    finished_at = payload.get("finished_at")
+    payload["latency_ms"] = (
+        int((finished_at - started_at).total_seconds() * 1000)
+        if started_at is not None and finished_at is not None
+        else None
+    )
     return RunRead.model_validate(payload)
 
 
@@ -184,10 +213,11 @@ def list_run_events(
     if isinstance(run, JSONResponse):
         return run
     return [
-        EventRead(
-            event_id=event.event_id or "",
-            sequence=event.sequence or 0,
-            type=event.type,
+            EventRead(
+                run_id=event.run_id or run.id,
+                event_id=event.event_id or "",
+                sequence=event.sequence or 0,
+                type=event.type,
             payload=event.payload,
             visibility_level=event.visibility_level,
         )
@@ -195,7 +225,38 @@ def list_run_events(
     ]
 
 
-@router.get("/runs/{run_id}/attempts", response_model=list[dict[str, Any]])
+@router.get("/events", response_model=list[EventRead])
+def list_events(
+    runtime: NativeRuntimeDep,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> list[EventRead] | JSONResponse:
+    auth = _auth(
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        required_scope="agent:read",
+        request_id=x_request_id,
+    )
+    if isinstance(auth, JSONResponse):
+        return auth
+    tenant_id, project_id = auth
+    return [
+        EventRead(
+            run_id=event.run_id or 0,
+            event_id=event.event_id or "",
+            sequence=event.sequence or 0,
+            type=event.type,
+            payload=event.payload,
+            visibility_level=event.visibility_level,
+        )
+        for event in runtime.list_events(tenant_id=tenant_id, project_id=project_id)
+    ]
+
+
+@router.get("/runs/{run_id}/attempts", response_model=list[RunAttemptRead])
 def list_run_attempts(
     run_id: int,
     runtime: NativeRuntimeDep,
@@ -203,7 +264,7 @@ def list_run_attempts(
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
-) -> list[dict[str, Any]] | JSONResponse:
+) -> list[RunAttemptRead] | JSONResponse:
     run = _find_run(
         run_id,
         runtime=runtime,
@@ -214,6 +275,13 @@ def list_run_attempts(
     )
     if isinstance(run, JSONResponse):
         return run
+    if isinstance(runtime, SQLAlchemyNativeRuntimeStore):
+        attempts = runtime.session.scalars(
+            select(RunAttempt)
+            .where(RunAttempt.run_id == run.id, RunAttempt.is_deleted.is_(False))
+            .order_by(RunAttempt.attempt_no)
+        )
+        return [RunAttemptRead.model_validate(attempt.__dict__) for attempt in attempts]
     return []
 
 
@@ -269,9 +337,37 @@ def retry_run(
 def replay_run(
     run_id: int,
     runtime: NativeRuntimeDep,
+    payload: ReplayRunRequest | None = None,
     authorization: AuthorizationHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> RunRead | JSONResponse:
-    return get_run(run_id, runtime, authorization, x_tenant_id, x_project_id, x_request_id)
+    run = _find_run(
+        run_id,
+        runtime=runtime,
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        request_id=x_request_id,
+        required_scope="agent:invoke",
+    )
+    if isinstance(run, JSONResponse):
+        return run
+    try:
+        replay = runtime.replay_run(
+            run,
+            agent_version_id=payload.agent_version_id if payload else None,
+        )
+    except KeyError:
+        return error_response(
+            status_code=404,
+            error_code="agent_version_not_found",
+            message="Agent version was not found.",
+            request_id=x_request_id,
+            details={
+                "agent_id": run.agent_id,
+                "agent_version_id": payload.agent_version_id if payload else None,
+            },
+        )
+    return _run_to_read(replay)

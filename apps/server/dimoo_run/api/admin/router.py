@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, Float, Integer, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+import dimoo_run.domain.models as domain_models
 from dimoo_run.api.dependencies import (
     EnvironmentHeader,
     ProjectIdHeader,
@@ -19,7 +20,6 @@ from dimoo_run.api.dependencies import (
     enforce_console_actor,
 )
 from dimoo_run.core.config import Settings
-import dimoo_run.domain.models as domain_models
 from dimoo_run.domain.models import (
     AuditLog,
     ConsolePermission,
@@ -319,7 +319,13 @@ _DB_COLLECTIONS: dict[str, AdminDbCollectionSpec] = {
     ),
     "incidents": AdminDbCollectionSpec(
         domain_models.IncidentEvent,
-        defaults={"signal": "manual", "severity": "info", "source_ref": "console", "value": 0.0, "metadata_json": {}},
+        defaults={
+            "signal": "manual",
+            "severity": "info",
+            "source_ref": "console",
+            "value": 0.0,
+            "metadata_json": {},
+        },
         expose_name_from_metadata=True,
     ),
     "schedules": AdminDbCollectionSpec(
@@ -543,7 +549,9 @@ def _tenant_by_slug(session: Session, slug: str) -> Tenant | None:
 
 
 def _project_by_slug(session: Session, slug: str, tenant_id: int) -> Project | None:
-    return session.scalar(select(Project).where(Project.tenant_id == tenant_id, Project.slug == slug))
+    return session.scalar(
+        select(Project).where(Project.tenant_id == tenant_id, Project.slug == slug)
+    )
 
 
 def _resolve_scope_ids(
@@ -1070,7 +1078,7 @@ def _public_field_name(column_name: str) -> str:
 
 def _db_record_environment(record: Any) -> str | None:
     if hasattr(record, "environment"):
-        return getattr(record, "environment")
+        return record.environment
     metadata = getattr(record, "metadata_json", None)
     if isinstance(metadata, dict):
         value = metadata.get("_environment")
@@ -1878,6 +1886,20 @@ def _serialize_api_key(record: Any) -> dict[str, Any]:
         "last_used_at": record.last_used_at.isoformat() if record.last_used_at else None,
         "expires_at": record.expires_at.isoformat() if record.expires_at else None,
     }
+
+
+@router.get("/api-keys")
+def list_api_keys(
+    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
+    x_request_id: RequestIdHeader = None,
+) -> dict[str, Any]:
+    keys = default_api_key_authenticator().list_keys()
+    items = [
+        _serialize_api_key(record)
+        for record in keys
+        if _actor_can_access_target(actor, record.tenant_id, record.project_id)
+    ]
+    return {"items": items, "count": len(items), "request_id": x_request_id}
 
 
 @router.get("/identity/service-accounts")

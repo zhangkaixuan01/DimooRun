@@ -2,7 +2,6 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from dimoo_run.adapters.base.contract import CapabilityNotSupportedError
 from dimoo_run.adapters.langgraph.adapter import LangGraphAdapter
 from dimoo_run.core.context import RuntimeContext
 
@@ -28,6 +27,17 @@ class FakeInterruptGraph:
     ) -> AsyncIterator[dict[str, Any]]:
         _ = input_data, config
         yield {"__interrupt__": {"reason": "approval_required"}}
+
+
+class FakeResumeGraph:
+    def __init__(self) -> None:
+        self.input_data: Any | None = None
+        self.config: dict[str, Any] | None = None
+
+    async def ainvoke(self, input_data: Any, config: dict[str, Any]) -> dict[str, Any]:
+        self.input_data = input_data
+        self.config = config
+        return {"resumed": True}
 
 
 def make_context() -> RuntimeContext:
@@ -74,11 +84,20 @@ async def test_langgraph_adapter_stream_maps_chunks_to_agent_events() -> None:
 
 
 @pytest.mark.asyncio
-async def test_langgraph_adapter_resume_is_not_certified_in_contract_scaffold() -> None:
+async def test_langgraph_adapter_resume_uses_langgraph_command_with_runtime_context() -> None:
+    pytest.importorskip("langgraph.types")
     adapter = LangGraphAdapter()
+    graph = FakeResumeGraph()
 
-    with pytest.raises(CapabilityNotSupportedError):
-        await adapter.resume(FakeGraph(), "run_1", {"resume": "ok"}, make_context())
+    result = await adapter.resume(graph, 1, {"approved": True}, make_context())
+
+    assert result.output == {"resumed": True}
+    assert graph.input_data is not None
+    assert graph.input_data.__class__.__name__ == "Command"
+    assert getattr(graph.input_data, "resume") == {"approved": True}
+    assert graph.config is not None
+    assert graph.config["configurable"]["thread_id"] == "thread_1"
+    assert graph.config["configurable"]["run_id"] == 1
 
 
 @pytest.mark.asyncio
@@ -96,8 +115,8 @@ async def test_langgraph_adapter_maps_interrupt_chunks() -> None:
     assert events[0].payload == {"reason": "approval_required"}
 
 
-def test_langgraph_adapter_does_not_certify_checkpoint_or_resume() -> None:
+def test_langgraph_adapter_certifies_checkpoint_and_resume() -> None:
     adapter = LangGraphAdapter()
 
-    assert adapter.capabilities.checkpoint is False
-    assert adapter.capabilities.resume is False
+    assert adapter.capabilities.checkpoint is True
+    assert adapter.capabilities.resume is True

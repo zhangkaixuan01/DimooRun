@@ -96,7 +96,7 @@ def test_agent_result_and_event_have_stable_shapes() -> None:
 
     assert result.output["message"] == "done"
     assert result.events[0].type == "agent.stream_chunk"
-    assert result.events[0].event_id == "run_1:1"
+    assert result.events[0].event_id == "1:1"
     assert result.metadata["latency_ms"] == 10
 
 

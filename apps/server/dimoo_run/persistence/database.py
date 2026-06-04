@@ -29,6 +29,7 @@ class IdMixin:
         BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
+        sort_order=-1000,
     )
 
 

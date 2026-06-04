@@ -25,6 +25,7 @@ class WorkerLoop:
         lease_seconds: int = 30,
         cancel_subscriber: Any | None = None,
         cancel_handler: Any | None = None,
+        execute_once: Any | None = None,
     ) -> None:
         self.worker_id = worker_id or f"worker_{uuid4().hex[:8]}"
         self.poll_interval_seconds = poll_interval_seconds
@@ -33,6 +34,7 @@ class WorkerLoop:
         self.lease_seconds = lease_seconds
         self.cancel_subscriber = cancel_subscriber
         self.cancel_handler = cancel_handler
+        self.execute_once = execute_once
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="starting")
         self._stopped = False
 
@@ -47,6 +49,19 @@ class WorkerLoop:
                     worker_id=self.worker_id,
                     status="cancel_requested",
                 )
+                return self.heartbeat
+        if self.execute_once is not None:
+            import anyio
+
+            async def invoke_execute_once() -> Any:
+                return await self.execute_once(
+                    queue=self.queue,
+                    lease_seconds=self.lease_seconds,
+                )
+
+            result = anyio.run(invoke_execute_once)
+            if result is not None:
+                self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="executed")
                 return self.heartbeat
         if self.task_backend is not None:
             import anyio

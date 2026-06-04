@@ -27,6 +27,7 @@ class DeploymentRead(BaseModel):
     desired_status: DeploymentDesiredStatus
     runtime_status: DeploymentRuntimeStatus
     replicas: int
+    config: dict[str, Any] = Field(default_factory=dict)
     last_runtime_error: str | None = None
 
 
