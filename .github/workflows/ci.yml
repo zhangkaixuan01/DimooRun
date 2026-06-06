@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  backend:
+    name: Backend, Docs, And Deployment Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run backend and contract tests
+        run: uv run pytest -q
+
+      - name: Run Ruff
+        run: uv run ruff check .
+
+      - name: Run mypy
+        run: uv run mypy apps/server tests scripts
+
+      - name: Run docs quality gate
+        run: uv run python scripts/docs_quality.py
+
+      - name: Run Compose static smoke
+        run: uv run python scripts/compose_smoke.py
+
+      - name: Run Helm static smoke
+        run: uv run python scripts/helm_smoke.py
+
+  frontend:
+    name: Console
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/console
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/console/package-lock.json
+
+      - name: Install Console dependencies
+        run: npm ci
+
+      - name: Run Console contract tests
+        run: npm run test
+
+      - name: Run Console unit tests
+        run: npm run test:unit
+
+      - name: Build Console E2E bundle
+        run: npm run build:e2e
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Console browser tests
+        run: npm run test:e2e
+

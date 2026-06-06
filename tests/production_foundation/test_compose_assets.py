@@ -1,6 +1,24 @@
+import sys
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.compose_runtime_smoke import run_compose_runtime_smoke
+from scripts.compose_smoke import validate_compose_smoke
+
+
+class FakeRunner:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+        self.urls: list[str] = []
+
+    def run(self, command: list[str], timeout_seconds: int) -> None:
+        self.commands.append(command)
+
+    def probe_url(self, url: str, timeout_seconds: int) -> None:
+        self.urls.append(url)
 
 
 def test_compose_declares_production_foundation_services() -> None:
@@ -80,3 +98,35 @@ def test_dev_compose_mounts_source_and_enables_reload() -> None:
     assert "--reload-dir /app/apps/server" in server["command"][-1]
     assert "./apps/console:/app/apps/console" in console["volumes"]
     assert "console-node-modules:/app/apps/console/node_modules" in console["volumes"]
+
+
+def test_compose_smoke_contract_covers_core_runtime_stack() -> None:
+    result = validate_compose_smoke(Path("."))
+
+    assert result.errors == []
+    assert result.checked_services == [
+        "server",
+        "worker",
+        "console",
+        "postgres",
+        "redis",
+        "minio",
+    ]
+
+
+def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
+    runner = FakeRunner()
+
+    result = run_compose_runtime_smoke(Path("."), runner=runner, retries=1)
+
+    assert result.errors == []
+    assert runner.commands == [
+        ["docker", "compose", "config", "--quiet"],
+        ["docker", "compose", "up", "--build", "--detach"],
+        ["docker", "compose", "ps"],
+        ["docker", "compose", "down", "--remove-orphans"],
+    ]
+    assert runner.urls == [
+        "http://127.0.0.1:8000/healthz",
+        "http://127.0.0.1:5173/",
+    ]
