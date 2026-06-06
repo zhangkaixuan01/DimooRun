@@ -309,11 +309,71 @@ test("exposes the production deployment task flow from the Console", () => {
     assert.match(deploymentsPage, /DangerConfirmDialog/);
     assert.match(deploymentsPage, /ResourceLink/);
     assert.match(publishedPage, /class="surface-row"/);
+    assert.match(publishedPage, /defineProps<\{\s*surfaceId\?: string/);
     assert.match(publishedPage, /selectedSurface/);
+    assert.match(publishedPage, /Number\(props\.surfaceId\)/);
     assert.match(publishedPage, /routesForSurface/);
     assert.match(publishedPage, /createAdminItem\("\/v1\/ingress-routes"/);
+    assert.match(publishedPage, /consoleClient\.validatePublishedSurface/);
+    assert.match(publishedPage, /consoleClient\.publishSurface/);
+    assert.match(publishedPage, /consoleClient\.testIngressRoute/);
+    assert.match(publishedPage, /consoleClient\.getPublishedSurfaceDetail/);
+    assert.match(publishedPage, /consoleClient\.rolloutPublishedSurface/);
+    [
+      "Validate publish",
+      "Publish surface",
+      "Test route",
+      "Open request log",
+      "Apply traffic split",
+      "Revoke surface",
+      "Confirm revoke",
+      "Rollback surface",
+    ].forEach((literal) => assert.match(publishedPage, new RegExp(literal)));
+    assert.match(router, /path: "\/published-surfaces\/:surfaceId"/);
     assert.match(router, /path: "\/published-surfaces\/ingress-routes", redirect: "\/published-surfaces"/);
     assert.doesNotMatch(shell, /to: "\/published-surfaces\/ingress-routes"/);
+});
+
+test("mocks the governed published surface browser workflow", () => {
+    const fixture = read("tests/fixtures/api.ts");
+    [
+      'path === "/v1/published-surfaces/validate"',
+      'path === "/v1/published-surfaces/publish"',
+      'path === "/v1/ingress-routes/test"',
+      "publishedDetailMatch",
+      "publishedRolloutMatch",
+    ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
+});
+
+test("allows a locally supplied Chrome executable for browser workflow proof", () => {
+    const config = read("playwright.config.ts");
+    assert.match(config, /DIMOORUN_PLAYWRIGHT_CHROME/);
+    assert.match(config, /executablePath/);
+});
+
+test("documents Playwright browser setup for cloned workspaces", () => {
+    const packageJson = read("package.json");
+    const readmePath = "README.md";
+    const envExamplePath = ".env.e2e.example";
+    const checkScriptPath = "scripts/check-playwright-browser.mjs";
+    assert.equal(existsSync(join(root, readmePath)), true);
+    assert.equal(existsSync(join(root, envExamplePath)), true);
+    assert.equal(existsSync(join(root, checkScriptPath)), true);
+
+    const readme = read(readmePath);
+    const envExample = read(envExamplePath);
+    const checkScript = read(checkScriptPath);
+    const config = read("playwright.config.ts");
+    assert.match(packageJson, /"check:e2e-browser"/);
+    assert.match(readme, /npx playwright install chromium/);
+    assert.match(readme, /\.env\.e2e\.local/);
+    assert.match(readme, /DIMOORUN_PLAYWRIGHT_CHROME/);
+    assert.match(readme, /chrome-win64\\chrome\.exe/);
+    assert.match(envExample, /DIMOORUN_PLAYWRIGHT_CHROME=/);
+    assert.match(checkScript, /DIMOORUN_PLAYWRIGHT_CHROME/);
+    assert.match(checkScript, /\.env\.e2e\.local/);
+    assert.match(checkScript, /npx playwright install chromium/);
+    assert.match(config, /\.env\.e2e\.local/);
 });
 
 test("opens an agent registration form before creating an Agent", () => {
@@ -471,6 +531,35 @@ test("makes generic admin CRUD production-safe", () => {
     assert.match(adminPage, /DangerConfirmDialog/);
     assert.match(adminPage, /runConfirmedDelete/);
     assert.doesNotMatch(adminPage, /@click="deleteItem\(item\)"/);
+});
+
+test("uses shared frontend state primitives in the deployments workflow", () => {
+    const deploymentsPage = read("src/pages/deployments/DeploymentsPage.vue");
+    const client = read("src/api/client.ts");
+    const types = read("src/api/types.ts");
+    const query = read("src/api/query.ts");
+    const mutations = read("src/api/mutations.ts");
+    const jsonForm = read("src/forms/jsonForm.ts");
+    const jsonEditor = read("src/components/JsonSchemaEditor.vue");
+
+    assert.match(types, /ConsoleWriteOptions/);
+    assert.match(types, /auditReason\?: string/);
+    assert.match(client, /X-Audit-Reason/);
+    assert.match(query, /createQueryResource/);
+    assert.match(query, /AbortController/);
+    assert.match(query, /requestVersion/);
+    assert.match(mutations, /createMutationAction/);
+    assert.match(mutations, /auditReason/);
+    assert.match(mutations, /resource_conflict/);
+    assert.match(jsonForm, /parseJsonObject/);
+    assert.match(jsonForm, /line: number/);
+    assert.match(jsonForm, /column: number/);
+    assert.match(jsonEditor, /JsonParseFailure/);
+    assert.match(deploymentsPage, /createQueryResource/);
+    assert.match(deploymentsPage, /createMutationAction/);
+    assert.match(deploymentsPage, /<JsonSchemaEditor/);
+    assert.doesNotMatch(deploymentsPage, /<textarea v-model="editDeploymentForm\.configJson"/);
+    assert.doesNotMatch(deploymentsPage, /<textarea v-model="deploymentTaskInputJson"/);
 });
 
 test("loads the Events page from real run events", () => {

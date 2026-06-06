@@ -10,6 +10,9 @@ wheels/
 node_modules/
 apps/console/dist/
 apps/console/dev-server.log
+apps/console/dev-server.err.log
+apps/console/playwright-report/
+apps/console/test-results/
 
 # Virtual environments
 .venv
@@ -27,6 +30,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.e2e
+!apps/console/.env.e2e.example
 
 # Local runtime data
 data/*.db
