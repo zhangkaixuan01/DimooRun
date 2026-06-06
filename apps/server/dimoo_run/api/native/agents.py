@@ -20,6 +20,7 @@ from dimoo_run.api.native.runtime import (
     NativeRuntimeStore,
     SQLAlchemyNativeRuntimeStore,
 )
+from dimoo_run.packages.validation import manifest_has_valid_token
 from dimoo_run.runtime.idempotency import IdempotencyConflictError
 
 router = APIRouter(tags=["native-agents"])
@@ -63,6 +64,7 @@ class AgentVersionCreate(BaseModel):
     entrypoint: str
     capabilities: dict[str, Any] = Field(default_factory=dict)
     manifest: dict[str, Any] = Field(default_factory=dict)
+    status: str = "draft"
 
 
 class AgentVersionUpdate(BaseModel):
@@ -159,6 +161,39 @@ def _validate_agent_runtime(
                 {"framework": framework_name, "adapter": adapter_name}
                 for adapter_name, framework_name in SUPPORTED_AGENT_RUNTIMES.items()
             ],
+        },
+    )
+
+
+def _validate_ready_gate(
+    *,
+    package_uri: str,
+    framework: str,
+    adapter: str,
+    entrypoint: str,
+    manifest: dict[str, Any],
+    status: str,
+    request_id: str | None,
+) -> JSONResponse | None:
+    if status != "ready":
+        return None
+    if manifest_has_valid_token(
+        package_uri=package_uri,
+        framework=framework,
+        adapter=adapter,
+        entrypoint=entrypoint,
+        manifest=manifest,
+    ):
+        return None
+    return error_response(
+        status_code=409,
+        error_code="package_validation_required",
+        message="Agent version must have a valid package validation token before it can become ready.",
+        request_id=request_id,
+        details={
+            "package_uri": package_uri,
+            "status": status,
+            "required_action": "POST /v1/packages/validate",
         },
     )
 
@@ -360,7 +395,32 @@ def create_agent_version(
     )
     if runtime_error is not None:
         return runtime_error
-    version = runtime.create_version(agent=agent, **payload.model_dump())
+    ready_error = _validate_ready_gate(
+        package_uri=payload.package_uri,
+        framework=payload.framework,
+        adapter=payload.adapter,
+        entrypoint=payload.entrypoint,
+        manifest=payload.manifest,
+        status=payload.status,
+        request_id=x_request_id,
+    )
+    if ready_error is not None:
+        return ready_error
+    create_payload = payload.model_dump()
+    status = str(create_payload.pop("status"))
+    version = runtime.create_version(agent=agent, **create_payload)
+    if status != version.status:
+        version = runtime.update_version(
+            version,
+            version=version.version,
+            package_uri=version.package_uri,
+            framework=version.framework,
+            adapter=version.adapter,
+            entrypoint=version.entrypoint,
+            capabilities=version.capabilities,
+            manifest=version.manifest,
+            status=status,
+        )
     return _version_to_read(version)
 
 
@@ -473,6 +533,10 @@ def update_agent_version(
         )
     next_framework = payload.framework or existing.framework
     next_adapter = payload.adapter or existing.adapter
+    next_package_uri = payload.package_uri or existing.package_uri
+    next_entrypoint = payload.entrypoint or existing.entrypoint
+    next_manifest = payload.manifest if payload.manifest is not None else existing.manifest
+    next_status = payload.status or existing.status
     runtime_error = _validate_agent_runtime(
         framework=next_framework,
         adapter=next_adapter,
@@ -480,18 +544,29 @@ def update_agent_version(
     )
     if runtime_error is not None:
         return runtime_error
+    ready_error = _validate_ready_gate(
+        package_uri=next_package_uri,
+        framework=next_framework,
+        adapter=next_adapter,
+        entrypoint=next_entrypoint,
+        manifest=next_manifest,
+        status=next_status,
+        request_id=x_request_id,
+    )
+    if ready_error is not None:
+        return ready_error
     updated = runtime.update_version(
         existing,
         version=next_version,
-        package_uri=payload.package_uri or existing.package_uri,
+        package_uri=next_package_uri,
         framework=next_framework,
         adapter=next_adapter,
-        entrypoint=payload.entrypoint or existing.entrypoint,
+        entrypoint=next_entrypoint,
         capabilities=(
             payload.capabilities if payload.capabilities is not None else existing.capabilities
         ),
-        manifest=payload.manifest if payload.manifest is not None else existing.manifest,
-        status=payload.status or existing.status,
+        manifest=next_manifest,
+        status=next_status,
     )
     return _version_to_read(updated)
 

@@ -7,6 +7,7 @@ from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_
 from dimoo_run.api.native.deployments import reset_deployment_control
 from dimoo_run.api.native.runtime import reset_native_runtime
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
@@ -27,6 +28,8 @@ NATIVE_PATHS = [
     "/v1/runs/{run_id}/resume",
     "/v1/runs/{run_id}/retry",
     "/v1/runs/{run_id}/replay",
+    "/v1/replay-jobs/compare",
+    "/v1/replay-jobs/{comparison_id}/dataset-captures",
     "/v1/deployments",
     "/v1/deployments/{deployment_id}",
     "/v1/deployments/{deployment_id}/activate",
@@ -89,6 +92,30 @@ def auth_headers(
     return headers
 
 
+def validated_manifest(
+    *,
+    package_uri: str = "file://support-agent",
+    framework: str = "langgraph",
+    adapter: str = "langgraph",
+    entrypoint: str = "agent:create_agent",
+) -> dict[str, object]:
+    manifest: dict[str, object] = {
+        "runtime": {
+            "framework": framework,
+            "adapter": adapter,
+            "entrypoint": entrypoint,
+        }
+    }
+    manifest["validation_token"] = validation_token(
+        package_uri=package_uri,
+        framework=framework,
+        adapter=adapter,
+        entrypoint=entrypoint,
+        manifest=manifest,
+    )
+    return manifest
+
+
 def create_agent_with_version(client: TestClient, key: str) -> tuple[int, int]:
     agent = client.post(
         "/v1/agents",
@@ -106,6 +133,8 @@ def create_agent_with_version(client: TestClient, key: str) -> tuple[int, int]:
             "framework": "langgraph",
             "adapter": "langgraph",
             "entrypoint": "agent:create_agent",
+            "manifest": validated_manifest(),
+            "status": "ready",
         },
     )
     assert version.status_code == 201
@@ -218,7 +247,10 @@ def test_native_agent_version_can_be_updated_and_archived() -> None:
             "adapter": "langgraph",
             "entrypoint": "agent:create_v011",
             "capabilities": {"invoke": True, "stream": True},
-            "manifest": {"runtime": {"entrypoint": "agent:create_v011"}},
+            "manifest": validated_manifest(
+                package_uri="file://support-agent-v011",
+                entrypoint="agent:create_v011",
+            ),
             "status": "ready",
         },
     )
@@ -230,7 +262,12 @@ def test_native_agent_version_can_be_updated_and_archived() -> None:
     assert updated_body["adapter"] == "langgraph"
     assert updated_body["entrypoint"] == "agent:create_v011"
     assert updated_body["capabilities"] == {"invoke": True, "stream": True}
-    assert updated_body["manifest"] == {"runtime": {"entrypoint": "agent:create_v011"}}
+    assert updated_body["manifest"]["runtime"] == {
+        "framework": "langgraph",
+        "adapter": "langgraph",
+        "entrypoint": "agent:create_v011",
+    }
+    assert updated_body["manifest"]["validation_token"].startswith("pkgval_")
 
     archived = client.delete(
         f"/v1/agents/{agent_id}/versions/0.1.1",
@@ -516,6 +553,8 @@ def test_native_deployment_can_be_updated_and_archived() -> None:
             "framework": "langgraph",
             "adapter": "langgraph",
             "entrypoint": "agent:create_agent",
+            "manifest": validated_manifest(package_uri="file://support-agent-v2"),
+            "status": "ready",
         },
     )
     assert version_two.status_code == 201
@@ -802,7 +841,8 @@ def test_native_task_can_be_executed_by_worker_entrypoint(tmp_path, monkeypatch)
             "adapter": "langgraph",
             "framework": "langgraph",
             "entrypoint": "agent:create_agent",
-            "manifest": {"runtime": {"entrypoint": "agent:create_agent"}},
+            "manifest": validated_manifest(package_uri=str(agent_package)),
+            "status": "ready",
         },
     )
     assert version.status_code == 201

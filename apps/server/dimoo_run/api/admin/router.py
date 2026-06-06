@@ -102,6 +102,7 @@ _COLLECTIONS: dict[str, dict[int, dict[str, Any]]] = {
 }
 _COLLECTION_SEQUENCES: dict[str, int] = {collection: 0 for collection in _COLLECTIONS}
 _SLUG_SEQUENCES: dict[str, int] = {}
+_HUMAN_TASK_CONTEXT: dict[int, dict[str, Any]] = {}
 
 _DB_COLLECTIONS: dict[str, AdminDbCollectionSpec] = {
     "policies": AdminDbCollectionSpec(
@@ -1129,6 +1130,39 @@ def _serialize_db_admin_record(record: Any, spec: AdminDbCollectionSpec) -> dict
         item["metadata"] = {key: value for key, value in metadata.items() if key != "_environment"}
     elif "environment" not in item:
         item["environment"] = None
+    if isinstance(record, domain_models.HumanTask):
+        item = _decorate_human_task_item(item)
+    return item
+
+
+def _decorate_human_task_item(item: dict[str, Any]) -> dict[str, Any]:
+    task_id = int(item["id"])
+    context = dict(_HUMAN_TASK_CONTEXT.get(task_id) or {})
+    metadata = dict(item.get("metadata") or {})
+    context.update({key: value for key, value in metadata.items() if key not in context})
+    if item.get("assignee_role") and "assignee" not in context:
+        context["assignee"] = item["assignee_role"]
+    if "source" not in context:
+        context["source"] = item.get("name") or "admin"
+    if "risk" not in context:
+        context["risk"] = "medium"
+    item.update(
+        {
+            "source": context.get("source"),
+            "risk": context.get("risk"),
+            "assignee": context.get("assignee") or "unassigned",
+            "requester": context.get("requester"),
+            "risk_reason": context.get("risk_reason"),
+            "decision_context": context.get("decision_context") or {},
+            "diff": context.get("diff") or {},
+            "decision": context.get("decision") or {},
+            "resume_outcome": context.get("resume_outcome")
+            or {
+                "status": "waiting" if item.get("status") == "pending" else "resumed",
+                "task_id": task_id,
+            },
+        }
+    )
     return item
 
 
@@ -1742,6 +1776,50 @@ def list_human_tasks(
     return _list("human_tasks", x_request_id, x_tenant_id, x_project_id, x_environment)
 
 
+@router.post("/human-tasks", status_code=201)
+def create_human_task(
+    response: Response,
+    payload: AdminPayload = None,
+    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)] = None,
+    x_request_id: RequestIdHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_environment: EnvironmentHeader = None,
+) -> dict[str, Any]:
+    data = payload or {}
+    create_payload = {
+        "type": data.get("type") or "approval",
+        "status": data.get("status") or "pending",
+        "assignee_role": data.get("assignee") or data.get("assignee_role"),
+        "payload_ref": "inline:payload",
+    }
+    result = _create(
+        "human_tasks",
+        create_payload,
+        x_request_id,
+        response,
+        actor,
+        x_tenant_id,
+        x_project_id,
+        x_environment,
+    )
+    item = result.get("item")
+    if isinstance(item, dict) and "id" in item:
+        task_id = int(item["id"])
+        _HUMAN_TASK_CONTEXT[task_id] = {
+            "name": data.get("name"),
+            "source": data.get("source") or data.get("name") or "admin",
+            "risk": data.get("risk") or "medium",
+            "assignee": data.get("assignee") or data.get("assignee_role") or "unassigned",
+            "requester": data.get("requester"),
+            "risk_reason": data.get("risk_reason"),
+            "decision_context": dict(data.get("decision_context") or {}),
+            "diff": dict(data.get("diff") or {}),
+        }
+        result["item"] = _decorate_human_task_item(item)
+    return result
+
+
 @router.post("/human-tasks/{task_id}/approve")
 def approve_human_task(
     task_id: int,
@@ -1821,6 +1899,20 @@ def _record_human_decision(
                 task.status = decision
                 task.decision_ref = "inline:decision"
             session.commit()
+            decision_payload = dict((payload or {}).get("decision_payload") or {})
+            context = dict(_HUMAN_TASK_CONTEXT.get(task_id) or {})
+            context["decision"] = {
+                "status": decision,
+                "comment": decision_payload.get("comment"),
+                "decided_by": decision_payload.get("decided_by"),
+                "payload": decision_payload,
+            }
+            context["resume_outcome"] = {
+                "status": "ready" if decision == "approved" else "blocked",
+                "task_id": task_id,
+                "decision": decision,
+            }
+            _HUMAN_TASK_CONTEXT[task_id] = context
             return {
                 "item": _serialize_db_admin_record(task, spec),
                 "request_id": request_id,
@@ -2394,7 +2486,7 @@ def create_catalog_item(
     )
 
 
-@router.post("/incidents/{incident_id}/acknowledge")
+@router.post("/incidents/{incident_id}/acknowledge", include_in_schema=False)
 def acknowledge_incident(
     incident_id: int,
     response: Response,
@@ -2416,7 +2508,7 @@ def acknowledge_incident(
     )
 
 
-@router.post("/incidents/{incident_id}/resolve")
+@router.post("/incidents/{incident_id}/resolve", include_in_schema=False)
 def resolve_incident(
     incident_id: int,
     response: Response,
