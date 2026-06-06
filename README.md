@@ -55,6 +55,15 @@ roadmap. The cleanup note
 summarizes the numeric-ID, identity, Console, and Docker dev changes from the
 latest structural pass.
 
+Product documentation entry points:
+
+- [Documentation home](docs/README.md)
+- [Product overview](docs/PRODUCT_OVERVIEW.md)
+- [Getting started](docs/GETTING_STARTED.md)
+- [Quickstart](docs/QUICKSTART.md)
+- [Current maturity](docs/CURRENT_MATURITY.md)
+- [Production readiness scorecard](docs/PRODUCTION_READINESS_SCORECARD.md)
+
 Implemented phase slices:
 
 - `01-project-foundation`: FastAPI server scaffold, configuration models,
@@ -176,6 +185,8 @@ uv run pytest -q
 uv run ruff check apps tests packages\sdk-python scripts
 uv run mypy apps/server tests scripts
 uv run python scripts\helm_smoke.py
+uv run python scripts\compose_smoke.py
+uv run python scripts\compose_runtime_smoke.py
 cd apps/console && npm run test
 cd apps/console && npm run build
 uv run python scripts\export_openapi.py
@@ -248,11 +259,33 @@ npm run dev
 
 Run the Docker Compose stack:
 
+Working directory: repository root.
+
+```bash
+uv run python scripts/compose_smoke.py
+```
+
+This validates the Compose contract for server, worker, console, Postgres,
+Redis, and MinIO without starting containers.
+
+Working directory: repository root.
+
+```bash
+uv run python scripts/compose_runtime_smoke.py
+```
+
+This starts the Compose stack, waits for the server `/healthz` endpoint and the
+Console root page, prints `docker compose ps`, and tears the stack down.
+
+Working directory: repository root.
+
 ```bash
 docker compose up --build
 ```
 
 Run the Docker Compose development stack with source mounts and reload:
+
+Working directory: repository root.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
