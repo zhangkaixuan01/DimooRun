@@ -1,19 +1,28 @@
-import type { Agent, AgentVersion, Deployment, HumanTask, ResourceId, Run, RunAttempt, RuntimeEvent, Task, TaskCreateResult } from "./types";
+import type { Agent, AgentVersion, BackupDryRunResult, ConsoleRuntimeOverview, ConsoleWriteOptions, DatasetCapture, Deployment, DeploymentPromotionPreview, ExperimentRunResult, HumanTask, IncidentWorkflowResult, IngressRouteTestResult, ModelGatewayTestResult, NotificationTestResult, PackageValidationResult, PolicyActivation, PolicyDraft, PolicySimulation, PublishedSurfaceDetail, PublishedSurfacePublishResult, PublishedSurfaceRolloutResult, PublishValidationResult, QualityGatePreview, ReplayComparison, ResourceId, RestoreDryRunResult, Run, RunAttempt, RunDatasetCapture, RuntimeEvent, SecretRotationResult, SecretValidationResult, Task, TaskCreateResult, ToolDryRunResult } from "./types";
 import {
+  type ConsoleDashboardSummaryRead,
+  type ConsoleRuntimeOverviewRead,
   createDimooRunClient,
   DimooRunApiError,
   type ConsoleLoginResponse,
   type ConsoleOperatorRead,
   type NativeAgentRead,
   type NativeAgentVersionRead,
+  type DeploymentPromotePayload,
+  type DeploymentPromotionPreviewRead,
+  type DeploymentRollbackPayload,
+  type DatasetCapturePayload,
   type NativeDeploymentCreatePayload,
   type NativeDeploymentRead,
   type NativeDeploymentTaskCreatePayload,
   type NativeDeploymentUpdatePayload,
   type NativeEventRead,
+  type PackageValidationPayload,
   type NativeRunRead,
   type NativeTaskCreatePayload,
   type NativeTaskRead,
+  type ReplayComparisonRead,
+  type ReplayComparisonRequest,
 } from "./generated/dimoorun";
 import { readCurrentScope, SCOPE_KEY, type ConsoleScope } from "./scope";
 
@@ -99,6 +108,14 @@ export function toConsoleApiError(error: unknown): ConsoleApiError {
       details: error.details,
     };
   }
+  if (isRecord(error) && typeof error.errorCode === "string" && typeof error.message === "string") {
+    return {
+      errorCode: error.errorCode,
+      message: error.message,
+      requestId: typeof error.requestId === "string" ? error.requestId : null,
+      details: isRecord(error.details) ? error.details : null,
+    };
+  }
   if (error instanceof Error) {
     return {
       errorCode: "console_client_error",
@@ -115,7 +132,7 @@ export function toConsoleApiError(error: unknown): ConsoleApiError {
   };
 }
 
-function nativeHeaders(idempotencyKey?: string, scopeOverride?: Partial<ConsoleScope>): HeadersInit {
+function nativeHeaders(idempotencyKey?: string, scopeOverride?: Partial<ConsoleScope>, writeOptions: ConsoleWriteOptions = {}): HeadersInit {
   const scope = { ...readCurrentScope(), ...scopeOverride };
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -127,17 +144,22 @@ function nativeHeaders(idempotencyKey?: string, scopeOverride?: Partial<ConsoleS
   const sessionToken = localStorage.getItem(TOKEN_KEY);
   if (sessionToken?.startsWith("sess_")) headers.Authorization = `Bearer ${sessionToken}`;
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+  if (writeOptions.auditReason?.trim()) headers["X-Audit-Reason"] = writeOptions.auditReason.trim();
   return headers;
 }
 
-function nativeClient(idempotencyKey?: string, scopeOverride?: Partial<ConsoleScope>) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function nativeClient(idempotencyKey?: string, scopeOverride?: Partial<ConsoleScope>, writeOptions: ConsoleWriteOptions = {}) {
   const baseUrl = apiBaseUrl();
   if (!baseUrl) {
     throw new Error("DimooRun API base URL is not configured.");
   }
   return withUnauthorizedHandling(createDimooRunClient({
     baseUrl,
-    headers: nativeHeaders(idempotencyKey, scopeOverride),
+    headers: nativeHeaders(idempotencyKey, scopeOverride, writeOptions),
   }));
 }
 
@@ -269,6 +291,263 @@ function mapNativeEvent(event: NativeEventRead): RuntimeEvent {
   };
 }
 
+function mapConsoleDashboardSummary(summary: ConsoleDashboardSummaryRead): DashboardSummary {
+  return {
+    runCountToday: summary.run_count_today,
+    successRate: summary.success_rate,
+    p95LatencyMs: summary.p95_latency_ms,
+    p99LatencyMs: summary.p99_latency_ms,
+    queueBacklog: summary.queue_backlog,
+    workerReady: summary.worker_ready,
+    workerTotal: summary.worker_total,
+    monthlyCostUsd: summary.monthly_cost_usd,
+    pendingApprovals: summary.pending_approvals,
+    runningRuns: summary.running_runs,
+    activeIncidents: summary.active_incidents,
+  };
+}
+
+function mapConsoleRuntimeOverview(overview: ConsoleRuntimeOverviewRead): ConsoleRuntimeOverview {
+  return {
+    summary: mapConsoleDashboardSummary(overview.summary),
+    recentFailures: overview.recent_failures.map((failure) => ({
+      runId: failure.run_id,
+      deploymentId: failure.deployment_id,
+      agentId: failure.agent_id,
+      agentVersionId: failure.agent_version_id,
+      status: failure.status,
+      errorSummary: failure.error_summary,
+      createdAt: failure.created_at,
+    })),
+    pendingActions: overview.pending_actions.map((action) => ({
+      resourceType: action.resource_type,
+      resourceId: action.resource_id,
+      action: action.action,
+      label: action.label,
+      disabledReason: action.disabled_reason,
+      requiredPermissions: action.required_permissions,
+      auditRequired: action.audit_required,
+    })),
+    trendPoints: overview.recent_failures.slice(-12).map((failure) => ({
+      label: failure.created_at.slice(11, 16) || String(failure.run_id),
+      runs: 1,
+      successRate: 0,
+    })),
+  };
+}
+
+function mapPackageValidation(result: {
+  status: string;
+  ready: boolean;
+  validation_token: string | null;
+  errors: Array<{ field: string; code: string; message: string }>;
+  warnings: string[];
+  missing_secret_refs: string[];
+  capabilities: Record<string, unknown>;
+  next_action: string;
+}): PackageValidationResult {
+  return {
+    status: result.status,
+    ready: result.ready,
+    validationToken: result.validation_token,
+    errors: result.errors,
+    warnings: result.warnings,
+    missingSecretRefs: result.missing_secret_refs,
+    capabilities: result.capabilities,
+    nextAction: result.next_action,
+  };
+}
+
+function mapDeploymentPromotionPreview(result: DeploymentPromotionPreviewRead): DeploymentPromotionPreview {
+  return {
+    deploymentId: result.deployment_id,
+    environment: result.environment,
+    desiredStatus: result.desired_status,
+    runtimeStatus: result.runtime_status,
+    currentAgentVersionId: result.current_agent_version_id,
+    candidateAgentVersionId: result.candidate_agent_version_id,
+    activeRuns: result.active_runs,
+    queuedTasks: result.queued_tasks,
+    candidateValidationStatus: result.candidate_validation_status,
+    rollbackAgentVersionId: result.rollback_agent_version_id,
+    requiredPermissions: result.required_permissions,
+    auditRequired: result.audit_required,
+    canPromote: result.can_promote,
+    blockedReason: result.blocked_reason,
+    warnings: result.warnings,
+  };
+}
+
+function mapReplayComparison(result: ReplayComparisonRead): ReplayComparison {
+  return {
+    comparisonId: result.comparison_id,
+    sourceRun: mapNativeRun(result.source_run),
+    replayRun: mapNativeRun(result.replay_run),
+    sourceEvents: result.source_events.map(mapNativeEvent),
+    replayEvents: result.replay_events.map(mapNativeEvent),
+    inputDiff: result.input_diff,
+    outputDiff: result.output_diff,
+    errorDiff: result.error_diff,
+    eventDiff: {
+      changed: result.event_diff.changed,
+      sourceCount: result.event_diff.source_count,
+      replayCount: result.event_diff.replay_count,
+      addedTypes: result.event_diff.added_types,
+      removedTypes: result.event_diff.removed_types,
+    },
+    latencyDeltaMs: result.latency_delta_ms,
+    costDeltaUsd: result.cost_delta_usd,
+    regressionSignal: result.regression_signal,
+    provenance: result.provenance,
+  };
+}
+
+function mapDatasetCapture(result: {
+  capture_id: string;
+  comparison_id: string;
+  dataset_name: string;
+  label: string | null;
+  source_run_id: ResourceId;
+  replay_run_id: ResourceId;
+  provenance: Record<string, unknown>;
+}): DatasetCapture {
+  return {
+    captureId: result.capture_id,
+    comparisonId: result.comparison_id,
+    datasetName: result.dataset_name,
+    label: result.label,
+    sourceRunId: result.source_run_id,
+    replayRunId: result.replay_run_id,
+    provenance: result.provenance,
+  };
+}
+
+function mapRunDatasetCapture(result: Record<string, unknown>): RunDatasetCapture {
+  return {
+    datasetId: Number(result.dataset_id || 0),
+    datasetName: String(result.dataset_name || ""),
+    datasetItemId: Number(result.dataset_item_id || 0),
+    sourceRunId: Number(result.source_run_id || 0),
+    label: typeof result.label === "string" ? result.label : null,
+    payloadPreview: isRecord(result.payload_preview) ? result.payload_preview : {},
+    redaction: isRecord(result.redaction) ? result.redaction : {},
+    provenance: isRecord(result.provenance) ? result.provenance : {},
+    audit: isRecord(result.audit) ? result.audit : {},
+    duplicate: result.duplicate === true,
+  };
+}
+
+function mapExperimentRunResult(result: Record<string, unknown>): ExperimentRunResult {
+  return {
+    experiment: isRecord(result.experiment) ? result.experiment : {},
+    run: isRecord(result.run) ? result.run : {},
+    results: Array.isArray(result.results) ? result.results.filter(isRecord) : [],
+    scoreDistribution: isRecord(result.score_distribution) ? result.score_distribution : {},
+    qualityGate: isRecord(result.quality_gate) ? result.quality_gate : {},
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapQualityGatePreview(result: Record<string, unknown>): QualityGatePreview {
+  return {
+    status: String(result.status || "unknown"),
+    promotionAllowed: result.promotion_allowed === true,
+    blockedReason: typeof result.blocked_reason === "string" ? result.blocked_reason : null,
+    requiredEvidence: Array.isArray(result.required_evidence)
+      ? result.required_evidence.map(String)
+      : [],
+    evidence: isRecord(result.evidence) ? result.evidence : {},
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapIncidentWorkflow(result: Record<string, unknown>): IncidentWorkflowResult {
+  return {
+    incident: isRecord(result.incident) ? result.incident : {},
+    timeline: Array.isArray(result.timeline) ? result.timeline.filter(isRecord) : [],
+    linkedEvidence: isRecord(result.linked_evidence) ? result.linked_evidence : {},
+    deliveryAttempts: Array.isArray(result.delivery_attempts) ? result.delivery_attempts.filter(isRecord) : [],
+    resolution: isRecord(result.resolution) ? result.resolution : null,
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapNotificationTest(result: Record<string, unknown>): NotificationTestResult {
+  return {
+    status: String(result.status || "unknown"),
+    deliveryAttempt: isRecord(result.delivery_attempt) ? result.delivery_attempt : {},
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapBackupDryRun(result: Record<string, unknown>): BackupDryRunResult {
+  return {
+    status: String(result.status || "unknown"),
+    scopeProof: isRecord(result.scope_proof) ? result.scope_proof : {},
+    validation: isRecord(result.validation) ? result.validation : {},
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapRestoreDryRun(result: Record<string, unknown>): RestoreDryRunResult {
+  return {
+    ...mapBackupDryRun(result),
+    backupRef: typeof result.backup_ref === "string" ? result.backup_ref : null,
+  };
+}
+
+function mapPublishValidation(result: Record<string, unknown>): PublishValidationResult {
+  return {
+    status: String(result.status || "unknown"),
+    canPublish: result.can_publish === true,
+    checks: isRecord(result.checks) ? Object.fromEntries(
+      Object.entries(result.checks).filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1])),
+    ) : {},
+    blockedReasons: Array.isArray(result.blocked_reasons) ? result.blocked_reasons.map(String) : [],
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapPublishedSurfacePublish(result: Record<string, unknown>): PublishedSurfacePublishResult {
+  return {
+    ...mapPublishValidation(result),
+    surface: isRecord(result.surface) ? result.surface : {},
+    rollout: isRecord(result.rollout) ? result.rollout : {},
+  };
+}
+
+function mapIngressRouteTest(result: Record<string, unknown>): IngressRouteTestResult {
+  return {
+    status: String(result.status || "unknown"),
+    matchedDeployment: isRecord(result.matched_deployment) ? result.matched_deployment : {},
+    authDecision: isRecord(result.auth_decision) ? result.auth_decision : {},
+    policyDecision: isRecord(result.policy_decision) ? result.policy_decision : {},
+    expectedRuntimeTask: isRecord(result.expected_runtime_task) ? result.expected_runtime_task : {},
+    blockedReasons: Array.isArray(result.blocked_reasons) ? result.blocked_reasons.map(String) : [],
+    requestLog: isRecord(result.request_log) ? result.request_log : {},
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
+function mapPublishedSurfaceDetail(result: Record<string, unknown>): PublishedSurfaceDetail {
+  return {
+    surface: isRecord(result.surface) ? result.surface : {},
+    deploymentBindingHealth: isRecord(result.deployment_binding_health) ? result.deployment_binding_health : {},
+    requestLogs: Array.isArray(result.request_logs) ? result.request_logs.filter(isRecord) : [],
+    rolloutHistory: Array.isArray(result.rollout_history) ? result.rollout_history.filter(isRecord) : [],
+    actions: isRecord(result.actions) ? result.actions : {},
+  };
+}
+
+function mapPublishedSurfaceRollout(result: Record<string, unknown>): PublishedSurfaceRolloutResult {
+  return {
+    surface: isRecord(result.surface) ? result.surface : {},
+    rollout: isRecord(result.rollout) ? result.rollout : {},
+    rolloutHistory: Array.isArray(result.rollout_history) ? result.rollout_history.filter(isRecord) : [],
+    audit: isRecord(result.audit) ? result.audit : {},
+  };
+}
+
 function mapNativeRunAttempt(attempt: Record<string, unknown>): RunAttempt {
   return {
     id: Number(attempt.id),
@@ -305,6 +584,8 @@ function mapNativeTask(task: NativeTaskRead): Task {
 function mapAdminHumanTask(item: AdminResource): HumanTask {
   const status = typeof item.status === "string" ? item.status : "pending";
   const risk = typeof item.risk === "string" ? item.risk : "medium";
+  const decision = isRecord(item.decision) ? item.decision : {};
+  const resumeOutcome = isRecord(item.resume_outcome) ? item.resume_outcome : {};
   return {
     id: item.id,
     source: String(item.source || item.name || "admin"),
@@ -313,7 +594,98 @@ function mapAdminHumanTask(item: AdminResource): HumanTask {
       ? (status as HumanTask["status"])
       : "pending",
     assignee: String(item.assignee || "unassigned"),
+    requester: String(item.requester || "unknown"),
+    riskReason: String(item.risk_reason || ""),
+    decisionContext: isRecord(item.decision_context) ? item.decision_context : {},
+    diff: isRecord(item.diff) ? item.diff : {},
+    decision: {
+      comment: typeof decision.comment === "string" ? decision.comment : null,
+      decidedBy: typeof decision.decided_by === "string" ? decision.decided_by : null,
+    },
+    resumeOutcome: {
+      status: String(resumeOutcome.status || (status === "pending" ? "waiting" : "resumed")),
+      taskId: Number(resumeOutcome.task_id || item.id),
+      decision: typeof resumeOutcome.decision === "string" ? resumeOutcome.decision : undefined,
+    },
     expiresAt: String(item.expires_at || item.expiresAt || ""),
+  };
+}
+
+function mapPolicySimulation(result: Record<string, unknown>): PolicySimulation {
+  const decision = isRecord(result.decision) ? result.decision : {};
+  const resources = Array.isArray(result.matched_resources) ? result.matched_resources : [];
+  return {
+    decision: {
+      result: String(decision.result || "allow"),
+      policyId: decision.policy_id === null || decision.policy_id === undefined ? null : Number(decision.policy_id),
+      policyName: typeof decision.policy_name === "string" ? decision.policy_name : null,
+      reason: typeof decision.reason === "string" ? decision.reason : null,
+    },
+    matchedResources: resources.filter(isRecord).map((resource) => ({
+      resourceType: String(resource.resource_type || ""),
+      resourceId: resource.resource_id === null || resource.resource_id === undefined ? null : Number(resource.resource_id),
+      action: String(resource.action || ""),
+      environment: typeof resource.environment === "string" ? resource.environment : null,
+    })),
+    auditPreview: isRecord(result.audit_preview) ? result.audit_preview : {},
+    conflictWarnings: Array.isArray(result.conflict_warnings)
+      ? result.conflict_warnings.filter(isRecord)
+      : [],
+  };
+}
+
+function mapPolicyActivation(result: Record<string, unknown>): PolicyActivation {
+  const rollbackTarget = isRecord(result.rollback_target) ? result.rollback_target : {};
+  return {
+    item: isRecord(result.item) ? result.item : {},
+    version: Number(result.version || 0),
+    audit: isRecord(result.audit) ? result.audit : {},
+    rollbackTarget: {
+      policyId: Number(rollbackTarget.policy_id || 0),
+      version: Number(rollbackTarget.version || 0),
+    },
+    conflictWarnings: Array.isArray(result.conflict_warnings)
+      ? result.conflict_warnings.filter(isRecord)
+      : [],
+  };
+}
+
+function mapModelGatewayTest(result: Record<string, unknown>): ModelGatewayTestResult {
+  return {
+    credentialValidation: isRecord(result.credential_validation) ? result.credential_validation : {},
+    safeHealthProbe: isRecord(result.safe_health_probe) ? result.safe_health_probe : {},
+    budgetPreview: isRecord(result.budget_preview) ? result.budget_preview : {},
+    fallbackPreview: isRecord(result.fallback_preview) ? result.fallback_preview : {},
+    providerErrorNormalization: isRecord(result.provider_error_normalization) ? result.provider_error_normalization : {},
+    auditPreview: isRecord(result.audit_preview) ? result.audit_preview : {},
+  };
+}
+
+function mapToolDryRun(result: Record<string, unknown>): ToolDryRunResult {
+  return {
+    schemaValidation: isRecord(result.schema_validation) ? result.schema_validation : {},
+    riskClassification: isRecord(result.risk_classification) ? result.risk_classification : {},
+    policyPreview: isRecord(result.policy_preview) ? result.policy_preview : {},
+    approvalRequirement: isRecord(result.approval_requirement) ? result.approval_requirement : {},
+    usageHistoryLink: String(result.usage_history_link || ""),
+    auditPreview: isRecord(result.audit_preview) ? result.audit_preview : {},
+  };
+}
+
+function mapSecretValidation(result: Record<string, unknown>): SecretValidationResult {
+  return {
+    validation: isRecord(result.validation) ? result.validation : {},
+    secretValue: null,
+    lastUsed: isRecord(result.last_used) ? result.last_used : {},
+    accessAudit: isRecord(result.access_audit) ? result.access_audit : {},
+  };
+}
+
+function mapSecretRotation(result: Record<string, unknown>): SecretRotationResult {
+  return {
+    rotation: isRecord(result.rotation) ? result.rotation : {},
+    lastUsed: isRecord(result.last_used) ? result.last_used : {},
+    accessAudit: isRecord(result.access_audit) ? result.access_audit : {},
   };
 }
 
@@ -331,27 +703,13 @@ export const liveConsoleClient = {
     return nativeClient(crypto.randomUUID()).changePassword(currentPassword, newPassword);
   },
   async getDashboardSummary(): Promise<DashboardSummary> {
-    const [deploymentsPage, humanTasksPage, runsPage, incidentsPage] = await Promise.all([
-      this.listDeployments(),
-      this.listHumanTasks(),
-      this.listRuns(),
-      this.listAdminCollection("/v1/incidents"),
-    ]);
-    const completedRuns = runsPage.items.filter((run) => run.status === "succeeded" || run.status === "failed");
-    const succeededRuns = runsPage.items.filter((run) => run.status === "succeeded");
-    return {
-      runCountToday: runsPage.items.length,
-      successRate: completedRuns.length ? succeededRuns.length / completedRuns.length : 0,
-      p95LatencyMs: 0,
-      p99LatencyMs: 0,
-      queueBacklog: deploymentsPage.items.reduce((total, item) => total + item.queueBacklog, 0),
-      workerReady: deploymentsPage.items.filter((item) => item.runtimeStatus === "ready").length,
-      workerTotal: deploymentsPage.items.length,
-      monthlyCostUsd: 0,
-      pendingApprovals: humanTasksPage.items.filter((task) => task.status === "pending").length,
-      runningRuns: runsPage.items.filter((run) => run.status === "running").length,
-      activeIncidents: incidentsPage.items.filter((item) => item.status !== "resolved").length,
-    };
+    return mapConsoleDashboardSummary(await nativeClient().getConsoleDashboardSummary());
+  },
+  async getRuntimeOverview(): Promise<ConsoleRuntimeOverview> {
+    return mapConsoleRuntimeOverview(await nativeClient().getConsoleRuntimeOverview());
+  },
+  async validatePackage(payload: PackageValidationPayload): Promise<PackageValidationResult> {
+    return mapPackageValidation(await nativeClient(crypto.randomUUID()).validatePackage(payload));
   },
   async listAgents(): Promise<CursorPage<Agent>> {
     const client = nativeClient();
@@ -410,24 +768,37 @@ export const liveConsoleClient = {
     const payload = await nativeClient().listDeployments();
     return page(payload.map(mapNativeDeployment));
   },
-  async createDeployment(payload: NativeDeploymentCreatePayload): Promise<Deployment> {
-    const created = await nativeClient(crypto.randomUUID()).createDeployment(payload);
+  async createDeployment(payload: NativeDeploymentCreatePayload, options: ConsoleWriteOptions = {}): Promise<Deployment> {
+    const created = await nativeClient(crypto.randomUUID(), undefined, options).createDeployment(payload);
     return mapNativeDeployment(created);
   },
-  async updateDeployment(deploymentId: ResourceId, payload: NativeDeploymentUpdatePayload): Promise<Deployment> {
-    const updated = await nativeClient(crypto.randomUUID()).updateDeployment(deploymentId, payload);
+  async updateDeployment(deploymentId: ResourceId, payload: NativeDeploymentUpdatePayload, options: ConsoleWriteOptions = {}): Promise<Deployment> {
+    const updated = await nativeClient(crypto.randomUUID(), undefined, options).updateDeployment(deploymentId, payload);
     return mapNativeDeployment(updated);
   },
-  async archiveDeployment(deploymentId: ResourceId): Promise<Deployment> {
-    const archived = await nativeClient(crypto.randomUUID()).archiveDeployment(deploymentId);
+  async archiveDeployment(deploymentId: ResourceId, options: ConsoleWriteOptions = {}): Promise<Deployment> {
+    const archived = await nativeClient(crypto.randomUUID(), undefined, options).archiveDeployment(deploymentId);
     return mapNativeDeployment(archived);
   },
-  async controlDeployment(deploymentId: ResourceId, operation: string): Promise<Deployment> {
-    const payload = await nativeClient(crypto.randomUUID()).controlDeployment(deploymentId, operation);
+  async controlDeployment(deploymentId: ResourceId, operation: string, options: ConsoleWriteOptions = {}): Promise<Deployment> {
+    const payload = await nativeClient(crypto.randomUUID(), undefined, options).controlDeployment(deploymentId, operation);
     return mapNativeDeployment(payload);
   },
-  async createDeploymentTask(deploymentId: ResourceId, payload: NativeDeploymentTaskCreatePayload): Promise<TaskCreateResult> {
-    const response = await nativeClient(crypto.randomUUID()).createDeploymentTask(
+  async getDeploymentPromotionPreview(deploymentId: ResourceId, candidateVersionId: ResourceId): Promise<DeploymentPromotionPreview> {
+    return mapDeploymentPromotionPreview(
+      await nativeClient().getDeploymentPromotionPreview(deploymentId, candidateVersionId),
+    );
+  },
+  async promoteDeployment(deploymentId: ResourceId, payload: DeploymentPromotePayload, options: ConsoleWriteOptions = {}): Promise<Deployment> {
+    const promoted = await nativeClient(crypto.randomUUID(), undefined, options).promoteDeployment(deploymentId, payload);
+    return mapNativeDeployment(promoted);
+  },
+  async rollbackDeployment(deploymentId: ResourceId, payload: DeploymentRollbackPayload, options: ConsoleWriteOptions = {}): Promise<Deployment> {
+    const rolledBack = await nativeClient(crypto.randomUUID(), undefined, options).rollbackDeployment(deploymentId, payload);
+    return mapNativeDeployment(rolledBack);
+  },
+  async createDeploymentTask(deploymentId: ResourceId, payload: NativeDeploymentTaskCreatePayload, options: ConsoleWriteOptions = {}): Promise<TaskCreateResult> {
+    const response = await nativeClient(undefined, undefined, options).createDeploymentTask(
       deploymentId,
       payload,
       crypto.randomUUID(),
@@ -456,6 +827,106 @@ export const liveConsoleClient = {
       agent_version_id: agentVersionId ?? undefined,
     });
     return mapNativeRun(payload);
+  },
+  async createReplayComparison(payload: ReplayComparisonRequest, options: ConsoleWriteOptions = {}): Promise<ReplayComparison> {
+    return mapReplayComparison(
+      await nativeClient(crypto.randomUUID(), undefined, options).createReplayComparison(payload),
+    );
+  },
+  async captureReplayDataset(comparisonId: string, payload: DatasetCapturePayload, options: ConsoleWriteOptions = {}): Promise<DatasetCapture> {
+    return mapDatasetCapture(
+      await nativeClient(crypto.randomUUID(), undefined, options).captureReplayDataset(comparisonId, payload),
+    );
+  },
+  async captureRunDataset(payload: Record<string, unknown>): Promise<RunDatasetCapture> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/datasets/capture-run",
+      payload,
+    );
+    return mapRunDatasetCapture(response as Record<string, unknown>);
+  },
+  async runExperiment(payload: Record<string, unknown>): Promise<ExperimentRunResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/experiments/run",
+      payload,
+    );
+    return mapExperimentRunResult(response as Record<string, unknown>);
+  },
+  async previewQualityGate(payload: Record<string, unknown>): Promise<QualityGatePreview> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/quality-gates/preview",
+      payload,
+    );
+    return mapQualityGatePreview(response as Record<string, unknown>);
+  },
+  async acknowledgeIncident(incidentId: ResourceId, payload: Record<string, unknown>): Promise<IncidentWorkflowResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/incidents/${incidentId}/acknowledge`,
+      payload,
+    );
+    return mapIncidentWorkflow(response as Record<string, unknown>);
+  },
+  async resolveIncident(incidentId: ResourceId, payload: Record<string, unknown>): Promise<IncidentWorkflowResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/incidents/${incidentId}/resolve`,
+      payload,
+    );
+    return mapIncidentWorkflow(response as Record<string, unknown>);
+  },
+  async testNotification(payload: Record<string, unknown>): Promise<NotificationTestResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/notifications/test-send",
+      payload,
+    );
+    return mapNotificationTest(response as Record<string, unknown>);
+  },
+  async previewBackup(payload: Record<string, unknown>): Promise<BackupDryRunResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/backups/dry-run",
+      payload,
+    );
+    return mapBackupDryRun(response as Record<string, unknown>);
+  },
+  async previewRestore(payload: Record<string, unknown>): Promise<RestoreDryRunResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/backups/restore-dry-run",
+      payload,
+    );
+    return mapRestoreDryRun(response as Record<string, unknown>);
+  },
+  async validatePublishedSurface(payload: Record<string, unknown>): Promise<PublishValidationResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/published-surfaces/validate",
+      payload,
+    );
+    return mapPublishValidation(response as Record<string, unknown>);
+  },
+  async publishSurface(payload: Record<string, unknown>): Promise<PublishedSurfacePublishResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/published-surfaces/publish",
+      payload,
+    );
+    return mapPublishedSurfacePublish(response as Record<string, unknown>);
+  },
+  async testIngressRoute(payload: Record<string, unknown>): Promise<IngressRouteTestResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/ingress-routes/test",
+      payload,
+    );
+    return mapIngressRouteTest(response as Record<string, unknown>);
+  },
+  async getPublishedSurfaceDetail(surfaceId: ResourceId): Promise<PublishedSurfaceDetail> {
+    const payload = await nativeClient().listAdminCollection<Record<string, unknown>>(
+      `/v1/console/published-surfaces/${surfaceId}`,
+    ) as unknown as Record<string, unknown>;
+    return mapPublishedSurfaceDetail(payload);
+  },
+  async rolloutPublishedSurface(surfaceId: ResourceId, payload: Record<string, unknown>): Promise<PublishedSurfaceRolloutResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/published-surfaces/${surfaceId}/rollout`,
+      payload,
+    );
+    return mapPublishedSurfaceRollout(response as Record<string, unknown>);
   },
   async createTask(agentId: ResourceId, payload: NativeTaskCreatePayload): Promise<TaskCreateResult> {
     const response = await nativeClient(crypto.randomUUID()).createTask(
@@ -494,12 +965,61 @@ export const liveConsoleClient = {
     const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/human-tasks");
     return page(payload.items.map(mapAdminHumanTask));
   },
-  async decideHumanTask(taskId: ResourceId, decision: "approve" | "reject"): Promise<HumanTask> {
+  async decideHumanTask(taskId: ResourceId, decision: "approve" | "reject", comment = ""): Promise<HumanTask> {
     const payload = await nativeClient(crypto.randomUUID()).postAdminAction<AdminResource>(
       `/v1/human-tasks/${taskId}/${decision}`,
-      { decision_payload: { source: "console" } },
+      { decision_payload: { source: "console", comment, decided_by: "console" } },
     );
     return mapAdminHumanTask(payload.item);
+  },
+  async simulatePolicy(draftPolicy: PolicyDraft, sample: Record<string, unknown>): Promise<PolicySimulation> {
+    const payload = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/policies/simulate",
+      { draft_policy: draftPolicy, sample },
+    );
+    return mapPolicySimulation(payload as Record<string, unknown>);
+  },
+  async activatePolicy(draftPolicy: PolicyDraft, auditReason: string): Promise<PolicyActivation> {
+    const payload = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/policies/activate",
+      { draft_policy: draftPolicy, audit_reason: auditReason },
+    );
+    return mapPolicyActivation(payload as Record<string, unknown>);
+  },
+  async rollbackPolicy(policyId: ResourceId, targetVersion: number, auditReason: string): Promise<PolicyActivation> {
+    const payload = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/policies/${policyId}/rollback`,
+      { target_version: targetVersion, audit_reason: auditReason },
+    );
+    return mapPolicyActivation(payload as Record<string, unknown>);
+  },
+  async testModelGateway(payload: Record<string, unknown>): Promise<ModelGatewayTestResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/model-gateways/test",
+      payload,
+    );
+    return mapModelGatewayTest(response as Record<string, unknown>);
+  },
+  async dryRunTool(payload: Record<string, unknown>): Promise<ToolDryRunResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/tools/dry-run",
+      payload,
+    );
+    return mapToolDryRun(response as Record<string, unknown>);
+  },
+  async validateSecret(payload: Record<string, unknown>): Promise<SecretValidationResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/secrets/validate",
+      payload,
+    );
+    return mapSecretValidation(response as Record<string, unknown>);
+  },
+  async rotateSecret(payload: Record<string, unknown>): Promise<SecretRotationResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/secrets/rotate",
+      payload,
+    );
+    return mapSecretRotation(response as Record<string, unknown>);
   },
   async listAdminCollection(path: string, scopeOverride?: Partial<ConsoleScope>): Promise<CursorPage<AdminResource>> {
     const payload = await nativeClient(undefined, scopeOverride).listAdminCollection<AdminResource>(path);

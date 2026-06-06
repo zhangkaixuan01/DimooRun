@@ -85,6 +85,111 @@ export type NativeDeploymentTaskCreatePayload = {
   thread_id?: string | null;
 };
 
+export type DeploymentPromotionPreviewRead = {
+  deployment_id: ResourceId;
+  environment: string;
+  desired_status: string;
+  runtime_status: string;
+  current_agent_version_id: ResourceId;
+  candidate_agent_version_id: ResourceId;
+  active_runs: number;
+  queued_tasks: number;
+  candidate_validation_status: string;
+  rollback_agent_version_id: ResourceId | null;
+  required_permissions: string[];
+  audit_required: boolean;
+  can_promote: boolean;
+  blocked_reason: string | null;
+  warnings: string[];
+};
+
+export type DeploymentPromotePayload = {
+  candidate_version_id: ResourceId;
+  expected_current_version_id: ResourceId;
+  rollout_reason: string;
+};
+
+export type DeploymentRollbackPayload = {
+  expected_current_version_id: ResourceId;
+  rollback_agent_version_id?: ResourceId | null;
+  rollback_reason: string;
+};
+
+export type ReplayComparisonRequest = {
+  source_run_id: ResourceId;
+  candidate_agent_version_id?: ResourceId | null;
+  replay_config?: Record<string, unknown>;
+};
+
+export type ReplayValueDiffRead = {
+  changed: boolean;
+  source: unknown;
+  replay: unknown;
+};
+
+export type ReplayEventDiffRead = {
+  changed: boolean;
+  source_count: number;
+  replay_count: number;
+  added_types: string[];
+  removed_types: string[];
+};
+
+export type ReplayComparisonRead = {
+  comparison_id: string;
+  source_run: NativeRunRead;
+  replay_run: NativeRunRead;
+  source_events: NativeEventRead[];
+  replay_events: NativeEventRead[];
+  input_diff: ReplayValueDiffRead;
+  output_diff: ReplayValueDiffRead;
+  error_diff: ReplayValueDiffRead;
+  event_diff: ReplayEventDiffRead;
+  latency_delta_ms: number | null;
+  cost_delta_usd: number | null;
+  regression_signal: string;
+  provenance: Record<string, unknown>;
+};
+
+export type DatasetCapturePayload = {
+  dataset_name: string;
+  label?: string | null;
+};
+
+export type DatasetCaptureRead = {
+  capture_id: string;
+  comparison_id: string;
+  dataset_name: string;
+  label: string | null;
+  source_run_id: ResourceId;
+  replay_run_id: ResourceId;
+  provenance: Record<string, unknown>;
+};
+
+export type PackageValidationPayload = {
+  package_uri: string;
+  framework: string;
+  adapter: string;
+  entrypoint: string;
+  manifest: Record<string, unknown>;
+  required_secret_refs?: string[];
+};
+
+export type PackageValidationRead = {
+  status: string;
+  ready: boolean;
+  validation_token: string | null;
+  errors: Array<{
+    field: string;
+    code: string;
+    message: string;
+  }>;
+  warnings: string[];
+  missing_secret_refs: string[];
+  capabilities: Record<string, unknown>;
+  next_action: string;
+};
+
 export type NativeTaskRead = {
   id: ResourceId;
   run_id: ResourceId;
@@ -97,6 +202,83 @@ export type NativeTaskRead = {
   partition_key: string | null;
   resource_class: string | null;
   quota_blocking_reason: Record<string, unknown> | null;
+};
+
+export type ConsoleDashboardSummaryRead = {
+  run_count_today: number;
+  success_rate: number;
+  p95_latency_ms: number;
+  p99_latency_ms: number;
+  queue_backlog: number;
+  worker_ready: number;
+  worker_total: number;
+  monthly_cost_usd: number;
+  pending_approvals: number;
+  running_runs: number;
+  active_incidents: number;
+};
+
+export type ConsoleDeploymentHealthRead = {
+  deployment_id: ResourceId;
+  environment: string;
+  desired_status: string;
+  runtime_status: string;
+  replicas: number;
+  queue_backlog: number;
+  running_runs: number;
+  last_runtime_error: string | null;
+};
+
+export type ConsoleWorkerHealthRead = {
+  worker_id: string;
+  deployment_id: ResourceId;
+  environment: string;
+  status: string;
+  queue_backlog: number;
+  running_runs: number;
+};
+
+export type ConsoleRecentFailureRead = {
+  run_id: ResourceId;
+  deployment_id: ResourceId | null;
+  agent_id: ResourceId;
+  agent_version_id: ResourceId;
+  status: string;
+  error_summary: string;
+  created_at: string;
+};
+
+export type ConsolePendingActionRead = {
+  resource_type: string;
+  resource_id: ResourceId;
+  action: string;
+  label: string;
+  disabled_reason: string | null;
+  required_permissions: string[];
+  audit_required: boolean;
+};
+
+export type ConsoleActionAvailabilityRead = {
+  resource_type: string;
+  resource_id: ResourceId;
+  action: string;
+  available: boolean;
+  disabled_reasons: string[];
+  required_permissions: string[];
+  policy_warnings: string[];
+  audit_required: boolean;
+};
+
+export type ConsoleActionSummaryRead = {
+  actions: ConsoleActionAvailabilityRead[];
+};
+
+export type ConsoleRuntimeOverviewRead = {
+  summary: ConsoleDashboardSummaryRead;
+  deployment_health: ConsoleDeploymentHealthRead[];
+  worker_health: ConsoleWorkerHealthRead[];
+  recent_failures: ConsoleRecentFailureRead[];
+  pending_actions: ConsolePendingActionRead[];
 };
 
 export type AdminCollectionResponse<T = Record<string, unknown>> = {
@@ -193,6 +375,33 @@ async function request<T>(options: ClientOptions, path: string, init?: RequestIn
 export function createDimooRunClient(options: ClientOptions) {
   return {
     listAgents: () => request<NativeAgentRead[]>(options, "/v1/agents"),
+    validatePackage: (payload: PackageValidationPayload) =>
+      request<PackageValidationRead>(options, "/v1/packages/validate", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    getConsoleDashboardSummary: () =>
+      request<ConsoleDashboardSummaryRead>(options, "/v1/console/dashboard-summary"),
+    getConsoleRuntimeOverview: () =>
+      request<ConsoleRuntimeOverviewRead>(options, "/v1/console/runtime-overview"),
+    listConsoleDeploymentHealth: () =>
+      request<ConsoleDeploymentHealthRead[]>(options, "/v1/console/deployment-health"),
+    listConsoleWorkerHealth: () =>
+      request<ConsoleWorkerHealthRead[]>(options, "/v1/console/worker-health"),
+    listConsoleRecentFailures: () =>
+      request<ConsoleRecentFailureRead[]>(options, "/v1/console/recent-failures"),
+    listConsolePendingActions: () =>
+      request<ConsolePendingActionRead[]>(options, "/v1/console/pending-actions"),
+    getConsoleActionSummary: (resourceType?: string, resourceId?: ResourceId) => {
+      const params = new URLSearchParams();
+      if (resourceType) params.set("resource_type", resourceType);
+      if (resourceId !== undefined) params.set("resource_id", String(resourceId));
+      const query = params.toString();
+      return request<ConsoleActionSummaryRead>(
+        options,
+        `/v1/console/action-summary${query ? `?${query}` : ""}`,
+      );
+    },
     login: (email: string, password: string) =>
       request<ConsoleLoginResponse>(options, "/v1/auth/login", {
         method: "POST",
@@ -263,12 +472,37 @@ export function createDimooRunClient(options: ClientOptions) {
       request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}/${operation}`, {
         method: "POST",
       }),
+    getDeploymentPromotionPreview: (deploymentId: ResourceId, candidateVersionId: ResourceId) =>
+      request<DeploymentPromotionPreviewRead>(
+        options,
+        `/v1/deployments/${deploymentId}/promotion-preview?candidate_version_id=${candidateVersionId}`,
+      ),
+    promoteDeployment: (deploymentId: ResourceId, payload: DeploymentPromotePayload) =>
+      request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}/promote`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    rollbackDeployment: (deploymentId: ResourceId, payload: DeploymentRollbackPayload) =>
+      request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}/rollback`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
     controlRun: (runId: ResourceId, operation: string) =>
       request<NativeRunRead>(options, `/v1/runs/${runId}/${operation}`, {
         method: "POST",
       }),
     replayRun: (runId: ResourceId, payload: { agent_version_id?: ResourceId | null } = {}) =>
       request<NativeRunRead>(options, `/v1/runs/${runId}/replay`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    createReplayComparison: (payload: ReplayComparisonRequest) =>
+      request<ReplayComparisonRead>(options, "/v1/replay-jobs/compare", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    captureReplayDataset: (comparisonId: string, payload: DatasetCapturePayload) =>
+      request<DatasetCaptureRead>(options, `/v1/replay-jobs/${comparisonId}/dataset-captures`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),

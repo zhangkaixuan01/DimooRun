@@ -170,6 +170,166 @@
       </div>
     </section>
 
+    <section v-if="mode !== 'offline' && !loading && !error && selectedSurface" class="panel governed-surface-panel">
+      <div class="panel-header">
+        <div>
+          <p class="section-kicker">Agent Gateway</p>
+          <h2 class="panel-title">Governed Published Surface</h2>
+          <p class="muted">Surface #{{ selectedSurface.id }} / deployment #{{ selectedSurface.deployment_id }}</p>
+        </div>
+        <StatusBadge
+          :status="String(surfaceDetail?.deploymentBindingHealth.status || selectedSurface.status || 'active')"
+          :label="String(surfaceDetail?.deploymentBindingHealth.status || selectedSurface.status || 'active')"
+        />
+      </div>
+
+      <div class="gateway-workflow-grid">
+        <form class="workflow-panel" @submit.prevent="validatePublish">
+          <header class="workflow-panel-header">
+            <div>
+              <h3>Publish control</h3>
+              <p class="muted">Validate route, auth, CORS, quota, and policy before exposure.</p>
+            </div>
+          </header>
+          <div class="form-grid">
+            <label>
+              <span>Route path</span>
+              <input v-model="publishForm.routePath" class="input" />
+            </label>
+            <label>
+              <span>Deployment</span>
+              <input v-model="publishForm.deploymentId" class="input" inputmode="numeric" />
+            </label>
+            <label>
+              <span>Auth mode</span>
+              <input v-model="publishForm.authMode" class="input" />
+            </label>
+            <label>
+              <span>Allowed origins</span>
+              <input v-model="publishForm.allowedOrigins" class="input" />
+            </label>
+            <label>
+              <span>Requests per minute</span>
+              <input v-model="publishForm.requestsPerMinute" class="input" inputmode="numeric" />
+            </label>
+          </div>
+          <div class="workflow-actions">
+            <button class="button" type="submit" :disabled="workflowBusy">{{ workflowBusy ? "Validating" : "Validate publish" }}</button>
+            <button class="button primary" type="button" :disabled="workflowBusy || !publishValidation?.canPublish" @click="publishSurface">
+              Publish surface
+            </button>
+          </div>
+          <div v-if="publishValidation" class="workflow-result">
+            <strong>Publish validation: {{ publishValidation.status }}</strong>
+            <span v-for="(check, name) in publishValidation.checks" :key="name" class="result-line">
+              {{ name }}: {{ check.status || "unknown" }}
+            </span>
+            <span v-for="reason in publishValidation.blockedReasons" :key="reason" class="result-line danger-text">{{ reason }}</span>
+          </div>
+          <div v-if="publishResult" class="workflow-result success-text">
+            <strong>Surface published</strong>
+            <span>{{ publishResult.audit.action }}</span>
+          </div>
+        </form>
+
+        <form class="workflow-panel" @submit.prevent="testRoute">
+          <header class="workflow-panel-header">
+            <div>
+              <h3>Route tester</h3>
+              <p class="muted">Submit a synthetic request before real traffic reaches the route.</p>
+            </div>
+          </header>
+          <div class="form-grid compact-form">
+            <label>
+              <span>Synthetic path</span>
+              <input v-model="routeTestForm.path" class="input" />
+            </label>
+            <label>
+              <span>Synthetic method</span>
+              <input v-model="routeTestForm.method" class="input" />
+            </label>
+          </div>
+          <div class="workflow-actions">
+            <button class="button primary" type="submit" :disabled="workflowBusy">Test route</button>
+            <button class="button" type="button" :disabled="!routeTestResult?.requestLog" @click="openRequestLog">Open request log</button>
+          </div>
+          <div v-if="routeTestResult" class="workflow-result">
+            <strong>Route test: {{ routeTestResult.status }}</strong>
+            <span>auth: {{ routeTestResult.authDecision.result || "unknown" }}</span>
+            <span>policy: {{ routeTestResult.policyDecision.result || "unknown" }}</span>
+            <span>{{ routeTestResult.expectedRuntimeTask.task_shape || "runtime task unavailable" }}</span>
+            <span v-for="reason in routeTestResult.blockedReasons" :key="reason" class="result-line danger-text">{{ reason }}</span>
+          </div>
+          <div v-if="openedRequestLog" class="workflow-result request-log-detail">
+            <strong>{{ openedRequestLog.trace_id }}</strong>
+            <span>authorization: {{ requestAuthorization }}</span>
+            <span>run_id: {{ openedRequestLog.run_id ?? "none" }}</span>
+            <span>task_id: {{ openedRequestLog.task_id ?? "none" }}</span>
+          </div>
+        </form>
+
+        <section class="workflow-panel">
+          <header class="workflow-panel-header">
+            <div>
+              <h3>Rollout controls</h3>
+              <p class="muted">Change traffic, revoke exposure, or restore a previous surface snapshot.</p>
+            </div>
+          </header>
+          <div class="form-grid compact-form">
+            <label>
+              <span>Candidate traffic</span>
+              <input v-model="trafficCandidate" class="input" inputmode="numeric" />
+            </label>
+          </div>
+          <div class="workflow-actions">
+            <button class="button" type="button" :disabled="workflowBusy" @click="applyTrafficSplit">Apply traffic split</button>
+            <button class="button danger" type="button" :disabled="workflowBusy" @click="openRevokeConfirm">Revoke surface</button>
+            <button class="button" type="button" :disabled="workflowBusy" @click="rollbackSurface">Rollback surface</button>
+          </div>
+          <div v-if="revokePending" class="confirmation-strip">
+            <strong>REVOKE SURFACE {{ selectedSurface.id }}</strong>
+            <label>
+              <span>Danger confirmation</span>
+              <input v-model="revokeConfirmation" class="input" />
+            </label>
+            <button class="button danger" type="button" :disabled="workflowBusy || revokeConfirmation !== revokePhrase" @click="confirmRevoke">
+              Confirm revoke
+            </button>
+          </div>
+          <div v-if="rolloutResult" class="workflow-result">
+            <strong>{{ rolloutResult.rollout.operation || rolloutResult.audit.action }}</strong>
+            <span v-if="rolloutResult.rollout.traffic_split">candidate: {{ rolloutCandidate }}</span>
+            <span v-if="rolloutResult.rollout.operation === 'revoke' && rolloutResult.audit.action">{{ rolloutResult.audit.action }}</span>
+          </div>
+          <div v-if="rollbackResult" class="workflow-result">
+            <strong>{{ rollbackResult.rollout.operation || "rollback" }}</strong>
+            <span>rollback_to_version: {{ rollbackResult.rollout.rollback_to_version || 1 }}</span>
+          </div>
+        </section>
+
+        <section class="workflow-panel">
+          <header class="workflow-panel-header">
+            <div>
+              <h3>Evidence</h3>
+              <p class="muted">Recent request logs and rollout history from the Console aggregate.</p>
+            </div>
+          </header>
+          <div class="evidence-list">
+            <div v-for="log in surfaceDetail?.requestLogs || []" :key="String(log.id)" class="evidence-row">
+              <strong>request log #{{ log.id }}</strong>
+              <span>status: {{ log.status }}</span>
+              <span>{{ log.run_id ? "run linked" : "no run linked" }}</span>
+            </div>
+            <div v-for="entry in surfaceDetail?.rolloutHistory || []" :key="`${entry.operation}-${entry.version || entry.created_at}`" class="evidence-row">
+              <strong>rollout event #{{ entry.version || "latest" }}</strong>
+              <span v-if="entry.traffic_split">traffic canary recorded</span>
+              <span>operation recorded</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
     <Teleport to="body">
       <div v-if="showCreateSurface" class="drawer-layer" @click.self="closeCreateSurface">
         <aside class="drawer" :aria-label="t('createPublishedSurface')" role="dialog" aria-modal="true">
@@ -249,6 +409,13 @@
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError } from "../../api/client";
+import type {
+  IngressRouteTestResult,
+  PublishedSurfaceDetail,
+  PublishedSurfacePublishResult,
+  PublishedSurfaceRolloutResult,
+  PublishValidationResult,
+} from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
@@ -257,6 +424,9 @@ import { useAuthStore } from "../../stores/auth";
 import { formatDateTime } from "../../utils/dateTime";
 
 const { t } = useI18n();
+const props = defineProps<{
+  surfaceId?: string;
+}>();
 const auth = useAuthStore();
 const mode = apiMode();
 const loading = ref(false);
@@ -269,6 +439,7 @@ const showRouteForm = ref(false);
 const creatingSurface = ref(false);
 const creatingRoute = ref(false);
 const mutatingId = ref<number | null>(null);
+const workflowBusy = ref(false);
 const editTarget = ref<AdminResource | null>(null);
 const editKind = ref<"surface" | "route">("surface");
 const editPayloadJson = ref("{}");
@@ -278,9 +449,40 @@ const deleteKind = ref<"surface" | "route">("surface");
 const deleteError = ref<ConsoleApiError | null>(null);
 const surfaceForm = reactive({ name: "", deployment_id: null as number | null, type: "http" });
 const routeForm = reactive({ name: "", path: "", auth_mode: "api_key", custom_domain: "" });
+const publishForm = reactive({
+  routePath: "/support/triage",
+  deploymentId: "10",
+  authMode: "api_key",
+  allowedOrigins: "https://app.example.com",
+  requestsPerMinute: "120",
+});
+const routeTestForm = reactive({ path: "/support/triage", method: "POST" });
+const publishValidation = ref<PublishValidationResult | null>(null);
+const publishResult = ref<PublishedSurfacePublishResult | null>(null);
+const routeTestResult = ref<IngressRouteTestResult | null>(null);
+const openedRequestLog = ref<Record<string, unknown> | null>(null);
+const surfaceDetail = ref<PublishedSurfaceDetail | null>(null);
+const trafficCandidate = ref("20");
+const rolloutResult = ref<PublishedSurfaceRolloutResult | null>(null);
+const rollbackResult = ref<PublishedSurfaceRolloutResult | null>(null);
+const revokePending = ref(false);
+const revokeConfirmation = ref("");
 
 const canWrite = computed(() => auth.can("admin:write"));
 const selectedRoutes = computed(() => selectedSurface.value ? routesForSurface(selectedSurface.value.id) : []);
+const selectedRouteId = computed(() => selectedRoutes.value[0]?.id ?? 701);
+const revokePhrase = computed(() => selectedSurface.value ? `REVOKE SURFACE ${selectedSurface.value.id}` : "");
+const rolloutCandidate = computed(() => {
+  const trafficSplit = rolloutResult.value?.rollout.traffic_split;
+  return isRecord(trafficSplit) ? trafficSplit.candidate : trafficCandidate.value;
+});
+const requestAuthorization = computed(() => {
+  const metadata = openedRequestLog.value?.redacted_request_metadata;
+  if (!isRecord(metadata)) return "[REDACTED]";
+  const headers = metadata.headers;
+  if (!isRecord(headers)) return "[REDACTED]";
+  return String(headers.authorization || "[REDACTED]");
+});
 const canCreateSurface = computed(() => Boolean(surfaceForm.name.trim() && surfaceForm.deployment_id && surfaceForm.type.trim()));
 const canCreateRoute = computed(() => Boolean(
   selectedSurface.value
@@ -306,7 +508,13 @@ async function loadPublishing() {
     ]);
     surfaces.value = surfacePage.items;
     routes.value = routePage.items;
-    if (!selectedSurface.value && surfaces.value[0]) {
+    const routeSurfaceId = Number(props.surfaceId);
+    const routeSurface = Number.isInteger(routeSurfaceId)
+      ? surfaces.value.find((item) => item.id === routeSurfaceId)
+      : undefined;
+    if (routeSurface) {
+      selectSurface(routeSurface);
+    } else if (!selectedSurface.value && surfaces.value[0]) {
       selectSurface(surfaces.value[0]);
     } else if (selectedSurface.value) {
       selectedSurface.value = surfaces.value.find((item) => item.id === selectedSurface.value?.id) ?? surfaces.value[0] ?? null;
@@ -321,6 +529,8 @@ async function loadPublishing() {
 function selectSurface(surface: AdminResource) {
   selectedSurface.value = surface;
   closeRouteForm();
+  seedWorkflowFromSurface(surface);
+  void refreshSurfaceDetail(surface.id);
 }
 
 function routesForSurface(surfaceId: number): AdminResource[] {
@@ -329,6 +539,175 @@ function routesForSurface(surfaceId: number): AdminResource[] {
 
 function resourceName(item: AdminResource): string {
   return String(item.name || item.label || item.path || `#${item.id}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function recordValue(record: unknown, key: string): unknown {
+  return isRecord(record) ? record[key] : undefined;
+}
+
+function seedWorkflowFromSurface(surface: AdminResource) {
+  publishForm.deploymentId = String(surface.deployment_id || publishForm.deploymentId || "10");
+  const route = routesForSurface(surface.id)[0];
+  if (route?.path) {
+    publishForm.routePath = String(route.path);
+    routeTestForm.path = String(route.path);
+  }
+  if (route?.auth_mode) {
+    publishForm.authMode = String(route.auth_mode);
+  }
+}
+
+function publishPayload(): Record<string, unknown> {
+  const deploymentId = Number(publishForm.deploymentId);
+  const requestsPerMinute = Number(publishForm.requestsPerMinute);
+  return {
+    surface: {
+      surface_id: selectedSurface.value?.id,
+      route_id: selectedRouteId.value,
+      route_path: publishForm.routePath,
+      deployment_id: Number.isFinite(deploymentId) ? deploymentId : publishForm.deploymentId,
+      environment: "local",
+      auth_mode: publishForm.authMode,
+      cors_policy: {
+        allowed_origins: publishForm.allowedOrigins
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      },
+      rate_limit_policy: {
+        requests_per_minute: Number.isFinite(requestsPerMinute) ? requestsPerMinute : publishForm.requestsPerMinute,
+      },
+      policy_enforced: true,
+    },
+  };
+}
+
+async function validatePublish() {
+  workflowBusy.value = true;
+  error.value = null;
+  try {
+    publishValidation.value = await consoleClient.validatePublishedSurface(publishPayload());
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    workflowBusy.value = false;
+  }
+}
+
+async function publishSurface() {
+  workflowBusy.value = true;
+  error.value = null;
+  try {
+    publishResult.value = await consoleClient.publishSurface(publishPayload());
+    if (isRecord(publishResult.value.surface)) {
+      replaceResource("surface", publishResult.value.surface as AdminResource);
+    }
+    if (selectedSurface.value) await refreshSurfaceDetail(selectedSurface.value.id);
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    workflowBusy.value = false;
+  }
+}
+
+async function testRoute() {
+  if (!selectedSurface.value) return;
+  workflowBusy.value = true;
+  error.value = null;
+  try {
+    routeTestResult.value = await consoleClient.testIngressRoute({
+      surface_id: selectedSurface.value.id,
+      route_id: selectedRouteId.value,
+      path: routeTestForm.path,
+      method: routeTestForm.method,
+      headers: { authorization: "Bearer sk_live", "x-user": "operator" },
+    });
+    openedRequestLog.value = null;
+    await refreshSurfaceDetail(selectedSurface.value.id);
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    workflowBusy.value = false;
+  }
+}
+
+function openRequestLog() {
+  openedRequestLog.value = routeTestResult.value?.requestLog ?? null;
+}
+
+async function refreshSurfaceDetail(surfaceId: number) {
+  if (mode === "offline") return;
+  try {
+    surfaceDetail.value = await consoleClient.getPublishedSurfaceDetail(surfaceId);
+  } catch {
+    surfaceDetail.value = null;
+  }
+}
+
+async function applyTrafficSplit() {
+  if (!selectedSurface.value) return;
+  const candidate = Number(trafficCandidate.value);
+  const stable = 100 - candidate;
+  workflowBusy.value = true;
+  error.value = null;
+  try {
+    rolloutResult.value = await consoleClient.rolloutPublishedSurface(selectedSurface.value.id, {
+      operation: "traffic_split",
+      traffic_split: { stable, candidate },
+      audit_reason: "canary support ingress",
+    });
+    await refreshSurfaceDetail(selectedSurface.value.id);
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    workflowBusy.value = false;
+  }
+}
+
+function openRevokeConfirm() {
+  revokePending.value = true;
+  revokeConfirmation.value = "";
+}
+
+async function confirmRevoke() {
+  if (!selectedSurface.value) return;
+  workflowBusy.value = true;
+  error.value = null;
+  try {
+    rolloutResult.value = await consoleClient.rolloutPublishedSurface(selectedSurface.value.id, {
+      operation: "revoke",
+      confirmation: revokeConfirmation.value,
+      audit_reason: "revoke exposed support ingress",
+    });
+    revokePending.value = false;
+    await refreshSurfaceDetail(selectedSurface.value.id);
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    workflowBusy.value = false;
+  }
+}
+
+async function rollbackSurface() {
+  if (!selectedSurface.value) return;
+  workflowBusy.value = true;
+  error.value = null;
+  try {
+    rollbackResult.value = await consoleClient.rolloutPublishedSurface(selectedSurface.value.id, {
+      operation: "rollback",
+      rollback_to_version: 1,
+      audit_reason: "restore previous ingress route",
+    });
+    await refreshSurfaceDetail(selectedSurface.value.id);
+  } catch (caught) {
+    error.value = toConsoleApiError(caught);
+  } finally {
+    workflowBusy.value = false;
+  }
 }
 
 function openCreateSurface() {

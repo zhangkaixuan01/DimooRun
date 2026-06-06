@@ -45,29 +45,31 @@
       <section class="panel">
         <div class="panel-header"><h2 class="panel-title">{{ t("recentFailures") }}</h2></div>
         <div class="panel-body compact-list">
-          <p v-for="run in failedRuns" :key="run.id">
-            <ResourceLink :to="`/runs/${run.id}`">{{ run.id }}</ResourceLink>
-            <span>{{ run.agent }} / {{ run.trigger }}</span>
+          <p v-for="run in failedRuns" :key="run.runId">
+            <ResourceLink :to="`/runs/${run.runId}`">{{ run.runId }}</ResourceLink>
+            <span>{{ run.errorSummary }}</span>
           </p>
         </div>
       </section>
       <section class="panel">
         <div class="panel-header"><h2 class="panel-title">{{ t("activeAlerts") }}</h2></div>
         <div class="panel-body compact-list">
-          <p v-for="incident in incidents" :key="incident.id">
-            <StatusBadge :status="String(incident.status || 'active')" :label="String(incident.status || 'active')" />
-            <span>{{ incident.name || incident.id }}</span>
+          <p v-for="failure in failedRuns" :key="failure.runId">
+            <StatusBadge :status="failure.status" :label="failure.status" />
+            <span>{{ failure.errorSummary }}</span>
           </p>
-          <p v-if="incidents.length === 0" class="muted">{{ t("emptyState") }}</p>
+          <p v-if="failedRuns.length === 0" class="muted">{{ t("emptyState") }}</p>
         </div>
       </section>
       <section class="panel">
         <div class="panel-header"><h2 class="panel-title">{{ t("pendingApprovals") }}</h2></div>
         <div class="panel-body compact-list">
-          <p v-for="task in humanTasks" :key="task.id">
-            <ResourceLink to="/governance/human-tasks">{{ task.id }}</ResourceLink>
-            <span>{{ task.source }}</span>
+          <p v-for="action in pendingActions" :key="`${action.action}-${action.resourceId}`">
+            <ResourceLink to="/deployments">{{ action.resourceId }}</ResourceLink>
+            <span>{{ action.action }}</span>
+            <small v-if="action.disabledReason">{{ action.disabledReason }}</small>
           </p>
+          <p v-if="pendingActions.length === 0" class="muted">{{ t("emptyState") }}</p>
         </div>
       </section>
     </div>
@@ -83,8 +85,8 @@ import ResourceLink from "../../components/ResourceLink.vue";
 import RuntimeTrendChart from "../../components/RuntimeTrendChart.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import TimeRangePicker from "../../components/TimeRangePicker.vue";
-import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError, type DashboardSummary } from "../../api/client";
-import type { HumanTask, Run } from "../../api/types";
+import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError, type DashboardSummary } from "../../api/client";
+import type { ConsolePendingAction, ConsoleRecentFailure } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import { useI18n } from "../../i18n/useI18n";
 
@@ -105,38 +107,21 @@ const summary = ref<DashboardSummary>({
   runningRuns: 0,
   activeIncidents: 0,
 });
-const humanTasks = ref<HumanTask[]>([]);
-const failedRuns = ref<Run[]>([]);
-const incidents = ref<AdminResource[]>([]);
+const failedRuns = ref<ConsoleRecentFailure[]>([]);
+const pendingActions = ref<ConsolePendingAction[]>([]);
 const modeLabel = computed(() => (mode === "live" ? t("live") : t("offline")));
-const trendPoints = computed(() => {
-  const recentRuns = [...failedRuns.value, ...successfulRuns.value, ...runningRuns.value].slice(-12);
-  return recentRuns.map((run) => ({
-    label: run.startedAt ? run.startedAt.slice(11, 16) : String(run.id),
-    runs: 1,
-    successRate: run.status === "succeeded" ? 100 : run.status === "failed" ? 0 : 50,
-  }));
-});
-const successfulRuns = ref<Run[]>([]);
-const runningRuns = ref<Run[]>([]);
+const trendPoints = ref<Array<{ label: string; runs: number; successRate: number }>>([]);
 
 async function loadDashboard() {
   if (mode === "offline") return;
   loading.value = true;
   error.value = null;
   try {
-    const [dashboardSummary, humanTasksPage, runsPage, incidentsPage] = await Promise.all([
-      consoleClient.getDashboardSummary(),
-      consoleClient.listHumanTasks(),
-      consoleClient.listRuns(),
-      consoleClient.listAdminCollection("/v1/incidents"),
-    ]);
-    summary.value = dashboardSummary;
-    humanTasks.value = humanTasksPage.items;
-    failedRuns.value = runsPage.items.filter((run) => run.status === "failed");
-    successfulRuns.value = runsPage.items.filter((run) => run.status === "succeeded");
-    runningRuns.value = runsPage.items.filter((run) => run.status === "running");
-    incidents.value = incidentsPage.items.filter((incident) => incident.status !== "resolved");
+    const overview = await consoleClient.getRuntimeOverview();
+    summary.value = overview.summary;
+    failedRuns.value = overview.recentFailures;
+    pendingActions.value = overview.pendingActions;
+    trendPoints.value = overview.trendPoints;
   } catch (caught) {
     error.value = toConsoleApiError(caught);
   } finally {

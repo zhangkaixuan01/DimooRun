@@ -3,19 +3,31 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router"
 import AgentsPage from "../pages/agents/AgentsPage.vue";
 import CompatibilityPage from "../pages/compatibility/CompatibilityPage.vue";
 import DashboardPage from "../pages/dashboard/DashboardPage.vue";
+import DeploymentDetailPage from "../pages/deployments/DeploymentDetailPage.vue";
 import DeploymentsPage from "../pages/deployments/DeploymentsPage.vue";
 import EventsPage from "../pages/events/EventsPage.vue";
 import HumanTasksPage from "../pages/governance/HumanTasksPage.vue";
-import PoliciesPage from "../pages/governance/PoliciesPage.vue";
+import ModelGatewayWorkbenchPage from "../pages/governance/ModelGatewayWorkbenchPage.vue";
+import SecretRotationPage from "../pages/governance/SecretRotationPage.vue";
+import ToolGatewayWorkbenchPage from "../pages/governance/ToolGatewayWorkbenchPage.vue";
 import AdminCollectionPage from "../pages/admin/AdminCollectionPage.vue";
 import LoginPage from "../pages/auth/LoginPage.vue";
 import IdentityScopePage from "../pages/identity/IdentityScopePage.vue";
+import IncidentTriagePage from "../pages/incidents/IncidentTriagePage.vue";
 import MachineIdentityPage from "../pages/identity/MachineIdentityPage.vue";
 import OperatorsPage from "../pages/identity/OperatorsPage.vue";
+import BackupRestorePage from "../pages/ops/BackupRestorePage.vue";
 import RolePermissionPage from "../pages/identity/RolePermissionPage.vue";
+import PackageRegistrationPage from "../pages/packages/PackageRegistrationPage.vue";
+import PolicyWorkbenchPage from "../pages/policies/PolicyWorkbenchPage.vue";
 import PublishedSurfacesPage from "../pages/published/PublishedSurfacesPage.vue";
+import DatasetsPage from "../pages/quality/DatasetsPage.vue";
+import ExperimentsPage from "../pages/quality/ExperimentsPage.vue";
+import QualityGatePage from "../pages/quality/QualityGatePage.vue";
 import ReplayPage from "../pages/replay/ReplayPage.vue";
+import ReplayComparisonPage from "../pages/replay/ReplayComparisonPage.vue";
 import RunDetailPage from "../pages/runs/RunDetailPage.vue";
+import RunTriagePage from "../pages/runs/RunTriagePage.vue";
 import RunsPage from "../pages/runs/RunsPage.vue";
 import SettingsPage from "../pages/settings/SettingsPage.vue";
 import TasksPage from "../pages/tasks/TasksPage.vue";
@@ -26,16 +38,21 @@ export const routes: RouteRecordRaw[] = [
   { path: "/login", name: "login", component: LoginPage, meta: { public: true } },
   { path: "/dashboard", name: "dashboard", component: DashboardPage },
   { path: "/agents", name: "agents", component: AgentsPage },
+  { path: "/packages/register", name: "package-registration", component: PackageRegistrationPage },
   { path: "/deployments", name: "deployments", component: DeploymentsPage },
+  { path: "/deployments/:deploymentId", name: "deployment-detail", component: DeploymentDetailPage, props: true },
   { path: "/compatibility", name: "compatibility", component: CompatibilityPage },
   { path: "/published-surfaces", name: "published-surfaces", component: PublishedSurfacesPage },
+  { path: "/published-surfaces/:surfaceId", name: "published-surface-detail", component: PublishedSurfacesPage, props: true },
   { path: "/runs", name: "runs", component: RunsPage },
   { path: "/runs/:runId", name: "run-detail", component: RunDetailPage, props: true },
+  { path: "/runs/:runId/triage", name: "run-triage", component: RunTriagePage, props: true },
   { path: "/tasks", name: "tasks", component: TasksPage },
   { path: "/events", name: "events", component: EventsPage },
   { path: "/replay", name: "replay", component: ReplayPage },
+  { path: "/replay/compare", name: "replay-comparison", component: ReplayComparisonPage },
   { path: "/governance/human-tasks", name: "human-tasks", component: HumanTasksPage },
-  { path: "/governance/policies", name: "policies", component: PoliciesPage },
+  { path: "/governance/policies", name: "policies", component: PolicyWorkbenchPage },
   { path: "/governance/api-keys", redirect: "/identity/machine-identities" },
   {
     path: "/identity/operators",
@@ -67,20 +84,17 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/governance/model-gateways",
     name: "model-gateways",
-    component: AdminCollectionPage,
-    props: { title: "Model Gateways", kicker: "Governance", description: "Model routing, policy, and budget gateway configuration.", resourcePath: "/v1/model-gateways", seedName: "model-gateway" },
+    component: ModelGatewayWorkbenchPage,
   },
   {
     path: "/governance/tools",
     name: "tools",
-    component: AdminCollectionPage,
-    props: { title: "Tool Gateway", kicker: "Governance", description: "Tool registrations and gateway policy surface.", resourcePath: "/v1/tools", seedName: "tool" },
+    component: ToolGatewayWorkbenchPage,
   },
   {
     path: "/governance/secrets",
     name: "secrets",
-    component: AdminCollectionPage,
-    props: { title: "Secrets", kicker: "Governance", description: "Secret references and rotation state. Values are never displayed.", resourcePath: "/v1/secrets", seedName: "secret" },
+    component: SecretRotationPage,
   },
   {
     path: "/governance/catalog-items",
@@ -127,15 +141,14 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/observability/datasets",
     name: "datasets",
-    component: AdminCollectionPage,
-    props: { title: "Datasets", kicker: "Observability", description: "Datasets and dataset item references.", resourcePath: "/v1/datasets", seedName: "dataset" },
+    component: DatasetsPage,
   },
   {
     path: "/observability/experiments",
     name: "experiments",
-    component: AdminCollectionPage,
-    props: { title: "Experiments", kicker: "Observability", description: "Experiments for evaluation and quality loops.", resourcePath: "/v1/experiments", seedName: "experiment" },
+    component: ExperimentsPage,
   },
+  { path: "/observability/quality-gate", name: "quality-gate", component: QualityGatePage },
   {
     path: "/observability/replay-jobs",
     name: "replay-jobs",
@@ -150,16 +163,13 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: "/ops/backup-plans",
-    name: "backup-plans",
-    component: AdminCollectionPage,
-    props: { title: "Backup Plans", kicker: "Enterprise Ops", description: "Backup schedules and retention policy.", resourcePath: "/v1/backups/plans", seedName: "backup-plan" },
+    redirect: "/ops/recovery",
   },
+  { path: "/ops/recovery", name: "backup-restore", component: BackupRestorePage },
   { path: "/published-surfaces/ingress-routes", redirect: "/published-surfaces" },
   {
     path: "/ops/restore-jobs",
-    name: "restore-jobs",
-    component: AdminCollectionPage,
-    props: { title: "Restore Jobs", kicker: "Enterprise Ops", description: "Restore jobs and dry-run validation reports.", resourcePath: "/v1/backups/restore-jobs", seedName: "restore-job" },
+    redirect: "/ops/recovery",
   },
   {
     path: "/ops/webhooks",
@@ -169,9 +179,7 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: "/ops/notifications",
-    name: "notifications",
-    component: AdminCollectionPage,
-    props: { title: "Notification Channels", kicker: "Enterprise Ops", description: "Notification channels used by alerts and incidents.", resourcePath: "/v1/notifications/channels", seedName: "notification" },
+    redirect: "/ops/incidents",
   },
   {
     path: "/ops/alerts",
@@ -182,8 +190,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/ops/incidents",
     name: "incidents",
-    component: AdminCollectionPage,
-    props: { title: "Incidents", kicker: "Enterprise Ops", description: "Incident events, acknowledge state, and resolution history.", resourcePath: "/v1/incidents", seedName: "incident" },
+    component: IncidentTriagePage,
   },
   {
     path: "/settings/semantic-store",

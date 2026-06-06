@@ -13,7 +13,7 @@
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && deployments.length === 0" />
 
-    <div v-if="mode !== 'offline' && !loading && !error && deployments.length > 0" class="table-wrap deployments-table">
+    <div v-if="mode !== 'offline' && !loading && deployments.length > 0" class="table-wrap deployments-table">
       <table>
         <thead>
           <tr>
@@ -58,7 +58,7 @@
       </table>
     </div>
 
-    <section v-if="mode !== 'offline' && !loading && !error && selectedDeployment" class="panel deployment-detail-panel">
+    <section v-if="mode !== 'offline' && !loading && selectedDeployment" class="panel deployment-detail-panel">
       <div class="panel-header">
         <div>
           <p class="section-kicker">{{ t("deployment") }}</p>
@@ -106,6 +106,9 @@
             <button class="tab-button" :class="{ active: activeDetailTab === 'task' }" type="button" role="tab" :aria-selected="activeDetailTab === 'task'" @click="activeDetailTab = 'task'">
               {{ t("submitDeploymentTask") }}
             </button>
+            <button class="tab-button" :class="{ active: activeDetailTab === 'promotion' }" type="button" role="tab" :aria-selected="activeDetailTab === 'promotion'" @click="openPromotionTab">
+              Promotion
+            </button>
           </div>
 
           <section v-if="activeDetailTab === 'control'" class="child-panel">
@@ -120,17 +123,18 @@
             </div>
           </section>
 
-          <form v-else class="child-panel" @submit.prevent="submitDeploymentTask">
+          <form v-else-if="activeDetailTab === 'task'" class="child-panel" @submit.prevent="submitDeploymentTask">
             <p class="muted">{{ t("deploymentRequiredCopy") }}</p>
-            <label>
-              <span>{{ t("deploymentTaskInput") }}</span>
-              <textarea v-model="deploymentTaskInputJson" class="textarea" rows="8"></textarea>
-            </label>
+            <JsonSchemaEditor
+              v-model="deploymentTaskInputJson"
+              :label="t('deploymentTaskInput')"
+              :error="taskInputError"
+              :rows="8"
+            />
             <label>
               <span>thread_id</span>
               <input v-model="deploymentTaskThreadId" class="input" />
             </label>
-            <p v-if="taskInputError" class="form-error">{{ taskInputError }}</p>
             <button class="button primary" type="submit" :disabled="creatingTask || selectedDeployment.desiredStatus !== 'active'">
               {{ creatingTask ? t("creating") : t("submitDeploymentTask") }}
             </button>
@@ -140,6 +144,72 @@
               / Task #{{ taskResult.taskId }}
             </p>
           </form>
+
+          <section v-else class="child-panel promotion-panel">
+            <p class="muted">Promote a ready AgentVersion with impact preview, audit reason, and rollback context.</p>
+            <div class="form-grid">
+              <label>
+                <span>Candidate version</span>
+                <select v-model.number="promotionCandidateVersionId" class="select">
+                  <option v-for="version in promotionVersions" :key="version.id" :value="version.id">
+                    {{ version.version }} / {{ version.status }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                <span>Rollout reason</span>
+                <input v-model="rolloutReason" class="input" />
+              </label>
+            </div>
+            <div class="operation-grid">
+              <button class="button" type="button" :disabled="previewingPromotion || !promotionCandidateVersionId" @click="previewPromotion">
+                {{ previewingPromotion ? "Previewing" : "Preview promotion" }}
+              </button>
+              <button class="button primary" type="button" :disabled="promotingDeployment || !canPromoteDeployment" @click="promoteDeployment">
+                {{ promotingDeployment ? "Promoting" : "Promote candidate" }}
+              </button>
+            </div>
+            <section v-if="promotionPreview" class="impact-preview" aria-label="Impact preview">
+              <h3>Impact preview</h3>
+              <p class="muted">{{ promotionPreview.currentAgentVersionId }} -> {{ promotionPreview.candidateAgentVersionId }}</p>
+              <dl>
+                <div>
+                  <dt>Current version</dt>
+                  <dd>{{ promotionPreview.currentAgentVersionId }}</dd>
+                </div>
+                <div>
+                  <dt>Candidate version</dt>
+                  <dd>{{ promotionPreview.candidateAgentVersionId }}</dd>
+                </div>
+                <div>
+                  <dt>Active runs</dt>
+                  <dd>{{ promotionPreview.activeRuns }}</dd>
+                </div>
+                <div>
+                  <dt>Queued tasks</dt>
+                  <dd>{{ promotionPreview.queuedTasks }}</dd>
+                </div>
+                <div>
+                  <dt>Candidate status</dt>
+                  <dd>{{ promotionPreview.candidateValidationStatus }}</dd>
+                </div>
+                <div>
+                  <dt>Rollback target</dt>
+                  <dd>{{ promotionPreview.rollbackAgentVersionId || "none" }}</dd>
+                </div>
+              </dl>
+              <p v-if="promotionPreview.blockedReason" class="form-error">{{ promotionPreview.blockedReason }}</p>
+              <p v-for="warning in promotionPreview.warnings" :key="warning" class="muted">{{ warning }}</p>
+            </section>
+            <p v-if="promotionMessage" class="muted">{{ promotionMessage }}</p>
+            <label>
+              <span>Rollback reason</span>
+              <input v-model="rollbackReason" class="input" />
+            </label>
+            <button class="button danger" type="button" :disabled="rollingBackDeployment || !canRollbackDeployment" @click="rollbackDeployment">
+              {{ rollingBackDeployment ? "Rolling back" : "Rollback" }}
+            </button>
+          </section>
         </div>
       </div>
     </section>
@@ -220,10 +290,12 @@
               <span>{{ t("replicas") }}</span>
               <input v-model.number="editDeploymentForm.replicas" class="input" min="1" required type="number" />
             </label>
-            <label>
-              <span>{{ t("config") }}</span>
-              <textarea v-model="editDeploymentForm.configJson" class="textarea" rows="10"></textarea>
-            </label>
+            <JsonSchemaEditor
+              v-model="editDeploymentForm.configJson"
+              :label="t('config')"
+              :error="editConfigError"
+              :rows="10"
+            />
             <p v-if="editError" class="form-error">{{ editError }}</p>
             <div class="drawer-actions">
               <button class="button" type="button" @click="closeEditDeployment">{{ t("cancel") }}</button>
@@ -270,18 +342,25 @@
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
-import type { Agent, AgentVersion, Deployment, TaskCreateResult } from "../../api/types";
+import { createMutationAction } from "../../api/mutations";
+import { createQueryResource } from "../../api/query";
+import type { Agent, AgentVersion, Deployment, DeploymentPromotionPreview, TaskCreateResult } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import ConfirmImpactDialog from "../../components/ConfirmImpactDialog.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
+import JsonSchemaEditor from "../../components/JsonSchemaEditor.vue";
 import ResourceLink from "../../components/ResourceLink.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { isJsonParseFailure, parseJsonObject, type JsonParseFailure } from "../../forms/jsonForm";
+import { validateDeploymentConfig } from "../../forms/validators";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const props = defineProps<{
+  initialDeploymentId?: string | number;
+}>();
 const mode = apiMode();
-const loading = ref(false);
-const error = ref<ConsoleApiError | null>(null);
+const pageError = ref<ConsoleApiError | null>(null);
 const agents = ref<Agent[]>([]);
 const versions = ref<AgentVersion[]>([]);
 const deployments = ref<Deployment[]>([]);
@@ -290,21 +369,23 @@ const selected = ref<Deployment | null>(null);
 const selectedDeployment = ref<Deployment | null>(null);
 const operation = ref("pause");
 const pendingOperation = ref<number | null>(null);
-const creatingDeployment = ref(false);
-const updatingDeployment = ref(false);
-const archivingDeployment = ref(false);
-const creatingTask = ref(false);
 const createOpen = ref(false);
-const activeDetailTab = ref<"control" | "task">("control");
+const activeDetailTab = ref<"control" | "task" | "promotion">("control");
 const deploymentTaskInputJson = ref('{\n  "message": "hello"\n}');
 const deploymentTaskThreadId = ref("");
-const taskInputError = ref("");
+const taskInputError = ref<JsonParseFailure | null>(null);
 const editError = ref("");
 const taskResult = ref<TaskCreateResult | null>(null);
+const promotionVersions = ref<AgentVersion[]>([]);
+const promotionCandidateVersionId = ref<number | null>(null);
+const promotionPreview = ref<DeploymentPromotionPreview | null>(null);
+const rolloutReason = ref("");
+const rollbackReason = ref("");
+const promotionMessage = ref("");
 const editOpen = ref(false);
 const editVersions = ref<AgentVersion[]>([]);
 const archiveTarget = ref<Deployment | null>(null);
-const archiveError = ref<ConsoleApiError | null>(null);
+const editConfigError = ref<JsonParseFailure | null>(null);
 const deploymentForm = reactive({
   agentId: null as number | null,
   agentVersionId: null as number | null,
@@ -327,31 +408,122 @@ const archiveConfirmItems = computed(() => archiveTarget.value ? [
   { label: t("agent"), value: `${archiveTarget.value.agent}@${archiveTarget.value.version}` },
   { label: t("environment"), value: archiveTarget.value.environment },
 ] : []);
+const runtimeQuery = createQueryResource(async () => {
+  if (mode === "offline") {
+    return { agents: [] as Agent[], deployments: [] as Deployment[] };
+  }
+  const [agentPage, deploymentPage] = await Promise.all([
+    consoleClient.listAgents(),
+    consoleClient.listDeployments(),
+  ]);
+  return {
+    agents: agentPage.items,
+    deployments: deploymentPage.items,
+  };
+});
+const loading = computed(() => runtimeQuery.loading.value);
+const error = computed(() => pageError.value ?? (runtimeQuery.error.value ? toConsoleApiError(runtimeQuery.error.value) : null));
+const creatingDeployment = computed(() => createDeploymentMutation.busy.value);
+const updatingDeployment = computed(() => updateDeploymentMutation.busy.value);
+const archivingDeployment = computed(() => archiveDeploymentMutation.busy.value);
+const creatingTask = computed(() => createTaskMutation.busy.value);
+const previewingPromotion = computed(() => promotionPreviewMutation.busy.value);
+const promotingDeployment = computed(() => promoteDeploymentMutation.busy.value);
+const rollingBackDeployment = computed(() => rollbackDeploymentMutation.busy.value);
+const archiveError = computed(() => archiveDeploymentMutation.error.value);
+const canPromoteDeployment = computed(() => Boolean(
+  selectedDeployment.value
+  && promotionCandidateVersionId.value
+  && promotionPreview.value
+  && promotionPreview.value.canPromote
+  && rolloutReason.value.trim(),
+));
+const canRollbackDeployment = computed(() => Boolean(
+  selectedDeployment.value
+  && promotionPreview.value?.rollbackAgentVersionId
+  && rollbackReason.value.trim(),
+));
+
+const createDeploymentMutation = createMutationAction(
+  async (_payload: void, context) => {
+    if (!deploymentForm.agentId || !deploymentForm.agentVersionId) {
+      throw new Error("Deployment requires agent and version.");
+    }
+    return consoleClient.createDeployment({
+      agent_id: deploymentForm.agentId,
+      agent_version_id: deploymentForm.agentVersionId,
+      environment: deploymentForm.environment,
+      desired_status: "draft",
+      replicas: deploymentForm.replicas,
+      config: {},
+    }, context);
+  },
+  { reload: loadRuntimeEntry },
+);
+const updateDeploymentMutation = createMutationAction(
+  async (payload: { id: number; agentVersionId: number; environment: string; replicas: number; config: Record<string, unknown> }, context) =>
+    consoleClient.updateDeployment(payload.id, {
+      agent_version_id: payload.agentVersionId,
+      environment: payload.environment,
+      replicas: payload.replicas,
+      config: payload.config,
+    }, context),
+  { reload: loadRuntimeEntry },
+);
+const archiveDeploymentMutation = createMutationAction(
+  async (deployment: Deployment, context) => consoleClient.archiveDeployment(deployment.id, context),
+  { reload: loadRuntimeEntry },
+);
+const controlDeploymentMutation = createMutationAction(
+  async (payload: { deployment: Deployment; operation: string }, context) => consoleClient.controlDeployment(payload.deployment.id, payload.operation, context),
+  { reload: loadRuntimeEntry },
+);
+const promotionPreviewMutation = createMutationAction(
+  async (payload: { deployment: Deployment; candidateVersionId: number }) =>
+    consoleClient.getDeploymentPromotionPreview(payload.deployment.id, payload.candidateVersionId),
+);
+const promoteDeploymentMutation = createMutationAction(
+  async (payload: { deployment: Deployment; candidateVersionId: number; expectedCurrentVersionId: number; reason: string }, context) =>
+    consoleClient.promoteDeployment(payload.deployment.id, {
+      candidate_version_id: payload.candidateVersionId,
+      expected_current_version_id: payload.expectedCurrentVersionId,
+      rollout_reason: payload.reason,
+    }, context),
+  { reload: loadRuntimeEntry },
+);
+const rollbackDeploymentMutation = createMutationAction(
+  async (payload: { deployment: Deployment; expectedCurrentVersionId: number; rollbackVersionId: number; reason: string }, context) =>
+    consoleClient.rollbackDeployment(payload.deployment.id, {
+      expected_current_version_id: payload.expectedCurrentVersionId,
+      rollback_agent_version_id: payload.rollbackVersionId,
+      rollback_reason: payload.reason,
+    }, context),
+  { reload: loadRuntimeEntry },
+);
+const createTaskMutation = createMutationAction(
+  async (payload: { deployment: Deployment; input: Record<string, unknown>; threadId?: string }, context) =>
+    consoleClient.createDeploymentTask(payload.deployment.id, {
+      input: payload.input,
+      thread_id: payload.threadId || undefined,
+    }, context),
+);
 
 async function loadRuntimeEntry() {
-  if (mode === "offline") return;
-  loading.value = true;
-  error.value = null;
-  try {
-    const [agentPage, deploymentPage] = await Promise.all([
-      consoleClient.listAgents(),
-      consoleClient.listDeployments(),
-    ]);
-    agents.value = agentPage.items;
-    deployments.value = deploymentPage.items;
-    if (!selectedDeployment.value && deployments.value[0]) {
-      selectDeployment(deployments.value[0]);
-    } else if (selectedDeployment.value) {
-      selectedDeployment.value = deployments.value.find((item) => item.id === selectedDeployment.value?.id) ?? deployments.value[0] ?? null;
-    }
-    if (!deploymentForm.agentId && agents.value[0]) {
-      deploymentForm.agentId = agents.value[0].id;
-      await loadVersionsForSelectedAgent();
-    }
-  } catch (caught) {
-    error.value = toConsoleApiError(caught);
-  } finally {
-    loading.value = false;
+  pageError.value = null;
+  const runtime = await runtimeQuery.reload();
+  if (!runtime) return;
+  agents.value = runtime.agents;
+  deployments.value = runtime.deployments;
+  if (!selectedDeployment.value && deployments.value[0]) {
+    selectDeployment(
+      deployments.value.find((item) => item.id === Number(props.initialDeploymentId)) ?? deployments.value[0],
+    );
+  } else if (selectedDeployment.value) {
+    selectedDeployment.value = deployments.value.find((item) => item.id === selectedDeployment.value?.id) ?? deployments.value[0] ?? null;
+  }
+  if (!deploymentForm.agentId && agents.value[0]) {
+    deploymentForm.agentId = agents.value[0].id;
+    await loadVersionsForSelectedAgent();
   }
 }
 
@@ -379,7 +551,8 @@ function selectDeployment(deployment: Deployment) {
   selectedDeployment.value = deployment;
   activeDetailTab.value = "control";
   taskResult.value = null;
-  taskInputError.value = "";
+  taskInputError.value = null;
+  resetPromotionState();
 }
 
 async function loadVersionsForSelectedAgent() {
@@ -388,41 +561,30 @@ async function loadVersionsForSelectedAgent() {
     deploymentForm.agentVersionId = null;
     return;
   }
-  error.value = null;
+  pageError.value = null;
   try {
     versions.value = (await consoleClient.listAgentVersions(deploymentForm.agentId)).items;
     deploymentForm.agentVersionId = versions.value[0]?.id ?? null;
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
+    pageError.value = toConsoleApiError(caught);
   }
 }
 
 async function createDeployment() {
   if (!canCreateDeployment.value || !deploymentForm.agentId || !deploymentForm.agentVersionId) return;
-  creatingDeployment.value = true;
-  error.value = null;
+  pageError.value = null;
   try {
-    const deployment = await consoleClient.createDeployment({
-      agent_id: deploymentForm.agentId,
-      agent_version_id: deploymentForm.agentVersionId,
-      environment: deploymentForm.environment,
-      desired_status: "draft",
-      replicas: deploymentForm.replicas,
-      config: {},
-    });
-    deployments.value = [deployment, ...deployments.value.filter((item) => item.id !== deployment.id)];
+    const deployment = await createDeploymentMutation.run(undefined, { auditReason: "create deployment from console" });
     selectDeployment(deployment);
     createOpen.value = false;
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
-  } finally {
-    creatingDeployment.value = false;
+    pageError.value = toConsoleApiError(caught);
   }
 }
 
 async function openEditDeployment(deployment: Deployment) {
   editError.value = "";
-  error.value = null;
+  pageError.value = null;
   editDeploymentForm.id = deployment.id;
   editDeploymentForm.agentId = Number(deployment.agent);
   editDeploymentForm.agentVersionId = Number(deployment.version);
@@ -433,7 +595,7 @@ async function openEditDeployment(deployment: Deployment) {
   try {
     editVersions.value = (await consoleClient.listAgentVersions(Number(deployment.agent))).items;
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
+    pageError.value = toConsoleApiError(caught);
     editVersions.value = [];
   }
 }
@@ -448,68 +610,65 @@ async function updateDeployment() {
   if (!canUpdateDeployment.value || !editDeploymentForm.id || !editDeploymentForm.agentVersionId) return;
   const config = parseConfigInput();
   if (!config) return;
-  updatingDeployment.value = true;
-  error.value = null;
+  pageError.value = null;
   try {
-    const updated = await consoleClient.updateDeployment(editDeploymentForm.id, {
-      agent_version_id: editDeploymentForm.agentVersionId,
+    const updated = await updateDeploymentMutation.run({
+      id: editDeploymentForm.id,
+      agentVersionId: editDeploymentForm.agentVersionId,
       environment: editDeploymentForm.environment,
       replicas: editDeploymentForm.replicas,
       config,
-    });
-    deployments.value = deployments.value.map((item) => (item.id === updated.id ? updated : item));
-    if (selectedDeployment.value?.id === updated.id) {
-      selectedDeployment.value = updated;
-    }
+    }, { auditReason: "update deployment from console" });
+    selectedDeployment.value = updated;
     closeEditDeployment();
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
-  } finally {
-    updatingDeployment.value = false;
+    pageError.value = toConsoleApiError(caught);
   }
 }
 
 function parseConfigInput(): Record<string, unknown> | null {
   editError.value = "";
-  try {
-    const parsed = JSON.parse(editDeploymentForm.configJson);
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-      editError.value = t("jsonObjectRequired");
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    editError.value = t("invalidJson");
+  editConfigError.value = null;
+  const parsed = parseJsonObject(editDeploymentForm.configJson);
+  if (isJsonParseFailure(parsed)) {
+    editConfigError.value = parsed;
+    editError.value = parsed.message;
     return null;
   }
+  const validationErrors = validateDeploymentConfig({
+    environment: editDeploymentForm.environment,
+    replicas: editDeploymentForm.replicas,
+    config: parsed,
+  });
+  if (validationErrors.length > 0) {
+    editError.value = validationErrors.map((item) => item.message).join(" ");
+    return null;
+  }
+  return parsed;
 }
 
 function openArchiveDeployment(deployment: Deployment) {
   archiveTarget.value = deployment;
-  archiveError.value = null;
+  archiveDeploymentMutation.error.value = null;
 }
 
 function closeArchiveDeployment() {
   if (archivingDeployment.value) return;
   archiveTarget.value = null;
-  archiveError.value = null;
+  archiveDeploymentMutation.error.value = null;
 }
 
 async function archiveDeployment() {
   if (!archiveTarget.value) return;
-  archivingDeployment.value = true;
-  archiveError.value = null;
+  archiveDeploymentMutation.error.value = null;
   try {
-    const archived = await consoleClient.archiveDeployment(archiveTarget.value.id);
-    deployments.value = deployments.value.filter((item) => item.id !== archived.id);
-    if (selectedDeployment.value?.id === archived.id) {
-      selectedDeployment.value = deployments.value[0] ?? null;
+    const archived = await archiveDeploymentMutation.run(archiveTarget.value, { auditReason: "archive deployment from console" });
+    if (selectedDeployment.value?.id === archived.id && deployments.value[0]) {
+      selectedDeployment.value = deployments.value[0];
     }
     archiveTarget.value = null;
-  } catch (caught) {
-    archiveError.value = toConsoleApiError(caught);
-  } finally {
-    archivingDeployment.value = false;
+  } catch {
+    // Error state is owned by archiveDeploymentMutation.
   }
 }
 
@@ -517,33 +676,110 @@ async function submitDeploymentTask() {
   if (!selectedDeployment.value) return;
   const input = parseTaskInput();
   if (!input) return;
-  creatingTask.value = true;
-  error.value = null;
+  pageError.value = null;
   try {
-    taskResult.value = await consoleClient.createDeploymentTask(selectedDeployment.value.id, {
+    taskResult.value = await createTaskMutation.run({
+      deployment: selectedDeployment.value,
       input,
-      thread_id: deploymentTaskThreadId.value || undefined,
+      threadId: deploymentTaskThreadId.value || undefined,
+    }, { auditReason: "submit deployment task from console" });
+  } catch (caught) {
+    pageError.value = toConsoleApiError(caught);
+  }
+}
+
+function resetPromotionState() {
+  promotionVersions.value = [];
+  promotionCandidateVersionId.value = null;
+  promotionPreview.value = null;
+  rolloutReason.value = "";
+  rollbackReason.value = "";
+  promotionMessage.value = "";
+}
+
+async function openPromotionTab() {
+  activeDetailTab.value = "promotion";
+  promotionMessage.value = "";
+  await loadPromotionVersions();
+}
+
+async function loadPromotionVersions() {
+  if (!selectedDeployment.value) return;
+  pageError.value = null;
+  try {
+    promotionVersions.value = (await consoleClient.listAgentVersions(Number(selectedDeployment.value.agent))).items;
+    const currentVersionId = Number(selectedDeployment.value.version);
+    promotionCandidateVersionId.value = promotionVersions.value.find((item) => item.id !== currentVersionId)?.id ?? promotionVersions.value[0]?.id ?? null;
+  } catch (caught) {
+    pageError.value = toConsoleApiError(caught);
+    promotionVersions.value = [];
+    promotionCandidateVersionId.value = null;
+  }
+}
+
+async function previewPromotion() {
+  if (!selectedDeployment.value || !promotionCandidateVersionId.value) return;
+  pageError.value = null;
+  promotionMessage.value = "";
+  try {
+    promotionPreview.value = await promotionPreviewMutation.run({
+      deployment: selectedDeployment.value,
+      candidateVersionId: promotionCandidateVersionId.value,
     });
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
-  } finally {
-    creatingTask.value = false;
+    pageError.value = toConsoleApiError(caught);
+  }
+}
+
+async function promoteDeployment() {
+  if (!selectedDeployment.value || !promotionCandidateVersionId.value || !promotionPreview.value) return;
+  pageError.value = null;
+  try {
+    const previousVersion = promotionPreview.value.currentAgentVersionId;
+    const promoted = await promoteDeploymentMutation.run({
+      deployment: selectedDeployment.value,
+      candidateVersionId: promotionCandidateVersionId.value,
+      expectedCurrentVersionId: previousVersion,
+      reason: rolloutReason.value.trim(),
+    }, { auditReason: rolloutReason.value.trim() });
+    selectedDeployment.value = promoted;
+    promotionMessage.value = `Promoted to version ${promoted.version}`;
+    promotionPreview.value = {
+      ...promotionPreview.value,
+      currentAgentVersionId: previousVersion,
+      candidateAgentVersionId: Number(promoted.version),
+      rollbackAgentVersionId: previousVersion,
+    };
+  } catch (caught) {
+    pageError.value = toConsoleApiError(caught);
+  }
+}
+
+async function rollbackDeployment() {
+  if (!selectedDeployment.value || !promotionPreview.value?.rollbackAgentVersionId) return;
+  pageError.value = null;
+  try {
+    const rolledBack = await rollbackDeploymentMutation.run({
+      deployment: selectedDeployment.value,
+      expectedCurrentVersionId: Number(selectedDeployment.value.version),
+      rollbackVersionId: promotionPreview.value.rollbackAgentVersionId,
+      reason: rollbackReason.value.trim(),
+    }, { auditReason: rollbackReason.value.trim() });
+    selectedDeployment.value = rolledBack;
+    promotionMessage.value = `Rolled back to version ${rolledBack.version}`;
+  } catch (caught) {
+    pageError.value = toConsoleApiError(caught);
   }
 }
 
 function parseTaskInput(): Record<string, unknown> | null {
-  taskInputError.value = "";
-  try {
-    const parsed = JSON.parse(deploymentTaskInputJson.value);
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-      taskInputError.value = t("jsonObjectRequired");
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    taskInputError.value = t("invalidJson");
+  taskInputError.value = null;
+  const parsed = parseJsonObject(deploymentTaskInputJson.value);
+  if (isJsonParseFailure(parsed)) {
+    taskInputError.value = parsed;
     return null;
   }
+  return parsed;
 }
 
 function openDialog(nextOperation: string, deployment: Deployment) {
@@ -555,15 +791,15 @@ function openDialog(nextOperation: string, deployment: Deployment) {
 async function confirmOperation() {
   if (!selected.value) return;
   pendingOperation.value = selected.value.id;
-  error.value = null;
+  pageError.value = null;
   try {
-    const updated = await consoleClient.controlDeployment(selected.value.id, operation.value);
-    deployments.value = deployments.value.map((item) => (item.id === updated.id ? updated : item));
-    if (selectedDeployment.value?.id === updated.id) {
-      selectedDeployment.value = updated;
-    }
+    const updated = await controlDeploymentMutation.run({
+      deployment: selected.value,
+      operation: operation.value,
+    }, { auditReason: `${operation.value} deployment from console` });
+    selectedDeployment.value = updated;
   } catch (caught) {
-    error.value = toConsoleApiError(caught);
+    pageError.value = toConsoleApiError(caught);
   } finally {
     pendingOperation.value = null;
   }

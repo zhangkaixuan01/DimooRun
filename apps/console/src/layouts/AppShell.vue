@@ -127,6 +127,7 @@ const navGroups = computed(() => [
     label: t("runtime"),
     items: [
       { label: t("agents"), to: "/agents", icon: "A" },
+      { label: "Packages", to: "/packages/register", icon: "K" },
       { label: t("deployments"), to: "/deployments", icon: "D" },
       { label: t("publishedSurfaces"), to: "/published-surfaces", icon: "P" },
       { label: t("runs"), to: "/runs", icon: "R" },
@@ -142,6 +143,7 @@ const navGroups = computed(() => [
       { label: t("artifacts"), to: "/observability/artifacts", icon: "F" },
       { label: t("datasets"), to: "/observability/datasets", icon: "D" },
       { label: t("experiments"), to: "/observability/experiments", icon: "X" },
+      { label: t("qualityGate"), to: "/observability/quality-gate", icon: "G" },
       { label: t("evaluationResults"), to: "/observability/evaluations", icon: "V" },
       { label: t("feedback"), to: "/observability/feedback", icon: "Q" },
       { label: t("replayJobs"), to: "/observability/replay-jobs", icon: "J" },
@@ -173,10 +175,8 @@ const navGroups = computed(() => [
   {
     label: t("enterpriseOps"),
     items: [
-      { label: t("backupPlans"), to: "/ops/backup-plans", icon: "B" },
-      { label: t("restoreJobs"), to: "/ops/restore-jobs", icon: "R" },
+      { label: t("backupAndRestore"), to: "/ops/recovery", icon: "B" },
       { label: t("webhookSubscriptions"), to: "/ops/webhooks", icon: "W" },
-      { label: t("notificationChannels"), to: "/ops/notifications", icon: "N" },
       { label: t("alertRules"), to: "/ops/alerts", icon: "A" },
       { label: t("incidents"), to: "/ops/incidents", icon: "I" },
     ],
