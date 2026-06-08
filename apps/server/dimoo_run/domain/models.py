@@ -234,7 +234,9 @@ class APIKey(IdMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     owner_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("service_accounts.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(
+        ForeignKey("service_accounts.id"), nullable=False, index=True
+    )
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     key_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
     scopes_json: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
@@ -465,6 +467,125 @@ class PublishedSurface(IdMixin, AuditMixin, Base):
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class PublishedSurfaceEvidenceBundle(IdMixin, AuditMixin, Base):
+    __tablename__ = "published_surface_evidence_bundles"
+    __table_args__ = (
+        Index(
+            "uq_published_surface_evidence_bundle_active",
+            "surface_id",
+            "bundle_id",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    surface_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    bundle_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="recorded", nullable=False)
+    export_status: Mapped[str] = mapped_column(String(64), default="not_exported", nullable=False)
+    evidence_bundle_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    redacted_payload_summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    last_exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_export_request_id: Mapped[str | None] = mapped_column(String(255))
+    retention_policy_id: Mapped[str | None] = mapped_column(String(128))
+    retain_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archive_reason: Mapped[str | None] = mapped_column(String(1024))
+    archive_request_id: Mapped[str | None] = mapped_column(String(255))
+
+
+class PublishedSurfaceRequestLog(IdMixin, AuditMixin, Base):
+    __tablename__ = "published_surface_request_logs"
+    __table_args__ = (
+        Index(
+            "uq_published_surface_request_log_active",
+            "surface_id",
+            "request_log_id",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    surface_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    request_log_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    method: Mapped[str] = mapped_column(String(16), nullable=False)
+    path: Mapped[str] = mapped_column(String(512), nullable=False)
+    trace_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    request_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    ingress_source: Mapped[str | None] = mapped_column(String(64))
+    request_log_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    evidence_bundle_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+
+class PublishedSurfaceRollout(IdMixin, AuditMixin, Base):
+    __tablename__ = "published_surface_rollouts"
+    __table_args__ = (
+        Index(
+            "uq_published_surface_rollout_active",
+            "surface_id",
+            "rollout_id",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    surface_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    rollout_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    operation: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    request_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    rollout_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    evidence_bundle_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+
+class PublishedSurfaceBinding(IdMixin, AuditMixin, Base):
+    __tablename__ = "published_surface_bindings"
+    __table_args__ = (
+        Index(
+            "uq_published_surface_binding_active",
+            "surface_id",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+        Index(
+            "uq_published_surface_route_active",
+            "route_path",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    surface_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    deployment_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    environment: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    route_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    auth_mode: Mapped[str] = mapped_column(String(64), nullable=False)
+    published_at: Mapped[str | None] = mapped_column(String(64))
+    surface_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class IngressRoute(IdMixin, AuditMixin, Base):
