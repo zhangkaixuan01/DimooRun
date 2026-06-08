@@ -533,6 +533,7 @@ function mapPublishedSurfaceDetail(result: Record<string, unknown>): PublishedSu
   return {
     surface: isRecord(result.surface) ? result.surface : {},
     deploymentBindingHealth: isRecord(result.deployment_binding_health) ? result.deployment_binding_health : {},
+    exposureHealth: isRecord(result.exposure_health) ? result.exposure_health : {},
     requestLogs: Array.isArray(result.request_logs) ? result.request_logs.filter(isRecord) : [],
     rolloutHistory: Array.isArray(result.rollout_history) ? result.rollout_history.filter(isRecord) : [],
     actions: isRecord(result.actions) ? result.actions : {},

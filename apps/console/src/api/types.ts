@@ -258,6 +258,7 @@ export type IngressRouteTestResult = {
 export type PublishedSurfaceDetail = {
   surface: Record<string, unknown>;
   deploymentBindingHealth: Record<string, unknown>;
+  exposureHealth: Record<string, unknown>;
   requestLogs: Array<Record<string, unknown>>;
   rolloutHistory: Array<Record<string, unknown>>;
   actions: Record<string, unknown>;

@@ -183,6 +183,25 @@
         />
       </div>
 
+      <div class="exposure-health-strip">
+        <div>
+          <span class="label">Exposure health</span>
+          <strong>Exposure health: {{ exposureHealthStatus }}</strong>
+        </div>
+        <div>
+          <span class="label">Route</span>
+          <strong class="mono">{{ exposureHealthRoute }}</strong>
+        </div>
+        <div>
+          <span class="label">Last live request</span>
+          <strong>{{ exposureHealthLastRequest }}</strong>
+        </div>
+        <div v-if="exposureHealthBlockedReasons.length > 0">
+          <span class="label">Blocked reasons</span>
+          <strong>{{ exposureHealthBlockedReasons.join(", ") }}</strong>
+        </div>
+      </div>
+
       <div class="gateway-workflow-grid">
         <form class="workflow-panel" @submit.prevent="validatePublish">
           <header class="workflow-panel-header">
@@ -475,6 +494,19 @@ const revokePhrase = computed(() => selectedSurface.value ? `REVOKE SURFACE ${se
 const rolloutCandidate = computed(() => {
   const trafficSplit = rolloutResult.value?.rollout.traffic_split;
   return isRecord(trafficSplit) ? trafficSplit.candidate : trafficCandidate.value;
+});
+const exposureHealth = computed(() => surfaceDetail.value?.exposureHealth ?? {});
+const exposureHealthStatus = computed(() => String(exposureHealth.value.status || "unknown"));
+const exposureHealthRoute = computed(() => String(exposureHealth.value.route_path || publishForm.routePath || "-"));
+const exposureHealthLastRequest = computed(() => {
+  const status = exposureHealth.value.last_live_request_status;
+  const trace = exposureHealth.value.last_live_trace_id;
+  if (!status && !trace) return "not proven";
+  return `status ${String(status || "unknown")} / ${String(trace || "no trace")}`;
+});
+const exposureHealthBlockedReasons = computed(() => {
+  const reasons = exposureHealth.value.blocked_reasons;
+  return Array.isArray(reasons) ? reasons.map(String) : [];
 });
 const requestAuthorization = computed(() => {
   const metadata = openedRequestLog.value?.redacted_request_metadata;
@@ -933,6 +965,29 @@ onMounted(loadPublishing);
 
 .publish-detail-panel {
   margin-top: 16px;
+}
+
+.exposure-health-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.exposure-health-strip .label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.exposure-health-strip strong {
+  display: block;
+  overflow-wrap: anywhere;
 }
 
 .section-kicker {
