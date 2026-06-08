@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Response
-from sqlalchemy import select
+from sqlalchemy import Table, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from dimoo_run.api.dependencies import (
@@ -14,12 +14,13 @@ from dimoo_run.api.dependencies import (
     enforce_console_actor,
 )
 from dimoo_run.core.config import Settings
-from dimoo_run.domain.models import Policy
+from dimoo_run.domain.models import Policy, Project, Tenant
 from dimoo_run.persistence.database import create_session_factory
 from dimoo_run.security.api_keys import AuthenticatedActor
 
 router = APIRouter(tags=["admin"], dependencies=[Depends(enforce_console_actor)])
 AdminPayload = Annotated[dict[str, Any] | None, Body()]
+_SCHEMA_DATABASE_URL: str | None = None
 
 
 def _now() -> str:
@@ -27,7 +28,23 @@ def _now() -> str:
 
 
 def _session_factory() -> sessionmaker[Session]:
-    return create_session_factory(Settings.from_env().database.url)
+    global _SCHEMA_DATABASE_URL
+    settings = Settings.from_env()
+    session_factory = create_session_factory(settings.database.url)
+    if settings.runtime.mode == "dev" and _SCHEMA_DATABASE_URL != settings.database.url:
+        with session_factory() as session:
+            bind = session.get_bind()
+            for model in (Tenant, Project, Policy):
+                _table(model).create(bind, checkfirst=True)
+        _SCHEMA_DATABASE_URL = settings.database.url
+    return session_factory
+
+
+def _table(model: type[Any]) -> Table:
+    table = model.__table__
+    if not isinstance(table, Table):
+        raise TypeError(f"{model.__name__} does not expose a SQLAlchemy Table")
+    return table
 
 
 def _policy_name(policy: Policy) -> str | None:
@@ -204,6 +221,11 @@ def _apply_draft(
     metadata = dict(policy.metadata_json or {})
     if draft.get("name"):
         metadata["name"] = draft["name"]
+    draft_metadata = draft.get("metadata")
+    if isinstance(draft_metadata, dict):
+        for key, value in draft_metadata.items():
+            if key not in {"version", "versions", "last_audit_reason"}:
+                metadata[str(key)] = value
     if environment:
         metadata["_environment"] = environment
     policy.metadata_json = metadata

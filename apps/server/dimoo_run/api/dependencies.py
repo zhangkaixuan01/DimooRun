@@ -175,8 +175,10 @@ def default_api_key_authenticator() -> APIKeyAuthenticator:
 def reset_api_key_authenticator() -> None:
     global _default_api_key_authenticator
     settings = Settings.from_env()
-    session_factory = create_session_factory(settings.database.url)
-    if settings.runtime.mode == "dev":
+    if settings.runtime.mode == "dev" and not _is_missing_sqlite_database_file(
+        settings.database.url
+    ):
+        session_factory = create_session_factory(settings.database.url)
         with session_factory() as session:
             Base.metadata.create_all(session.get_bind())
             _ensure_machine_identity_columns(session)
@@ -185,6 +187,20 @@ def reset_api_key_authenticator() -> None:
             session.execute(delete(ServiceAccount))
             session.commit()
     _default_api_key_authenticator = None
+
+
+def _is_missing_sqlite_database_file(database_url: str) -> bool:
+    sqlite_prefixes = ("sqlite:///", "sqlite+pysqlite:///")
+    prefix = next(
+        (candidate for candidate in sqlite_prefixes if database_url.startswith(candidate)),
+        None,
+    )
+    if prefix is None:
+        return False
+    path = database_url.removeprefix(prefix)
+    if path in {"", ":memory:"}:
+        return False
+    return not os.path.exists(path)
 
 
 def authenticate_api_key(

@@ -91,6 +91,8 @@ class StaticPolicyRule:
             decision=self.decision,
             reason=self.reason,
             matched_policy_ids=(self.policy_id,),
+            limits=_metadata_limits(self.metadata),
+            redactions=tuple(_metadata_redactions(self.metadata)),
             expires_at=self.expires_at,
             metadata=self.metadata,
         )
@@ -107,11 +109,19 @@ class PolicyEngine:
         self.audit_sink = audit_sink or InMemoryAuditSink()
 
     def evaluate(self, request: PolicyRequest) -> PolicyDecision:
-        for rule in self.rules:
-            if rule.matches(request):
+        matches = [rule for rule in self.rules if rule.matches(request)]
+        for rule in matches:
+            if rule.decision == Decision.deny:
                 decision = rule.to_decision()
                 self._audit_when_required(request, decision)
                 return decision
+        for rule in matches:
+            if rule.decision == Decision.require_approval:
+                decision = rule.to_decision()
+                self._audit_when_required(request, decision)
+                return decision
+        if matches:
+            return _compose_allow_decision(matches)
         return PolicyDecision.allow()
 
     def assert_allowed(self, request: PolicyRequest) -> PolicyDecision:
@@ -160,3 +170,62 @@ class PolicyEngine:
                 metadata=decision.metadata,
             )
         )
+
+
+def _compose_allow_decision(rules: list[StaticPolicyRule]) -> PolicyDecision:
+    matched_policy_ids: list[str] = []
+    limits: dict[str, Any] = {}
+    redactions: list[str] = []
+    primary_rule = rules[0]
+    for rule in rules:
+        if rule.decision not in {
+            Decision.allow,
+            Decision.allow_with_redaction,
+            Decision.allow_with_limit,
+        }:
+            continue
+        matched_policy_ids.append(rule.policy_id)
+        limits.update(_metadata_limits(rule.metadata))
+        for redaction in _metadata_redactions(rule.metadata):
+            if redaction not in redactions:
+                redactions.append(redaction)
+        if (
+            primary_rule.decision != Decision.allow_with_limit
+            and rule.decision == Decision.allow_with_limit
+        ):
+            primary_rule = rule
+        elif (
+            primary_rule.decision == Decision.allow
+            and rule.decision == Decision.allow_with_redaction
+        ):
+            primary_rule = rule
+    if limits:
+        decision = Decision.allow_with_limit
+    elif redactions:
+        decision = Decision.allow_with_redaction
+    else:
+        decision = primary_rule.decision
+    return PolicyDecision(
+        decision=decision,
+        reason=primary_rule.reason,
+        matched_policy_ids=tuple(matched_policy_ids),
+        limits=limits,
+        redactions=tuple(redactions),
+        expires_at=primary_rule.expires_at,
+        metadata={
+            "limits": limits,
+            "redactions": redactions,
+        },
+    )
+
+
+def _metadata_limits(metadata: dict[str, Any]) -> dict[str, Any]:
+    value = metadata.get("limits")
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _metadata_redactions(metadata: dict[str, Any]) -> list[str]:
+    value = metadata.get("redactions")
+    if not isinstance(value, list | tuple):
+        return []
+    return [item for item in (str(item).strip() for item in value) if item]
