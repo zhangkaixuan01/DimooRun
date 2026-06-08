@@ -16,6 +16,10 @@ from dimoo_run.domain.models import (
     IngressRoute,
     Project,
     PublishedSurface,
+    PublishedSurfaceBinding,
+    PublishedSurfaceEvidenceBundle,
+    PublishedSurfaceRequestLog,
+    PublishedSurfaceRollout,
     Run,
     Task,
 )
@@ -46,6 +50,10 @@ REQUIRED_TABLES = {
     "secrets",
     "audit_logs",
     "published_surfaces",
+    "published_surface_bindings",
+    "published_surface_evidence_bundles",
+    "published_surface_request_logs",
+    "published_surface_rollouts",
     "ingress_routes",
     "catalog_items",
     "prompt_assets",
@@ -166,6 +174,9 @@ def test_soft_deleted_resources_do_not_block_active_unique_names() -> None:
     expected_indexes = {
         Agent: "uq_agents_project_name_active",
         Deployment: "uq_deployments_project_environment_agent_active",
+        PublishedSurfaceBinding: "uq_published_surface_binding_active",
+        PublishedSurfaceRequestLog: "uq_published_surface_request_log_active",
+        PublishedSurfaceRollout: "uq_published_surface_rollout_active",
     }
 
     for model, index_name in expected_indexes.items():
@@ -234,11 +245,14 @@ def test_runtime_tables_include_scheduler_and_streaming_columns() -> None:
 
 def test_published_surface_and_ingress_route_tables_are_hardened() -> None:
     surface_table = cast(Table, PublishedSurface.__table__)
+    evidence_table = cast(Table, PublishedSurfaceEvidenceBundle.__table__)
     route_table = cast(Table, IngressRoute.__table__)
     surface_columns = PublishedSurface.__table__.columns
+    evidence_columns = PublishedSurfaceEvidenceBundle.__table__.columns
     route_columns = IngressRoute.__table__.columns
 
     assert surface_table.info.get("placeholder") is not True
+    assert evidence_table.info.get("placeholder") is not True
     assert route_table.info.get("placeholder") is not True
     for column_name in [
         "deployment_id",
@@ -246,6 +260,22 @@ def test_published_surface_and_ingress_route_tables_are_hardened() -> None:
         "status",
     ]:
         assert column_name in surface_columns
+    for column_name in [
+        "surface_id",
+        "bundle_id",
+        "resource_type",
+        "status",
+        "export_status",
+        "evidence_bundle_json",
+        "redacted_payload_summary_json",
+        "last_exported_at",
+        "retention_policy_id",
+        "retain_until",
+        "archived_at",
+        "archive_reason",
+        "archive_request_id",
+    ]:
+        assert column_name in evidence_columns
     for column_name in [
         "surface_id",
         "path",
@@ -258,6 +288,7 @@ def test_published_surface_and_ingress_route_tables_are_hardened() -> None:
 
 def test_gateway_tables_have_active_uniqueness_indexes() -> None:
     surface_table = cast(Table, PublishedSurface.__table__)
+    evidence_table = cast(Table, PublishedSurfaceEvidenceBundle.__table__)
     route_table = cast(Table, IngressRoute.__table__)
 
     surface_index = next(
@@ -270,6 +301,11 @@ def test_gateway_tables_have_active_uniqueness_indexes() -> None:
         for index in route_table.indexes
         if index.name == "uq_ingress_routes_surface_path_active"
     )
+    evidence_index = next(
+        index
+        for index in evidence_table.indexes
+        if index.name == "uq_published_surface_evidence_bundle_active"
+    )
 
     assert surface_index.unique is True
     assert "is_deleted" in str(surface_index.dialect_options["postgresql"]["where"])
@@ -277,6 +313,9 @@ def test_gateway_tables_have_active_uniqueness_indexes() -> None:
     assert route_index.unique is True
     assert "is_deleted" in str(route_index.dialect_options["postgresql"]["where"])
     assert "is_deleted" in str(route_index.dialect_options["sqlite"]["where"])
+    assert evidence_index.unique is True
+    assert "is_deleted" in str(evidence_index.dialect_options["postgresql"]["where"])
+    assert "is_deleted" in str(evidence_index.dialect_options["sqlite"]["where"])
 
 
 def test_governance_security_and_model_gateway_tables_are_hardened() -> None:

@@ -213,6 +213,47 @@ def test_policy_engine_records_deny_and_approval_audit() -> None:
     assert all(isinstance(record, AuditRecord) for record in audit_sink.records)
 
 
+def test_policy_engine_composes_allow_limit_and_redaction_effects() -> None:
+    engine = PolicyEngine(
+        rules=[
+            StaticPolicyRule(
+                policy_id="limit-ingress",
+                resource_type="published_surface",
+                action="ingress.invoke",
+                decision=Decision.allow_with_limit,
+                reason="limit_live_ingress",
+                metadata={"limits": {"requests_per_minute": 12}},
+            ),
+            StaticPolicyRule(
+                policy_id="redact-ingress",
+                resource_type="published_surface",
+                action="ingress.invoke",
+                decision=Decision.allow_with_redaction,
+                reason="redact_credentials",
+                metadata={"redactions": ["headers.authorization", "body.secret"]},
+            ),
+        ]
+    )
+
+    decision = engine.evaluate(
+        PolicyRequest(
+            tenant_id=1,
+            project_id=1,
+            actor_id="gateway",
+            actor_type="external_ingress",
+            resource_type="published_surface",
+            resource_id=501,
+            action="ingress.invoke",
+        )
+    )
+
+    assert decision.decision == Decision.allow_with_limit
+    assert decision.matched_policy_ids == ("limit-ingress", "redact-ingress")
+    assert decision.limits == {"requests_per_minute": 12}
+    assert decision.redactions == ("headers.authorization", "body.secret")
+    assert decision.reason == "limit_live_ingress"
+
+
 def test_policy_rules_are_scoped_by_tenant_and_project() -> None:
     engine = PolicyEngine(
         rules=[

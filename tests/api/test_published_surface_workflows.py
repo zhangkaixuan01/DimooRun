@@ -4,8 +4,12 @@ from uuid import uuid4
 
 from dimoo_run.api.dependencies import reset_api_key_authenticator
 from dimoo_run.api.native.runtime import reset_native_runtime
+from dimoo_run.domain.models import PublishedSurfaceEvidenceBundle
+from dimoo_run.gateway.route_tester import reset_gateway_workflows
+from dimoo_run.persistence.database import create_session_factory
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 
 def setup_function() -> None:
@@ -23,6 +27,17 @@ def admin_headers() -> dict[str, str]:
         "X-Project-Id": "1",
         "X-Environment": "local",
     }
+
+
+def _persisted_evidence_bundle(bundle_id: str) -> PublishedSurfaceEvidenceBundle | None:
+    database_url = os.environ["DATABASE_URL"]
+    session_factory = create_session_factory(database_url)
+    with session_factory() as session:
+        return session.scalar(
+            select(PublishedSurfaceEvidenceBundle).where(
+                PublishedSurfaceEvidenceBundle.bundle_id == bundle_id
+            )
+        )
 
 
 def valid_surface_payload() -> dict[str, object]:
@@ -399,6 +414,1217 @@ def test_route_test_uses_published_surface_deployment_binding() -> None:
         "project_id": 1,
         "environment": "local",
     }
+
+
+def test_live_ingress_request_uses_published_surface_and_writes_request_log() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+    surface = payload["surface"]
+    assert isinstance(surface, dict)
+    surface["deployment_id"] = 44
+    surface["environment"] = "staging"
+    surface["auth_mode"] = "jwt"
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={
+            "Authorization": "Bearer runtime-token",
+            "X-Request-Id": "req_live_ingress",
+            "X-Client-Ref": "support-desk",
+        },
+        json={"ticket_id": "INC-901", "secret": "redact-me"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert publish.status_code == 200
+    assert ingress.status_code == 200
+    ingress_body = ingress.json()
+    assert ingress_body["status"] == "accepted"
+    assert ingress_body["trace_id"].startswith("trace_")
+    assert ingress_body["matched_deployment"] == {
+        "deployment_id": 44,
+        "environment": "staging",
+        "surface_id": 501,
+        "route_id": 701,
+    }
+    assert ingress_body["runtime_task"] == {
+        "deployment_id": 44,
+        "task_shape": "deployment.invoke",
+        "method": "POST",
+        "path": "/support/triage",
+    }
+    assert ingress.headers["X-Request-Id"] == "req_live_ingress"
+    assert ingress.headers["X-DimooRun-Trace-Id"] == ingress_body["trace_id"]
+    assert detail.status_code == 200
+    request_log = detail.json()["request_logs"][0]
+    assert request_log["id"] == ingress_body["request_log_id"]
+    assert request_log["ingress_source"] == "live_http"
+    assert request_log["deployment_id"] == 44
+    assert request_log["environment"] == "staging"
+    assert request_log["auth_mode"] == "jwt"
+    assert request_log["path"] == "/support/triage"
+    assert request_log["method"] == "POST"
+    assert request_log["redacted_request_metadata"]["headers"]["authorization"] == "[REDACTED]"
+    assert sorted(request_log["redacted_request_metadata"]["body_keys"]) == [
+        "secret",
+        "ticket_id",
+    ]
+
+
+def test_published_surface_binding_survives_gateway_workflow_reset() -> None:
+    client = TestClient(create_app())
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=valid_surface_payload(),
+    )
+    reset_gateway_workflows()
+    ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={
+            "Authorization": "Bearer runtime-token",
+            "X-Request-Id": "req_durable_surface_binding",
+        },
+        json={"ticket_id": "INC-930"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert publish.status_code == 200
+    assert ingress.status_code == 200
+    assert ingress.json()["matched_deployment"]["surface_id"] == 501
+    assert ingress.json()["runtime_task"]["path"] == "/support/triage"
+    assert detail.status_code == 200
+    assert detail.json()["surface"]["published_at"] == publish.json()["surface"]["published_at"]
+    assert detail.json()["surface"]["route_path"] == "/support/triage"
+
+
+def test_live_ingress_echoes_allowed_origin_cors_headers() -> None:
+    client = TestClient(create_app())
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=valid_surface_payload(),
+    )
+    allowed = client.post(
+        "/v1/ingress/support/triage",
+        headers={
+            "Authorization": "Bearer runtime-token",
+            "Origin": "https://app.example.com",
+            "X-Request-Id": "req_allowed_origin",
+        },
+        json={"ticket_id": "INC-904"},
+    )
+    denied = client.post(
+        "/v1/ingress/support/triage",
+        headers={
+            "Authorization": "Bearer runtime-token",
+            "Origin": "https://evil.example.com",
+            "X-Request-Id": "req_denied_origin",
+        },
+        json={"ticket_id": "INC-905"},
+    )
+
+    assert publish.status_code == 200
+    assert allowed.status_code == 200
+    assert allowed.headers["Access-Control-Allow-Origin"] == "https://app.example.com"
+    assert allowed.headers["Vary"] == "Origin"
+    assert allowed.json()["cors"] == {
+        "origin": "https://app.example.com",
+        "allowed": True,
+    }
+    assert denied.status_code == 403
+    assert denied.json()["blocked_reasons"] == ["cors_origin_not_allowed"]
+    assert "Access-Control-Allow-Origin" not in denied.headers
+
+
+def test_live_ingress_handles_cors_preflight_for_published_surface() -> None:
+    client = TestClient(create_app())
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=valid_surface_payload(),
+    )
+    allowed = client.options(
+        "/v1/ingress/support/triage",
+        headers={
+            "Origin": "https://app.example.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization, content-type",
+            "X-Request-Id": "req_preflight_allowed",
+        },
+    )
+    denied = client.options(
+        "/v1/ingress/support/triage",
+        headers={
+            "Origin": "https://evil.example.com",
+            "Access-Control-Request-Method": "POST",
+            "X-Request-Id": "req_preflight_denied",
+        },
+    )
+
+    assert publish.status_code == 200
+    assert allowed.status_code == 204
+    assert allowed.content == b""
+    assert allowed.headers["X-Request-Id"] == "req_preflight_allowed"
+    assert allowed.headers["Access-Control-Allow-Origin"] == "https://app.example.com"
+    assert allowed.headers["Access-Control-Allow-Methods"] == "GET, POST, PUT, PATCH, DELETE"
+    assert allowed.headers["Access-Control-Allow-Headers"] == "authorization, content-type"
+    assert allowed.headers["Vary"] == "Origin"
+    assert denied.status_code == 403
+    assert denied.headers["X-Request-Id"] == "req_preflight_denied"
+    assert denied.json()["blocked_reasons"] == ["cors_origin_not_allowed"]
+    assert "Access-Control-Allow-Origin" not in denied.headers
+
+
+def test_live_ingress_generates_request_id_when_client_omits_header() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token"},
+        json={"ticket_id": "INC-902"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert publish.status_code == 200
+    assert ingress.status_code == 200
+    ingress_body = ingress.json()
+    assert isinstance(ingress_body["request_id"], str)
+    assert ingress_body["request_id"].startswith("req_live_")
+    assert ingress.headers["X-Request-Id"] == ingress_body["request_id"]
+    assert ingress.headers["X-DimooRun-Trace-Id"] == ingress_body["trace_id"]
+    assert detail.status_code == 200
+    request_log = detail.json()["request_logs"][0]
+    assert request_log["request_id"] == ingress_body["request_id"]
+    assert request_log["evidence_bundle"]["request_id"] == ingress_body["request_id"]
+
+
+def test_live_ingress_blocked_response_exposes_request_id_header() -> None:
+    client = TestClient(create_app())
+
+    ingress = client.post(
+        "/v1/ingress/support/missing",
+        headers={"X-Request-Id": "req_missing_ingress"},
+        json={"ticket_id": "INC-903"},
+    )
+
+    assert ingress.status_code == 404
+    body = ingress.json()
+    assert body["request_id"] == "req_missing_ingress"
+    assert body["blocked_reasons"] == ["route_not_found"]
+    assert ingress.headers["X-Request-Id"] == "req_missing_ingress"
+    assert "X-DimooRun-Trace-Id" not in ingress.headers
+
+
+def test_request_logs_and_rollouts_include_evidence_bundle_references() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live", "x-user": "operator"},
+            "body": {"ticket_id": "INC-902", "secret": "redact-me"},
+        },
+    )
+    rollout = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 80, "candidate": 20},
+            "audit_reason": "canary published surface",
+        },
+    )
+    log_id = route_test.json()["request_log"]["id"]
+    drilldown = client.get(
+        f"/v1/console/published-surfaces/501/request-logs/{log_id}",
+        headers=admin_headers(),
+    )
+
+    assert route_test.status_code == 200
+    route_bundle = route_test.json()["request_log"]["evidence_bundle"]
+    assert route_bundle["bundle_id"] == f"published-surface-request-log-501-{log_id}"
+    assert route_bundle["resource_type"] == "published_surface_request_log"
+    assert route_bundle["surface_id"] == 501
+    assert route_bundle["request_log_id"] == log_id
+    assert route_bundle["trace_id"] == route_test.json()["request_log"]["trace_id"]
+    assert route_bundle["policy_decision"] == route_test.json()["policy_decision"]
+    assert route_bundle["traffic_control"] == route_test.json()["traffic_control"]
+    assert route_bundle["redaction"] == {
+        "headers": ["authorization"],
+        "body": "keys_only",
+    }
+    assert drilldown.status_code == 200
+    assert drilldown.json()["request_log"]["evidence_bundle"] == route_bundle
+
+    assert rollout.status_code == 200
+    rollout_entry = rollout.json()["rollout"]
+    rollout_bundle = rollout_entry["evidence_bundle"]
+    assert rollout_bundle["bundle_id"] == f"published-surface-rollout-501-{rollout_entry['id']}"
+    assert rollout_bundle["resource_type"] == "published_surface_rollout"
+    assert rollout_bundle["surface_id"] == 501
+    assert rollout_bundle["rollout_id"] == rollout_entry["id"]
+    assert rollout_bundle["operation"] == "traffic_split"
+    assert rollout_bundle["audit_scope"] == {
+        "tenant_id": 1,
+        "project_id": 1,
+        "environment": "local",
+    }
+    assert rollout_bundle["policy_decision"] == rollout_entry["policy_decision"]
+    assert rollout_bundle["impact_preview"] == rollout_entry["impact_preview"]
+
+
+def test_request_logs_survive_gateway_workflow_reset() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-904", "secret": "redact-me"},
+        },
+    )
+    log = route_test.json()["request_log"]
+    reset_gateway_workflows()
+    detail_after_reset = client.get(
+        "/v1/console/published-surfaces/501",
+        headers=admin_headers(),
+    )
+    drilldown_after_reset = client.get(
+        f"/v1/console/published-surfaces/501/request-logs/{log['id']}",
+        headers=admin_headers(),
+    )
+
+    assert route_test.status_code == 200
+    assert detail_after_reset.status_code == 200
+    persisted_log = detail_after_reset.json()["request_logs"][0]
+    assert persisted_log["id"] == log["id"]
+    assert persisted_log["surface_id"] == 501
+    assert persisted_log["status"] == 200
+    assert persisted_log["trace_id"] == log["trace_id"]
+    assert persisted_log["redacted_request_metadata"] == log["redacted_request_metadata"]
+    assert persisted_log["evidence_bundle"] == log["evidence_bundle"]
+    assert drilldown_after_reset.status_code == 200
+    assert drilldown_after_reset.json()["request_log"] == persisted_log
+
+
+def test_rollout_history_survives_gateway_workflow_reset() -> None:
+    client = TestClient(create_app())
+
+    rollout = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 75, "candidate": 25},
+            "audit_reason": "canary published surface with durable rollout history",
+        },
+    )
+    rollout_entry = rollout.json()["rollout"]
+    reset_gateway_workflows()
+    detail_after_reset = client.get(
+        "/v1/console/published-surfaces/501",
+        headers=admin_headers(),
+    )
+
+    assert rollout.status_code == 200
+    assert detail_after_reset.status_code == 200
+    persisted_rollout = detail_after_reset.json()["rollout_history"][0]
+    assert persisted_rollout == rollout_entry
+    assert persisted_rollout["evidence_bundle"]["bundle_id"] == (
+        f"published-surface-rollout-501-{rollout_entry['id']}"
+    )
+
+
+def test_console_exports_redacted_evidence_bundles_by_bundle_id() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-904", "secret": "redact-me"},
+        },
+    )
+    rollout = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 90, "candidate": 10},
+            "audit_reason": "export evidence for review",
+        },
+    )
+
+    request_bundle_id = route_test.json()["request_log"]["evidence_bundle"]["bundle_id"]
+    rollout_bundle_id = rollout.json()["rollout"]["evidence_bundle"]["bundle_id"]
+    request_export = client.get(
+        f"/v1/console/published-surfaces/501/evidence-bundles/{request_bundle_id}",
+        headers=admin_headers(),
+    )
+    rollout_export = client.get(
+        f"/v1/console/published-surfaces/501/evidence-bundles/{rollout_bundle_id}",
+        headers=admin_headers(),
+    )
+    cross_surface = client.get(
+        f"/v1/console/published-surfaces/502/evidence-bundles/{request_bundle_id}",
+        headers=admin_headers(),
+    )
+
+    assert request_export.status_code == 200
+    request_body = request_export.json()
+    assert request_body["export_format"] == "redacted_json"
+    assert request_body["evidence_bundle"]["bundle_id"] == request_bundle_id
+    assert request_body["evidence_bundle"]["redaction"] == {
+        "headers": ["authorization"],
+        "body": "keys_only",
+    }
+    assert request_body["redacted_payload"]["request_metadata"]["headers"]["authorization"] == (
+        "[REDACTED]"
+    )
+    assert request_body["redacted_payload"]["request_metadata"]["body_keys"] == [
+        "secret",
+        "ticket_id",
+    ]
+    assert "redact-me" not in str(request_body)
+
+    assert rollout_export.status_code == 200
+    rollout_body = rollout_export.json()
+    assert rollout_body["export_format"] == "redacted_json"
+    assert rollout_body["evidence_bundle"]["bundle_id"] == rollout_bundle_id
+    assert rollout_body["redacted_payload"]["operation"] == "traffic_split"
+    assert rollout_body["redacted_payload"]["traffic_split"] == {"stable": 90, "candidate": 10}
+    assert rollout_body["redacted_payload"]["audit_scope"] == {
+        "tenant_id": 1,
+        "project_id": 1,
+        "environment": "local",
+    }
+
+    assert cross_surface.status_code == 404
+    assert cross_surface.json()["error_code"] == "evidence_bundle_not_found"
+
+
+def test_evidence_bundle_exports_are_written_to_audit_log() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-917", "secret": "redact-me"},
+        },
+    )
+    rollout = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 70, "candidate": 30},
+            "audit_reason": "export evidence with immutable audit trail",
+        },
+    )
+    request_bundle_id = route_test.json()["request_log"]["evidence_bundle"]["bundle_id"]
+    rollout_bundle_id = rollout.json()["rollout"]["evidence_bundle"]["bundle_id"]
+
+    request_export = client.get(
+        f"/v1/console/published-surfaces/501/evidence-bundles/{request_bundle_id}",
+        headers={**admin_headers(), "X-Request-Id": "req_export_request_bundle"},
+    )
+    rollout_export = client.get(
+        f"/v1/console/published-surfaces/501/evidence-bundles/{rollout_bundle_id}",
+        headers={**admin_headers(), "X-Request-Id": "req_export_rollout_bundle"},
+    )
+    audit_logs = client.get("/v1/audit-logs", headers=admin_headers())
+
+    assert request_export.status_code == 200
+    assert rollout_export.status_code == 200
+    assert audit_logs.status_code == 200
+    export_records = [
+        item
+        for item in audit_logs.json()["items"]
+        if item["action"] == "published_surface.evidence_bundle.export"
+    ]
+    records_by_bundle_id = {
+        item["metadata"]["evidence_bundle"]["bundle_id"]: item for item in export_records
+    }
+    assert set(records_by_bundle_id) == {request_bundle_id, rollout_bundle_id}
+    request_record = records_by_bundle_id[request_bundle_id]
+    assert request_record["resource_type"] == "published_surface_evidence_bundle"
+    assert request_record["resource_id"] == 501
+    assert request_record["request_id"] == "req_export_request_bundle"
+    assert request_record["metadata"]["export_format"] == "redacted_json"
+    assert request_record["metadata"]["redacted_payload_summary"] == {
+        "kind": "request_log",
+        "request_log_id": route_test.json()["request_log"]["id"],
+        "status": 200,
+        "trace_id": route_test.json()["request_log"]["trace_id"],
+    }
+    assert "redact-me" not in str(request_record)
+    rollout_record = records_by_bundle_id[rollout_bundle_id]
+    assert rollout_record["request_id"] == "req_export_rollout_bundle"
+    assert rollout_record["metadata"]["redacted_payload_summary"] == {
+        "kind": "rollout",
+        "rollout_id": rollout.json()["rollout"]["id"],
+        "operation": "traffic_split",
+    }
+
+
+def test_evidence_bundles_are_persisted_with_export_lifecycle_state() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-918", "secret": "redact-me"},
+        },
+    )
+    request_bundle_id = route_test.json()["request_log"]["evidence_bundle"]["bundle_id"]
+
+    before_export = _persisted_evidence_bundle(request_bundle_id)
+    export = client.get(
+        f"/v1/console/published-surfaces/501/evidence-bundles/{request_bundle_id}",
+        headers={**admin_headers(), "X-Request-Id": "req_persisted_export"},
+    )
+    after_export = _persisted_evidence_bundle(request_bundle_id)
+
+    assert route_test.status_code == 200
+    assert before_export is not None
+    assert before_export.surface_id == 501
+    assert before_export.bundle_id == request_bundle_id
+    assert before_export.resource_type == "published_surface_request_log"
+    assert before_export.status == "recorded"
+    assert before_export.export_status == "not_exported"
+    assert before_export.evidence_bundle_json["bundle_id"] == request_bundle_id
+    assert export.status_code == 200
+    assert after_export is not None
+    assert after_export.export_status == "exported"
+    assert after_export.last_exported_at is not None
+    assert after_export.last_export_request_id == "req_persisted_export"
+    assert after_export.redacted_payload_summary_json == {
+        "kind": "request_log",
+        "request_log_id": route_test.json()["request_log"]["id"],
+        "status": 200,
+        "trace_id": route_test.json()["request_log"]["trace_id"],
+    }
+    assert "redact-me" not in str(after_export.redacted_payload_summary_json)
+
+
+def test_evidence_bundles_can_be_archived_with_retention_lifecycle_state() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-919", "secret": "redact-me"},
+        },
+    )
+    request_bundle_id = route_test.json()["request_log"]["evidence_bundle"]["bundle_id"]
+
+    archive = client.post(
+        f"/v1/console/published-surfaces/501/evidence-bundles/{request_bundle_id}/archive",
+        headers={**admin_headers(), "X-Request-Id": "req_archive_bundle"},
+        json={
+            "retention_policy_id": "gateway-evidence-30d",
+            "retention_days": 30,
+            "archive_reason": "Retain the route-test evidence for incident review.",
+        },
+    )
+    persisted = _persisted_evidence_bundle(request_bundle_id)
+    catalog = client.get(
+        "/v1/console/published-surfaces/501/evidence-bundles",
+        headers=admin_headers(),
+    )
+    audit_logs = client.get("/v1/audit-logs", headers=admin_headers())
+
+    assert route_test.status_code == 200
+    assert archive.status_code == 200
+    body = archive.json()
+    assert body["status"] == "archived"
+    assert body["evidence_bundle"]["bundle_id"] == request_bundle_id
+    assert body["retention"]["policy_id"] == "gateway-evidence-30d"
+    assert body["retention"]["retention_days"] == 30
+    assert body["retention"]["retain_until"] is not None
+    assert body["audit"] == {
+        "action": "published_surface.evidence_bundle.archive",
+        "resource_type": "published_surface_evidence_bundle",
+        "resource_id": request_bundle_id,
+        "surface_id": 501,
+        "request_id": "req_archive_bundle",
+    }
+    assert persisted is not None
+    assert persisted.status == "archived"
+    assert persisted.retention_policy_id == "gateway-evidence-30d"
+    assert persisted.retain_until is not None
+    assert persisted.archived_at is not None
+    assert persisted.archive_reason == "Retain the route-test evidence for incident review."
+    assert persisted.archive_request_id == "req_archive_bundle"
+    catalog_item = {
+        item["bundle_id"]: item for item in catalog.json()["items"]
+    }[request_bundle_id]
+    assert catalog_item["lifecycle"]["status"] == "archived"
+    assert catalog_item["lifecycle"]["retention_policy_id"] == "gateway-evidence-30d"
+    assert catalog_item["lifecycle"]["retain_until"] is not None
+    assert catalog_item["lifecycle"]["archived_at"] is not None
+    archive_records = [
+        item
+        for item in audit_logs.json()["items"]
+        if item["action"] == "published_surface.evidence_bundle.archive"
+    ]
+    assert len(archive_records) == 1
+    assert archive_records[0]["request_id"] == "req_archive_bundle"
+    assert archive_records[0]["metadata"]["retention"]["retention_days"] == 30
+    assert "redact-me" not in str(archive_records[0])
+
+
+def test_console_lists_evidence_bundle_catalog_with_export_links() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-914", "secret": "redact-me"},
+        },
+    )
+    rollout = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 85, "candidate": 15},
+            "audit_reason": "catalog rollout evidence bundle",
+        },
+    )
+
+    catalog = client.get(
+        "/v1/console/published-surfaces/501/evidence-bundles",
+        headers=admin_headers(),
+    )
+    cross_surface = client.get(
+        "/v1/console/published-surfaces/502/evidence-bundles",
+        headers=admin_headers(),
+    )
+
+    assert route_test.status_code == 200
+    assert rollout.status_code == 200
+    request_bundle = route_test.json()["request_log"]["evidence_bundle"]
+    rollout_bundle = rollout.json()["rollout"]["evidence_bundle"]
+    assert catalog.status_code == 200
+    body = catalog.json()
+    assert body["surface_id"] == 501
+    assert body["count"] == 2
+    assert body["audit"]["action"] == "published_surface.evidence_bundle.list"
+    items_by_id = {item["bundle_id"]: item for item in body["items"]}
+    assert set(items_by_id) == {
+        request_bundle["bundle_id"],
+        rollout_bundle["bundle_id"],
+    }
+    request_item = items_by_id[request_bundle["bundle_id"]]
+    assert request_item["resource_type"] == "published_surface_request_log"
+    assert request_item["request_log_id"] == request_bundle["request_log_id"]
+    assert request_item["trace_id"] == request_bundle["trace_id"]
+    assert request_item["export_url"] == (
+        f"/v1/console/published-surfaces/501/evidence-bundles/{request_bundle['bundle_id']}"
+    )
+    assert request_item["audit_index"] == {
+        "action": "published_surface.evidence_bundle.record",
+        "resource_type": "published_surface_evidence_bundle",
+        "recorded": True,
+    }
+    rollout_item = items_by_id[rollout_bundle["bundle_id"]]
+    assert rollout_item["resource_type"] == "published_surface_rollout"
+    assert rollout_item["rollout_id"] == rollout_bundle["rollout_id"]
+    assert rollout_item["operation"] == "traffic_split"
+    assert rollout_item["audit_index"]["recorded"] is True
+    assert cross_surface.status_code == 200
+    assert cross_surface.json()["items"] == []
+
+
+def test_evidence_bundles_are_indexed_in_audit_log() -> None:
+    client = TestClient(create_app())
+
+    route_test = client.post(
+        "/v1/ingress-routes/test",
+        headers=admin_headers(),
+        json={
+            "surface_id": 501,
+            "route_id": 701,
+            "path": "/support/triage",
+            "method": "POST",
+            "headers": {"authorization": "Bearer sk_live"},
+            "body": {"ticket_id": "INC-908", "secret": "redact-me"},
+        },
+    )
+    rollout = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 75, "candidate": 25},
+            "audit_reason": "index rollout evidence bundle",
+        },
+    )
+    audit_logs = client.get("/v1/audit-logs", headers=admin_headers())
+
+    assert route_test.status_code == 200
+    assert rollout.status_code == 200
+    assert audit_logs.status_code == 200
+    request_bundle = route_test.json()["request_log"]["evidence_bundle"]
+    rollout_bundle = rollout.json()["rollout"]["evidence_bundle"]
+    evidence_records = [
+        item
+        for item in audit_logs.json()["items"]
+        if item["action"] == "published_surface.evidence_bundle.record"
+    ]
+    bundle_ids = {item["metadata"]["evidence_bundle"]["bundle_id"] for item in evidence_records}
+    assert request_bundle["bundle_id"] in bundle_ids
+    assert rollout_bundle["bundle_id"] in bundle_ids
+    request_record = next(
+        item
+        for item in evidence_records
+        if item["metadata"]["evidence_bundle"]["bundle_id"] == request_bundle["bundle_id"]
+    )
+    rollout_record = next(
+        item
+        for item in evidence_records
+        if item["metadata"]["evidence_bundle"]["bundle_id"] == rollout_bundle["bundle_id"]
+    )
+    assert request_record["resource_type"] == "published_surface_evidence_bundle"
+    assert request_record["resource_id"] == 501
+    assert request_record["metadata"]["evidence_bundle"]["resource_type"] == (
+        "published_surface_request_log"
+    )
+    assert request_record["metadata"]["evidence_bundle"]["redaction"] == {
+        "headers": ["authorization"],
+        "body": "keys_only",
+    }
+    assert "redact-me" not in str(request_record)
+    assert rollout_record["resource_type"] == "published_surface_evidence_bundle"
+    assert rollout_record["resource_id"] == 501
+    assert rollout_record["metadata"]["evidence_bundle"]["resource_type"] == (
+        "published_surface_rollout"
+    )
+    assert rollout_record["metadata"]["evidence_bundle"]["audit_scope"] == {
+        "tenant_id": 1,
+        "project_id": 1,
+        "environment": "local",
+    }
+
+
+def test_live_ingress_enforces_published_surface_rate_limit_with_429_evidence() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+    surface = payload["surface"]
+    assert isinstance(surface, dict)
+    surface["rate_limit_policy"] = {"requests_per_minute": 1}
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    first = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_ingress_first"},
+        json={"ticket_id": "INC-905"},
+    )
+    second = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_ingress_second"},
+        json={"ticket_id": "INC-906"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert publish.status_code == 200
+    assert first.status_code == 200
+    assert second.status_code == 429
+    body = second.json()
+    assert body["status"] == "blocked"
+    assert body["blocked_reasons"] == ["rate_limited"]
+    assert body["rate_limit"] == {
+        "limit": 1,
+        "remaining": 0,
+        "retry_after_seconds": 60,
+    }
+    assert second.headers["X-RateLimit-Limit"] == "1"
+    assert second.headers["X-RateLimit-Remaining"] == "0"
+    assert second.headers["Retry-After"] == "60"
+    assert second.headers["X-Request-Id"] == "req_ingress_second"
+    assert second.headers["X-DimooRun-Trace-Id"] == body["trace_id"]
+    assert body["policy_decision"] == {
+        "result": "deny",
+        "policy_id": "published-surface-rate-limit",
+    }
+    assert body["request_log_id"] == detail.json()["request_logs"][0]["id"]
+    request_log = detail.json()["request_logs"][0]
+    assert request_log["ingress_source"] == "live_http"
+    assert request_log["status"] == 429
+    assert request_log["policy_result"] == "deny"
+    assert request_log["blocked_reasons"] == ["rate_limited"]
+    assert request_log["run_id"] is None
+    assert request_log["task_id"] is None
+    assert request_log["rate_limit"] == body["rate_limit"]
+    assert request_log["evidence_bundle"]["rate_limit"] == body["rate_limit"]
+    assert request_log["evidence_bundle"]["policy_decision"] == body["policy_decision"]
+
+
+def test_live_ingress_records_traffic_split_and_shadow_routing_decision() -> None:
+    client = TestClient(create_app())
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=valid_surface_payload(),
+    )
+    split = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "traffic_split",
+            "traffic_split": {"stable": 0, "candidate": 100},
+            "audit_reason": "send all live ingress to candidate branch",
+        },
+    )
+    shadow = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "shadow_mode",
+            "route_id": 701,
+            "shadow_mode": True,
+            "audit_reason": "mirror live ingress for comparison",
+        },
+    )
+    ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_live_control"},
+        json={"ticket_id": "INC-907"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert publish.status_code == 200
+    assert split.status_code == 200
+    assert shadow.status_code == 200
+    assert ingress.status_code == 200
+    decision = ingress.json()["traffic_control_decision"]
+    assert decision == {
+        "selected_branch": "candidate",
+        "traffic_split": {"stable": 0, "candidate": 100},
+        "shadow_mirror": True,
+        "shadow_route_id": 701,
+    }
+    request_log = detail.json()["request_logs"][0]
+    assert request_log["ingress_source"] == "live_http"
+    assert request_log["traffic_control_decision"] == decision
+    assert request_log["evidence_bundle"]["traffic_control"] == {
+        "traffic_split": {"stable": 0, "candidate": 100},
+        "shadow_mode": True,
+        "shadow_route_id": 701,
+    }
+
+
+def test_surface_detail_reports_live_exposure_health_from_real_ingress() -> None:
+    client = TestClient(create_app())
+
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=valid_surface_payload(),
+    )
+    live_ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_health_ok"},
+        json={"ticket_id": "INC-920"},
+    )
+    healthy_detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+    revoke = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "revoke",
+            "confirmation": "REVOKE SURFACE 501",
+            "audit_reason": "Stop public exposure after health probe.",
+        },
+    )
+    blocked_ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_health_blocked"},
+        json={"ticket_id": "INC-921"},
+    )
+    revoked_detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert publish.status_code == 200
+    assert live_ingress.status_code == 200
+    healthy = healthy_detail.json()["exposure_health"]
+    assert healthy == {
+        "status": "ready",
+        "route_path": "/support/triage",
+        "published": True,
+        "last_live_request_status": 200,
+        "last_live_request_id": live_ingress.json()["request_log_id"],
+        "last_live_trace_id": live_ingress.json()["trace_id"],
+        "blocked_reasons": [],
+    }
+    assert revoke.status_code == 200
+    assert blocked_ingress.status_code == 403
+    revoked = revoked_detail.json()["exposure_health"]
+    assert revoked["status"] == "blocked"
+    assert revoked["published"] is False
+    assert revoked["last_live_request_status"] == 403
+    assert revoked["last_live_request_id"] == blocked_ingress.json()["request_log_id"]
+    assert revoked["last_live_trace_id"] == blocked_ingress.json()["trace_id"]
+    assert revoked["blocked_reasons"] == ["surface_revoked"]
+
+
+def test_live_ingress_uses_active_policy_engine_decision() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+
+    policy = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers(),
+        json={
+            "draft_policy": {
+                "name": "deny-published-surface-ingress",
+                "type": "gateway",
+                "resource_type": "published_surface",
+                "action": "ingress.invoke",
+                "decision": "deny",
+                "priority": 1,
+                "condition": {"environment": "local"},
+                "reason": "Ingress is frozen during incident review.",
+            },
+            "audit_reason": "Freeze external ingress during incident review.",
+        },
+    )
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_policy_denied"},
+        json={"ticket_id": "INC-903"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert policy.status_code == 201
+    policy_id = policy.json()["item"]["id"]
+    assert publish.status_code == 200
+    assert ingress.status_code == 403
+    body = ingress.json()
+    assert body["status"] == "blocked"
+    assert body["blocked_reasons"] == ["Ingress is frozen during incident review."]
+    assert body["policy_decision"] == {
+        "result": "deny",
+        "policy_id": str(policy_id),
+        "reason": "Ingress is frozen during incident review.",
+    }
+    assert body["request_log_id"] == detail.json()["request_logs"][0]["id"]
+    request_log = detail.json()["request_logs"][0]
+    assert request_log["status"] == 403
+    assert request_log["policy_result"] == "deny"
+    assert request_log["blocked_reasons"] == ["Ingress is frozen during incident review."]
+    assert request_log["run_id"] is None
+    assert request_log["task_id"] is None
+    assert request_log["evidence_bundle"]["policy_decision"] == body["policy_decision"]
+
+
+def test_live_ingress_blocks_policy_approval_required_with_request_log_evidence() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+
+    policy = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers(),
+        json={
+            "draft_policy": {
+                "name": "approve-published-surface-ingress",
+                "type": "gateway",
+                "resource_type": "published_surface",
+                "action": "ingress.invoke",
+                "decision": "require_approval",
+                "priority": 1,
+                "condition": {"environment": "local"},
+                "reason": "Live ingress requires approval during incident review.",
+            },
+            "audit_reason": "Require approval for external ingress during review.",
+        },
+    )
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_policy_approval"},
+        json={"ticket_id": "INC-911"},
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert policy.status_code == 201
+    policy_id = policy.json()["item"]["id"]
+    assert publish.status_code == 200
+    assert ingress.status_code == 403
+    body = ingress.json()
+    assert body["policy_decision"] == {
+        "result": "require_approval",
+        "policy_id": str(policy_id),
+        "reason": "Live ingress requires approval during incident review.",
+        "approval_required": True,
+    }
+    assert body["blocked_reasons"] == ["Live ingress requires approval during incident review."]
+    request_log = detail.json()["request_logs"][0]
+    assert request_log["status"] == 403
+    assert request_log["run_id"] is None
+    assert request_log["task_id"] is None
+    assert request_log["evidence_bundle"]["policy_decision"] == body["policy_decision"]
+
+
+def test_live_ingress_records_policy_redaction_and_limit_decision_evidence() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+
+    redaction_policy = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers(),
+        json={
+            "draft_policy": {
+                "name": "redact-published-surface-ingress",
+                "type": "gateway",
+                "resource_type": "published_surface",
+                "action": "ingress.invoke",
+                "decision": "allow_with_redaction",
+                "priority": 5,
+                "condition": {"environment": "local"},
+                "metadata": {"redactions": ["headers.authorization", "body.secret"]},
+                "reason": "Ingress may proceed with credential redaction.",
+            },
+            "audit_reason": "Require extra redaction for live ingress.",
+        },
+    )
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    redacted_ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_policy_redact"},
+        json={"ticket_id": "INC-915", "secret": "redact-me"},
+    )
+    redaction_detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert redaction_policy.status_code == 201
+    assert publish.status_code == 200
+    redaction_policy_id = redaction_policy.json()["item"]["id"]
+    assert redacted_ingress.status_code == 200
+    redacted_body = redacted_ingress.json()
+    assert redacted_body["policy_decision"] == {
+        "result": "allow_with_redaction",
+        "policy_id": str(redaction_policy_id),
+        "reason": "Ingress may proceed with credential redaction.",
+        "redactions": ["headers.authorization", "body.secret"],
+    }
+    redaction_log = redaction_detail.json()["request_logs"][0]
+    assert redaction_log["policy_result"] == "allow_with_redaction"
+    assert redaction_log["policy_effects"] == {
+        "redactions": ["headers.authorization", "body.secret"]
+    }
+    assert redaction_log["evidence_bundle"]["policy_decision"] == redacted_body["policy_decision"]
+
+    limit_policy = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers(),
+        json={
+            "draft_policy": {
+                "name": "limit-published-surface-ingress",
+                "type": "gateway",
+                "resource_type": "published_surface",
+                "action": "ingress.invoke",
+                "decision": "allow_with_limit",
+                "priority": 1,
+                "condition": {"environment": "local"},
+                "metadata": {"limits": {"requests_per_minute": 12, "burst": 2}},
+                "reason": "Ingress may proceed with stricter policy limits.",
+            },
+            "audit_reason": "Limit live ingress while monitoring.",
+        },
+    )
+    limited_ingress = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_policy_limit"},
+        json={"ticket_id": "INC-916"},
+    )
+    limit_detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert limit_policy.status_code == 201
+    limit_policy_id = limit_policy.json()["item"]["id"]
+    assert limited_ingress.status_code == 200
+    limited_body = limited_ingress.json()
+    assert limited_body["policy_decision"] == {
+        "result": "allow_with_limit",
+        "policy_id": str(limit_policy_id),
+        "policy_ids": [str(limit_policy_id), str(redaction_policy_id)],
+        "reason": "Ingress may proceed with stricter policy limits.",
+        "limits": {"requests_per_minute": 12, "burst": 2},
+        "redactions": ["headers.authorization", "body.secret"],
+    }
+    limit_log = limit_detail.json()["request_logs"][0]
+    assert limit_log["policy_result"] == "allow_with_limit"
+    assert limit_log["policy_effects"] == {
+        "limits": {"requests_per_minute": 12, "burst": 2},
+        "redactions": ["headers.authorization", "body.secret"],
+    }
+    assert limit_log["evidence_bundle"]["policy_decision"] == limited_body["policy_decision"]
+
+
+def test_publish_uses_active_policy_engine_decision_without_creating_surface() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+
+    policy = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers(),
+        json={
+            "draft_policy": {
+                "name": "deny-published-surface-publish",
+                "type": "gateway",
+                "resource_type": "published_surface",
+                "action": "publish",
+                "decision": "deny",
+                "priority": 1,
+                "condition": {"environment": "local"},
+                "reason": "External publishing is frozen for this environment.",
+            },
+            "audit_reason": "Freeze external publishing during incident review.",
+        },
+    )
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert policy.status_code == 201
+    policy_id = policy.json()["item"]["id"]
+    assert publish.status_code == 200
+    body = publish.json()
+    assert body["status"] == "blocked"
+    assert body["can_publish"] is False
+    assert body["surface"] is None
+    assert body["rollout"] is None
+    assert body["blocked_reasons"] == ["External publishing is frozen for this environment."]
+    assert body["policy_decision"] == {
+        "result": "deny",
+        "policy_id": str(policy_id),
+        "reason": "External publishing is frozen for this environment.",
+    }
+    assert body["audit_preview"]["action"] == "published_surface.publish.blocked"
+    assert body["impact_preview"]["expected_runtime_effect"] == "external_traffic_not_exposed"
+    assert detail.status_code == 200
+    assert detail.json()["rollout_history"] == []
+
+
+def test_publish_blocks_policy_approval_required_without_creating_surface() -> None:
+    client = TestClient(create_app())
+    payload = valid_surface_payload()
+
+    policy = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers(),
+        json={
+            "draft_policy": {
+                "name": "approve-published-surface-publish",
+                "type": "gateway",
+                "resource_type": "published_surface",
+                "action": "publish",
+                "decision": "require_approval",
+                "priority": 1,
+                "condition": {"environment": "local"},
+                "reason": "External publishing requires gateway approval.",
+            },
+            "audit_reason": "Require approval for external publishing.",
+        },
+    )
+    publish = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=payload,
+    )
+    detail = client.get("/v1/console/published-surfaces/501", headers=admin_headers())
+
+    assert policy.status_code == 201
+    policy_id = policy.json()["item"]["id"]
+    assert publish.status_code == 200
+    body = publish.json()
+    assert body["status"] == "blocked"
+    assert body["can_publish"] is False
+    assert body["surface"] is None
+    assert body["rollout"] is None
+    assert body["policy_decision"] == {
+        "result": "require_approval",
+        "policy_id": str(policy_id),
+        "reason": "External publishing requires gateway approval.",
+        "approval_required": True,
+    }
+    assert body["blocked_reasons"] == ["External publishing requires gateway approval."]
+    assert detail.status_code == 200
+    assert detail.json()["rollout_history"] == []
 
 
 def test_route_test_blocks_rate_limited_requests_with_request_log_evidence() -> None:
@@ -1152,6 +2378,70 @@ def test_rollout_rollback_restores_previous_published_surface_version() -> None:
     assert "route_not_found" in stale_route_test.json()["blocked_reasons"]
     assert detail.status_code == 200
     assert detail.json()["surface"]["route_path"] == "/support/v1"
+
+
+def test_rollback_records_live_ingress_compatibility_evidence() -> None:
+    client = TestClient(create_app())
+    v1 = valid_surface_payload()
+    v2 = valid_surface_payload()
+    v2_surface = v2["surface"]
+    assert isinstance(v2_surface, dict)
+    v2_surface["deployment_id"] = 44
+    v2_surface["route_path"] = "/support/escalate"
+    v2_surface["auth_mode"] = "jwt"
+
+    publish_v1 = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=v1,
+    )
+    publish_v2 = client.post(
+        "/v1/published-surfaces/publish",
+        headers=admin_headers(),
+        json=v2,
+    )
+    rollback = client.post(
+        "/v1/published-surfaces/501/rollout",
+        headers=admin_headers(),
+        json={
+            "operation": "rollback",
+            "rollback_to_version": 1,
+            "audit_reason": "Restore the original public route after candidate failure.",
+        },
+    )
+    old_route = client.post(
+        "/v1/ingress/support/triage",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_old_route"},
+        json={"ticket_id": "INC-909"},
+    )
+    new_route = client.post(
+        "/v1/ingress/support/escalate",
+        headers={"Authorization": "Bearer runtime-token", "X-Request-Id": "req_new_route"},
+        json={"ticket_id": "INC-910"},
+    )
+
+    assert publish_v1.status_code == 200
+    assert publish_v2.status_code == 200
+    assert rollback.status_code == 200
+    rollout = rollback.json()["rollout"]
+    assert rollout["operation"] == "rollback"
+    assert rollout["restored_version"] == 1
+    assert rollout["live_gateway_verification"] == {
+        "status": "ready_for_live_ingress",
+        "verification_mode": "in_process_route_binding",
+        "restored_route_path": "/support/triage",
+        "restored_deployment_id": 10,
+        "restored_environment": "local",
+        "restored_auth_mode": "api_key",
+    }
+    assert rollout["evidence_bundle"]["live_gateway_verification"] == (
+        rollout["live_gateway_verification"]
+    )
+    assert old_route.status_code == 200
+    assert old_route.json()["matched_deployment"]["deployment_id"] == 10
+    assert old_route.json()["runtime_task"]["path"] == "/support/triage"
+    assert new_route.status_code == 404
+    assert new_route.json()["blocked_reasons"] == ["route_not_found"]
 
 
 def test_rollout_controls_route_shadow_mode_with_audit_evidence() -> None:
