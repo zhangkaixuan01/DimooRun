@@ -14,7 +14,7 @@
 
 ## Current Gap
 
-`docs/DESIGN_SPEC.md` defines the MVP minimum loop as:
+`docs/reference/design-spec.md` defines the MVP minimum loop as:
 
 ```text
 Register Agent -> Create AgentVersion -> Create Task -> Worker executes -> Console views Run/Task/Event
@@ -38,7 +38,7 @@ The backend supports the loop through Native API endpoints, and the Console can 
   - Add selected-Agent state, AgentVersion form, Task JSON input, error handling, and a Run link after Task creation.
 - Modify `apps/console/src/i18n/messages.ts`
   - Add concise Chinese and English labels for the core flow panel.
-- Update `docs/IMPLEMENTATION_UPDATE_2026-06-01.md`
+- Update `docs/history/implementation-update-2026-06-01.md`
   - Record that the Console core flow is implemented and how it maps to the design MVP loop.
 
 ## Task 1: Console Contract For Core Flow

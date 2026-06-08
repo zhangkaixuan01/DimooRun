@@ -5,48 +5,50 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REQUIRED_DOCS = [
-    "docs/PRODUCTION_GRADE_GAP_CLOSURE_PLAN_2026-06-04.md",
-    "docs/CONSOLE_USER_TASK_MODEL.md",
-    "docs/CONSOLE_EXPERIENCE_ACCEPTANCE.md",
-    "docs/PRODUCT_WORKFLOW_COVERAGE_MATRIX.md",
-    "docs/PRODUCT_FUNCTION_COVERAGE_REVIEW.md",
-    "docs/PRODUCT_OPTIMIZATION_BACKLOG.md",
-    "docs/PRODUCTION_READINESS_SCORECARD.md",
+    "docs/plans/production-grade-gap-closure-2026-06-04.md",
+    "docs/product/console-user-task-model.md",
+    "docs/product/console-experience-acceptance.md",
+    "docs/product/workflow-coverage-matrix.md",
+    "docs/product/function-coverage-review.md",
+    "docs/product/optimization-backlog.md",
+    "docs/readiness/scorecard.md",
     "docs/README.md",
-    "docs/PRODUCT_OVERVIEW.md",
-    "docs/GETTING_STARTED.md",
-    "docs/CONCEPTS.md",
-    "docs/ARCHITECTURE.md",
-    "docs/QUICKSTART.md",
-    "docs/CURRENT_MATURITY.md",
-    "docs/SCREENSHOTS.md",
-    "docs/ADRS/0001-runtime-control-plane.md",
+    "docs/start/product-overview.md",
+    "docs/start/getting-started.md",
+    "docs/reference/concepts.md",
+    "docs/architecture/overview.md",
+    "docs/start/quickstart.md",
+    "docs/readiness/current-maturity.md",
+    "docs/readiness/screenshots.md",
+    "docs/readiness/compose-smoke-report.md",
+    "docs/readiness/browser-smoke-report.md",
+    "docs/architecture/adrs/0001-runtime-control-plane.md",
 ]
 
 REQUIRED_SECTIONS = {
-    "docs/README.md": ["# DimooRun Documentation", "## Start Here", "## Reference"],
-    "docs/PRODUCT_OVERVIEW.md": ["# Product Overview", "## What DimooRun Is", "## Non-Goals"],
-    "docs/GETTING_STARTED.md": ["# Getting Started", "## Prerequisites", "## First Runtime Path"],
-    "docs/CONCEPTS.md": ["# Concepts", "## Resource Model", "## Runtime Evidence"],
-    "docs/ARCHITECTURE.md": ["# Architecture", "## Planes", "## Runtime Flow"],
-    "docs/QUICKSTART.md": ["# Quickstart", "## Working Directory", "## Verify The Run"],
-    "docs/CURRENT_MATURITY.md": ["# Current Maturity", "## Current Status", "## Known Gaps"],
-    "docs/SCREENSHOTS.md": ["# Screenshots", "## Required Screenshots", "## Current State"],
-    "docs/COMPOSE_SMOKE_REPORT.md": [
+    "docs/README.md": ["# DimooRun Documentation", "## Start Here", "## Product", "## Readiness", "## Directory Map"],
+    "docs/start/product-overview.md": ["# Product Overview", "## What DimooRun Is", "## Non-Goals"],
+    "docs/start/getting-started.md": ["# Getting Started", "## Prerequisites", "## First Runtime Path"],
+    "docs/reference/concepts.md": ["# Concepts", "## Resource Model", "## Runtime Evidence"],
+    "docs/architecture/overview.md": ["# Architecture", "## Planes", "## Runtime Flow"],
+    "docs/start/quickstart.md": ["# Quickstart", "## Working Directory", "## Verify The Run"],
+    "docs/readiness/current-maturity.md": ["# Current Maturity", "## Current Status", "## Known Gaps"],
+    "docs/readiness/screenshots.md": ["# Screenshots", "## Required Screenshots", "## Current State"],
+    "docs/readiness/compose-smoke-report.md": [
         "# Compose Smoke Report",
         "## Command",
         "## Result",
         "## Evidence",
         "## Next Action",
     ],
-    "docs/BROWSER_SMOKE_REPORT.md": [
+    "docs/readiness/browser-smoke-report.md": [
         "# Browser Smoke Report",
         "## Command",
         "## Result",
         "## Evidence",
         "## Next Action",
     ],
-    "docs/ADRS/0001-runtime-control-plane.md": [
+    "docs/architecture/adrs/0001-runtime-control-plane.md": [
         "# ADR 0001: Runtime Control Plane",
         "## Decision",
         "## Consequences",
@@ -98,7 +100,7 @@ def validate_docs_quality(root: Path) -> DocsQualityResult:
                 if section not in text:
                     errors.append(f"{relative_path} missing required section: {section}")
 
-    scorecard_path = root / "docs/PRODUCTION_READINESS_SCORECARD.md"
+    scorecard_path = root / "docs/readiness/scorecard.md"
     if scorecard_path.exists():
         scorecard = scorecard_path.read_text(encoding="utf-8")
         errors.extend(_validate_scorecard(scorecard))

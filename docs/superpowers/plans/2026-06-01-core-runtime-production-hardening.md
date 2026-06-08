@@ -687,7 +687,7 @@ Expected: PASS.
 
 - [ ] **Step 4: Document completion**
 
-Append a completion note to `docs/IMPLEMENTATION_UPDATE_2026-06-01.md`:
+Append a completion note to `docs/history/implementation-update-2026-06-01.md`:
 
 ```markdown
 ## Production Hardening Completion

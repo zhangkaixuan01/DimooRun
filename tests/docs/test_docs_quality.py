@@ -7,29 +7,29 @@ sys.path.insert(0, str(ROOT))
 from scripts.docs_quality import validate_docs_quality  # noqa: E402
 
 PHASE_12A_DOCS = {
-    "docs/README.md": ["# DimooRun Documentation", "## Start Here", "## Reference"],
-    "docs/PRODUCT_OVERVIEW.md": ["# Product Overview", "## What DimooRun Is", "## Non-Goals"],
-    "docs/GETTING_STARTED.md": ["# Getting Started", "## Prerequisites", "## First Runtime Path"],
-    "docs/CONCEPTS.md": ["# Concepts", "## Resource Model", "## Runtime Evidence"],
-    "docs/ARCHITECTURE.md": ["# Architecture", "## Planes", "## Runtime Flow"],
-    "docs/QUICKSTART.md": ["# Quickstart", "## Working Directory", "## Verify The Run"],
-    "docs/CURRENT_MATURITY.md": ["# Current Maturity", "## Current Status", "## Known Gaps"],
-    "docs/SCREENSHOTS.md": ["# Screenshots", "## Required Screenshots", "## Current State"],
-    "docs/COMPOSE_SMOKE_REPORT.md": [
+    "docs/README.md": ["# DimooRun Documentation", "## Start Here", "## Product", "## Readiness", "## Directory Map"],
+    "docs/start/product-overview.md": ["# Product Overview", "## What DimooRun Is", "## Non-Goals"],
+    "docs/start/getting-started.md": ["# Getting Started", "## Prerequisites", "## First Runtime Path"],
+    "docs/reference/concepts.md": ["# Concepts", "## Resource Model", "## Runtime Evidence"],
+    "docs/architecture/overview.md": ["# Architecture", "## Planes", "## Runtime Flow"],
+    "docs/start/quickstart.md": ["# Quickstart", "## Working Directory", "## Verify The Run"],
+    "docs/readiness/current-maturity.md": ["# Current Maturity", "## Current Status", "## Known Gaps"],
+    "docs/readiness/screenshots.md": ["# Screenshots", "## Required Screenshots", "## Current State"],
+    "docs/readiness/compose-smoke-report.md": [
         "# Compose Smoke Report",
         "## Command",
         "## Result",
         "## Evidence",
         "## Next Action",
     ],
-    "docs/BROWSER_SMOKE_REPORT.md": [
+    "docs/readiness/browser-smoke-report.md": [
         "# Browser Smoke Report",
         "## Command",
         "## Result",
         "## Evidence",
         "## Next Action",
     ],
-    "docs/ADRS/0001-runtime-control-plane.md": [
+    "docs/architecture/adrs/0001-runtime-control-plane.md": [
         "# ADR 0001: Runtime Control Plane",
         "## Decision",
         "## Consequences",
@@ -69,7 +69,7 @@ def test_docs_quality_flags_broken_internal_links(tmp_path: Path) -> None:
 
 def test_docs_quality_requires_working_directory_before_command_blocks(tmp_path: Path) -> None:
     root = _write_minimal_docs_tree(tmp_path)
-    (root / "docs/QUICKSTART.md").write_text(
+    (root / "docs/start/quickstart.md").write_text(
         "# Quickstart\n\n"
         "## Working Directory\n\n"
         "## Verify The Run\n\n"
@@ -82,26 +82,28 @@ def test_docs_quality_requires_working_directory_before_command_blocks(tmp_path:
     result = validate_docs_quality(root)
 
     assert (
-        "Command block in docs/QUICKSTART.md must declare a working directory nearby."
+        "Command block in docs/start/quickstart.md must declare a working directory nearby."
         in result.errors
     )
 
 
 def _write_minimal_docs_tree(root: Path) -> Path:
     docs_dir = root / "docs"
-    adr_dir = docs_dir / "ADRS"
+    adr_dir = docs_dir / "architecture" / "adrs"
     docs_dir.mkdir()
-    adr_dir.mkdir()
+    adr_dir.mkdir(parents=True)
     (root / "README.md").write_text("# DimooRun\n", encoding="utf-8")
 
     minimal_docs = {
-        "docs/PRODUCTION_GRADE_GAP_CLOSURE_PLAN_2026-06-04.md": "# Plan\n",
-        "docs/CONSOLE_USER_TASK_MODEL.md": "# Console User Task Model\n",
-        "docs/CONSOLE_EXPERIENCE_ACCEPTANCE.md": "# Console Experience Acceptance\n",
-        "docs/PRODUCT_WORKFLOW_COVERAGE_MATRIX.md": "# Product Workflow Coverage Matrix\n",
-        "docs/PRODUCT_FUNCTION_COVERAGE_REVIEW.md": "# Product Function Coverage Review\n",
-        "docs/PRODUCT_OPTIMIZATION_BACKLOG.md": "# Product Optimization Backlog\n",
-        "docs/PRODUCTION_READINESS_SCORECARD.md": _minimal_scorecard(),
+        "docs/plans/production-grade-gap-closure-2026-06-04.md": "# Plan\n",
+        "docs/product/console-user-task-model.md": "# Console User Task Model\n",
+        "docs/product/console-experience-acceptance.md": "# Console Experience Acceptance\n",
+        "docs/product/workflow-coverage-matrix.md": "# Product Workflow Coverage Matrix\n",
+        "docs/product/function-coverage-review.md": "# Product Function Coverage Review\n",
+        "docs/product/optimization-backlog.md": "# Product Optimization Backlog\n",
+        "docs/readiness/scorecard.md": _minimal_scorecard(),
+        "docs/readiness/compose-smoke-report.md": "# Compose Smoke Report\n",
+        "docs/readiness/browser-smoke-report.md": "# Browser Smoke Report\n",
     }
     for relative_path, text in {**minimal_docs, **_minimal_phase_12a_docs()}.items():
         path = root / relative_path
