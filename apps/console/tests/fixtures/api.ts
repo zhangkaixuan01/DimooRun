@@ -1091,6 +1091,15 @@ function publishedSurfaceDetailResponse(
       deployment_id: Number(surface?.deployment_id || 10),
       environment: "local",
     },
+    exposure_health: {
+      status: surface?.status === "revoked" ? "blocked" : "ready",
+      route_path: "/support/triage",
+      published: surface?.status !== "revoked",
+      last_live_request_status: surface?.status === "revoked" ? 403 : 200,
+      last_live_request_id: requestLogs[0]?.id ?? 9001,
+      last_live_trace_id: requestLogs[0]?.trace_id ?? "trace_501_live",
+      blocked_reasons: surface?.status === "revoked" ? ["surface_revoked"] : [],
+    },
     request_logs: requestLogs.filter((item) => Number(item.surface_id) === surfaceId),
     rollout_history: rolloutHistory,
     actions: {

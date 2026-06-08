@@ -10,6 +10,7 @@ test("validates and publishes a governed surface", async ({ page }) => {
   await page.goto("/published-surfaces/501");
 
   await expect(page.getByRole("heading", { name: "Governed Published Surface" })).toBeVisible();
+  await expect(page.getByText("Exposure health: ready")).toBeVisible();
   await page.getByLabel("Route path").fill("/support/triage");
   await page.getByLabel("Deployment").fill("10");
   await page.getByLabel("Auth mode").fill("api_key");
@@ -61,7 +62,7 @@ test("tests a route and drills into the redacted request log", async ({ page }) 
   await expect(page.getByText("policy: allow")).toBeVisible();
   await expect(page.getByText("deployment.invoke")).toBeVisible();
   await page.getByRole("button", { name: "Open request log" }).click();
-  await expect(page.getByText("trace_")).toBeVisible();
+  await expect(page.locator(".request-log-detail").getByText("trace_1", { exact: true })).toBeVisible();
   await expect(page.getByText("authorization: [REDACTED]")).toBeVisible();
   await expect(page.getByText("run_id: 9001")).toBeVisible();
 });
@@ -83,6 +84,8 @@ test("controls rollout with traffic split, revoke confirmation, and rollback", a
   await page.getByLabel("Danger confirmation").fill("REVOKE SURFACE 501");
   await page.getByRole("button", { name: "Confirm revoke" }).click();
   await expect(page.getByText("published_surface.revoke")).toBeVisible();
+  await expect(page.getByText("Exposure health: blocked")).toBeVisible();
+  await expect(page.getByText("surface_revoked")).toBeVisible();
 
   await page.getByRole("button", { name: "Rollback surface" }).click();
   await expect(page.getByText("rollback", { exact: true })).toBeVisible();

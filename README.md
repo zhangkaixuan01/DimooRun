@@ -48,21 +48,21 @@ wiring and admin surface coverage. Real Docker Compose and Helm smoke runs still
 need to be executed in an environment with Docker and Helm available before
 treating those deployment paths as fully environment-verified.
 
-The primary artifact is [DESIGN_SPEC.md](docs/DESIGN_SPEC.md), which describes the
+The primary artifact is [DESIGN_SPEC.md](docs/reference/design-spec.md), which describes the
 target architecture, runtime model, compatibility strategy, MVP scope, and
 roadmap. The cleanup note
-[IMPLEMENTATION_UPDATE_2026-05-30.md](docs/IMPLEMENTATION_UPDATE_2026-05-30.md)
+[IMPLEMENTATION_UPDATE_2026-05-30.md](docs/history/implementation-update-2026-05-30.md)
 summarizes the numeric-ID, identity, Console, and Docker dev changes from the
 latest structural pass.
 
 Product documentation entry points:
 
 - [Documentation home](docs/README.md)
-- [Product overview](docs/PRODUCT_OVERVIEW.md)
-- [Getting started](docs/GETTING_STARTED.md)
-- [Quickstart](docs/QUICKSTART.md)
-- [Current maturity](docs/CURRENT_MATURITY.md)
-- [Production readiness scorecard](docs/PRODUCTION_READINESS_SCORECARD.md)
+- [Product overview](docs/start/product-overview.md)
+- [Getting started](docs/start/getting-started.md)
+- [Quickstart](docs/start/quickstart.md)
+- [Current maturity](docs/readiness/current-maturity.md)
+- [Production readiness scorecard](docs/readiness/scorecard.md)
 
 Implemented phase slices:
 
@@ -226,11 +226,10 @@ lockfile, and run adapter conformance tests before accepting the upgrade.
 ├── examples/
 │   ├── compatibility/  # LangGraph Compatibility API examples
 │   └── langgraph/      # LangGraph Agent examples
-├── execution_plans/    # Chinese implementation plans mapped to DESIGN_SPEC.md
+├── docs/               # Product, readiness, architecture, plans, and history docs
 ├── migrations/         # Alembic migrations for platform metadata tables
 ├── openapi/            # Generated OpenAPI artifacts
 ├── tests/              # Backend API, domain, persistence, and server tests
-├── DESIGN_SPEC.md      # Architecture and product design specification
 ├── README.md           # Project overview
 ├── main.py             # Minimal Python entrypoint
 ├── pyproject.toml      # Python project metadata and tool config

@@ -36,3 +36,50 @@ DIMOORUN_PLAYWRIGHT_CHROME=C:\Users\Administrator\AppData\Local\Temp\dimoorun-pl
 
 The executable can live anywhere on the machine. The important part is that
 `DIMOORUN_PLAYWRIGHT_CHROME` points directly to `chrome-win64\chrome.exe`.
+
+## Live 0H Smoke
+
+The live Published Surface / Ingress smoke uses the real local backend and is
+intended to be run from a normal Windows terminal, not through a redirected tool
+session. From `apps/console`:
+
+```powershell
+npm run cleanup:e2e:live
+npm run test:e2e:live:local
+```
+
+`test:e2e:live:local` checks the browser config, builds the e2e bundle, runs the
+single-process live smoke, verifies the generated live report, and then runs
+cleanup in a `finally` block. The wrapper sets
+`DIMOORUN_LIVE_E2E_TIMEOUT_MS=120000` by default if you have not provided your
+own timeout.
+
+To verify a copied log separately:
+
+`verify:e2e:live-report` reads the default live log at
+`%TEMP%\dimoorun-console-live-e2e\run-live-e2e.log`. To verify a copied log:
+
+```powershell
+npm run verify:e2e:live-report -- --log C:\path\to\run-live-e2e.log
+```
+
+The verifier now requires explicit step markers for route test completion,
+request-log drilldown, traffic-split application, rollback completion, backend
+readiness, frontend readiness, smoke completion, and cleanup, and it rejects
+logs where those markers appear out of order.
+
+If the run is interrupted, clean up before retrying:
+
+```powershell
+npm run cleanup:e2e:live
+```
+
+The current 0H acceptance boundary and the remaining external evidence required
+to move the phase beyond `partial` are tracked in
+`docs/readiness/phase-0h-evidence.md`.
+
+Current local status as of 2026-06-09:
+
+- `npm run test:e2e:live:local` completed successfully from a normal Windows terminal
+- `npm run verify:e2e:live-report` accepted the generated live report
+- Phase `0H` still remains `partial` overall until hosted CI proves the default Playwright-managed Chromium path

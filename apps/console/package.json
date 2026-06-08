@@ -10,6 +10,11 @@
     "check:e2e-browser": "node scripts/check-playwright-browser.mjs",
     "build:e2e": "vue-tsc --noEmit && vite build --mode e2e",
     "test:e2e": "npm run check:e2e-browser && npm run build:e2e && playwright test",
+    "test:e2e:0h": "node scripts/check-playwright-browser.mjs && vue-tsc --noEmit && vite build --mode e2e && playwright test tests/e2e/published-surfaces.spec.ts --project=chrome --output test-results-0h",
+    "test:e2e:live": "node scripts/check-playwright-browser.mjs && node scripts/run-live-e2e.mjs",
+    "test:e2e:live:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-live-e2e-local.ps1",
+    "verify:e2e:live-report": "node scripts/verify-live-e2e-report.mjs",
+    "cleanup:e2e:live": "node scripts/cleanup-live-e2e.mjs",
     "test:e2e:headed": "npm run check:e2e-browser && npm run build:e2e && playwright test --headed",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview"

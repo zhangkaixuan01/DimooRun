@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from dimoo_run.api.ingress import IngressPreflightMiddleware
 from dimoo_run.api.router import router
 from dimoo_run.core.config import Settings
 
@@ -16,6 +17,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+    app.add_middleware(IngressPreflightMiddleware, settings=resolved_settings)
     app.include_router(router)
     return app
 
