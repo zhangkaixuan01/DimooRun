@@ -19,7 +19,7 @@ def test_ci_workflow_runs_backend_docs_and_frontend_baseline() -> None:
 
     for command in [
         "uv run pytest -q",
-        "uv run ruff check .",
+        "uv run ruff check apps tests packages/sdk-python scripts migrations",
         "uv run mypy apps/server tests scripts",
         "uv run python scripts/docs_quality.py",
         "uv run python scripts/compose_smoke.py",
