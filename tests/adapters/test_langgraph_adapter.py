@@ -94,7 +94,7 @@ async def test_langgraph_adapter_resume_uses_langgraph_command_with_runtime_cont
     assert result.output == {"resumed": True}
     assert graph.input_data is not None
     assert graph.input_data.__class__.__name__ == "Command"
-    assert getattr(graph.input_data, "resume") == {"approved": True}
+    assert graph.input_data.resume == {"approved": True}
     assert graph.config is not None
     assert graph.config["configurable"]["thread_id"] == "thread_1"
     assert graph.config["configurable"]["run_id"] == 1

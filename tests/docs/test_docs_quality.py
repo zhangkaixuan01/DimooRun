@@ -7,14 +7,32 @@ sys.path.insert(0, str(ROOT))
 from scripts.docs_quality import validate_docs_quality  # noqa: E402
 
 PHASE_12A_DOCS = {
-    "docs/README.md": ["# DimooRun Documentation", "## Start Here", "## Product", "## Readiness", "## Directory Map"],
+    "docs/README.md": [
+        "# DimooRun Documentation",
+        "## Start Here",
+        "## Product",
+        "## Readiness",
+        "## Directory Map",
+    ],
     "docs/start/product-overview.md": ["# Product Overview", "## What DimooRun Is", "## Non-Goals"],
-    "docs/start/getting-started.md": ["# Getting Started", "## Prerequisites", "## First Runtime Path"],
+    "docs/start/getting-started.md": [
+        "# Getting Started",
+        "## Prerequisites",
+        "## First Runtime Path",
+    ],
     "docs/reference/concepts.md": ["# Concepts", "## Resource Model", "## Runtime Evidence"],
     "docs/architecture/overview.md": ["# Architecture", "## Planes", "## Runtime Flow"],
     "docs/start/quickstart.md": ["# Quickstart", "## Working Directory", "## Verify The Run"],
-    "docs/readiness/current-maturity.md": ["# Current Maturity", "## Current Status", "## Known Gaps"],
-    "docs/readiness/screenshots.md": ["# Screenshots", "## Required Screenshots", "## Current State"],
+    "docs/readiness/current-maturity.md": [
+        "# Current Maturity",
+        "## Current Status",
+        "## Known Gaps",
+    ],
+    "docs/readiness/screenshots.md": [
+        "# Screenshots",
+        "## Required Screenshots",
+        "## Current State",
+    ],
     "docs/readiness/compose-smoke-report.md": [
         "# Compose Smoke Report",
         "## Command",

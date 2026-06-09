@@ -36,11 +36,6 @@ def dashboard_summary(
         project_id=project_id,
         deployment_ids={deployment.id for deployment in scoped_deployments},
     )
-    scoped_tasks = [
-        task
-        for task in runtime.list_tasks(tenant_id=tenant_id, project_id=project_id)
-        if any(run.id == task.run_id for run in scoped_runs)
-    ]
     completed_runs = [
         run for run in scoped_runs if run.status in {RunStatus.succeeded, RunStatus.failed}
     ]

@@ -2,7 +2,17 @@ from collections.abc import Iterable
 from typing import Any
 
 from alembic import op
-from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, text
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    text,
+)
 
 
 def audit_columns() -> list[Column[Any]]:

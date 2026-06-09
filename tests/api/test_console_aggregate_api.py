@@ -10,7 +10,6 @@ from dimoo_run.packages.validation import validation_token
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
-
 CONSOLE_PATHS = [
     "/v1/console/dashboard-summary",
     "/v1/console/runtime-overview",

@@ -15,7 +15,7 @@
 - Modify: `pyproject.toml` to add `redis`.
 - Modify: `uv.lock` after dependency resolution.
 - Modify: `apps/server/dimoo_run/domain/models.py` for console identity tables.
-- Add: `migrations/versions/0007_console_identity_sessions.py`.
+- Modify: `migrations/versions/0001_baseline.py` or add a new post-baseline revision for console identity schema changes.
 - Add: `apps/server/dimoo_run/identity/console.py` for DB/Redis service.
 - Modify: `apps/server/dimoo_run/api/dependencies.py` to delegate console identity to the service.
 - Modify: `apps/server/dimoo_run/api/auth.py` for stronger lifecycle errors and permission use.

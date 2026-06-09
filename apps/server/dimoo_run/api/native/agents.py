@@ -188,7 +188,10 @@ def _validate_ready_gate(
     return error_response(
         status_code=409,
         error_code="package_validation_required",
-        message="Agent version must have a valid package validation token before it can become ready.",
+        message=(
+            "Agent version must have a valid package validation token before it can "
+            "become ready."
+        ),
         request_id=request_id,
         details={
             "package_uri": package_uri,

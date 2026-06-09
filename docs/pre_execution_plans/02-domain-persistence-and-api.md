@@ -188,83 +188,23 @@ backup_plans
 restore_jobs
 ```
 
-## 3.1 Migration 分组策略
+## 3.1 Migration 策略
 
-设计文档定义了完整领域对象，但实现时 migration 需要分组，避免第一版 migration 过大、不可 review。
+当前仓库已将早期分组 migration 历史重置为单一 baseline。对于全新数据库，直接从 baseline 建出当前完整 schema；之后的 schema 演进再从该 baseline 继续追加新 revision。
 
-推荐分组：
+当前 baseline：
 
 ```text
-0001_core_identity_and_agents:
-  tenants
-  projects
-  users
-  service_accounts
-  roles
-  permissions
-  api_keys
-  agents
-  agent_versions
-  deployments
-  agent_instances
-
-0002_runtime_execution:
-  sessions
-  runs
-  run_attempts
-  tasks
-  events
-  checkpoint_indexes
-  artifacts
-  audit_logs
-  idempotency_records
-
-0003_governance:
-  policies
-  policy_decisions
-  tools
-  secrets
-  model_gateways
-  model_policies
-  model_usage_snapshots
-  human_tasks
-  approval_requests
-  approval_policies
-
-0004_observability_quality:
-  run_graph_nodes
-  run_graph_edges
-  datasets
-  dataset_items
-  experiments
-  experiment_runs
-  evaluation_results
-  feedback
-  memory_blocks
-  semantic_store_providers
-
-0005_platform_extensions:
-  published_surfaces
-  ingress_routes
-  catalog_items
-  prompt_assets
-  config_assets
-  templates
-  scheduled_runs
-  batch_runs
-  replay_jobs
-  notification_channels
-  alert_rules
-  incident_events
-  webhook_subscriptions
-  extensions
-  backup_plans
-  restore_jobs
+0001_baseline:
+  current complete schema for identity, runtime, governance,
+  observability, platform extensions, console identity,
+  environment scope resources, control settings, and
+  published-surface evidence tables
 ```
 
 执行规则：
 
-- [x] 每个 migration 文件只做一个分组。
+- [x] baseline migration 冻结当前完整 schema，后续增量 migration 再按单一意图追加。
 - [x] 每个 migration 都有 downgrade。
 - [x] 每个 migration 都有 metadata table existence 测试。
 - [x] 如果 MVP 暂不实现某类业务逻辑，也可以先建最小 metadata 表，但必须在注释和计划中说明用途。
@@ -346,11 +286,7 @@ apps/server/dimoo_run/api/admin/*.py
 migrations/env.py
 migrations/__init__.py
 migrations/table_helpers.py
-migrations/versions/0001_core_identity_and_agents.py
-migrations/versions/0002_runtime_execution.py
-migrations/versions/0003_governance.py
-migrations/versions/0004_observability_quality.py
-migrations/versions/0005_platform_extensions.py
+migrations/versions/0001_baseline.py
 scripts/export_openapi.py
 openapi/dimoorun.openapi.json
 tests/domain/test_domain_models.py
@@ -485,7 +421,7 @@ artifact_access_denied
 ### Task 3：实现 Alembic 迁移
 
 - [x] 创建 Alembic 配置。
-- [x] 创建分组 migration：`0001_core_identity_and_agents.py` 到 `0005_platform_extensions.py`。
+- [x] 将历史分组 migration 重置为单文件 baseline：`0001_baseline.py`。
 - [x] 空库执行 upgrade 成功。
 - [x] downgrade 能删除表。
 - [x] migration 脚本不依赖 live ORM metadata。

@@ -4,11 +4,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from dimoo_run.identity.service_accounts import ServiceAccountRegistry
-from dimoo_run.policy.engine import AuditRecord, AuditSink, InMemoryAuditSink
-from dimoo_run.domain.models import APIKey
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
+
+from dimoo_run.domain.models import APIKey
+from dimoo_run.identity.service_accounts import ServiceAccountRegistry
+from dimoo_run.policy.engine import AuditRecord, AuditSink, InMemoryAuditSink
 
 
 class APIKeyError(PermissionError):

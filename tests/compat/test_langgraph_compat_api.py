@@ -3,14 +3,20 @@ import tempfile
 from uuid import uuid4
 
 from dimoo_run.api.compat.langgraph import default_compat_runtime, reset_compat_runtime
-from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
-from dimoo_run.api.native.deployments import default_deployment_control, reset_deployment_control
+from dimoo_run.api.dependencies import (
+    default_api_key_authenticator,
+    reset_api_key_authenticator,
+)
+from dimoo_run.api.native.deployments import (
+    default_deployment_control,
+    reset_deployment_control,
+)
+from dimoo_run.core.config import Settings
 from dimoo_run.deployments.service import DeploymentRecord
 from dimoo_run.domain.enums import DeploymentDesiredStatus
 from dimoo_run.domain.models import Project, Tenant
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
 from dimoo_run.persistence.database import create_session_factory
-from dimoo_run.core.config import Settings
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
@@ -346,8 +352,23 @@ def _ensure_scope(tenant_id: int, project_id: int) -> None:
     session_factory = create_session_factory(Settings.from_env().database.url)
     with session_factory() as session:
         if session.get(Tenant, tenant_id) is None:
-            session.add(Tenant(id=tenant_id, name=f"Tenant {tenant_id}", slug=f"tenant-{tenant_id}", status="active"))
+            session.add(
+                Tenant(
+                    id=tenant_id,
+                    name=f"Tenant {tenant_id}",
+                    slug=f"tenant-{tenant_id}",
+                    status="active",
+                )
+            )
             session.flush()
         if session.get(Project, project_id) is None:
-            session.add(Project(id=project_id, tenant_id=tenant_id, name=f"Project {project_id}", slug=f"project-{project_id}", status="active"))
+            session.add(
+                Project(
+                    id=project_id,
+                    tenant_id=tenant_id,
+                    name=f"Project {project_id}",
+                    slug=f"project-{project_id}",
+                    status="active",
+                )
+            )
         session.commit()
