@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
 import AgentsPage from "../pages/agents/AgentsPage.vue";
-import CompatibilityPage from "../pages/compatibility/CompatibilityPage.vue";
+import CompatibilityExplorerPage from "../pages/compatibility/CompatibilityExplorerPage.vue";
 import DashboardPage from "../pages/dashboard/DashboardPage.vue";
 import DeploymentDetailPage from "../pages/deployments/DeploymentDetailPage.vue";
 import DeploymentsPage from "../pages/deployments/DeploymentsPage.vue";
@@ -41,7 +41,7 @@ export const routes: RouteRecordRaw[] = [
   { path: "/packages/register", name: "package-registration", component: PackageRegistrationPage },
   { path: "/deployments", name: "deployments", component: DeploymentsPage },
   { path: "/deployments/:deploymentId", name: "deployment-detail", component: DeploymentDetailPage, props: true },
-  { path: "/compatibility", name: "compatibility", component: CompatibilityPage },
+  { path: "/compatibility", name: "compatibility", component: CompatibilityExplorerPage },
   { path: "/published-surfaces", name: "published-surfaces", component: PublishedSurfacesPage },
   { path: "/published-surfaces/:surfaceId", name: "published-surface-detail", component: PublishedSurfacesPage, props: true },
   { path: "/runs", name: "runs", component: RunsPage },

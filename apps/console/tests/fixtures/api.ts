@@ -227,6 +227,11 @@ export async function installConsoleApiMocks(
       created_at: createdAt,
     },
   ];
+  const compatibilityAssistants: Array<Record<string, unknown>> = [];
+  const compatibilityThreads: Array<Record<string, unknown>> = [];
+  const compatibilityRuns: Array<Record<string, unknown>> = [];
+  let nextCompatibilityRunId = 3101;
+  let nextCompatibilityTaskId = 4101;
   await page.route("**/mock-api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace("/mock-api", "");
@@ -241,6 +246,89 @@ export async function installConsoleApiMocks(
     }
     if (path === "/v1/ingress-routes" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(ingressRoutes));
+    }
+    if (path === "/v1/console/compatibility/langgraph/assistants" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(compatibilityAssistants));
+    }
+    if (path === "/v1/console/compatibility/langgraph/assistants" && route.request().method() === "POST") {
+      return fulfillJson(route, compatibilityAssistantResponse(route, compatibilityAssistants));
+    }
+    const compatibilityAssistantMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/assistants\/([^/]+)$/);
+    if (compatibilityAssistantMatch && route.request().method() === "GET") {
+      return fulfillJson(route, compatibilityGetAssistantResponse(compatibilityAssistants, compatibilityAssistantMatch[1]));
+    }
+    if (path === "/v1/console/compatibility/langgraph/threads" && route.request().method() === "POST") {
+      return fulfillJson(route, compatibilityThreadResponse(route, compatibilityThreads));
+    }
+    const compatibilityThreadMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)$/);
+    if (compatibilityThreadMatch && route.request().method() === "GET") {
+      return fulfillJson(route, compatibilityGetThreadResponse(compatibilityThreads, compatibilityThreadMatch[1]));
+    }
+    const compatibilityRunMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs$/);
+    if (compatibilityRunMatch && route.request().method() === "POST") {
+      return fulfillJson(
+        route,
+        compatibilityRunResponse(
+          route,
+          compatibilityRunMatch[1],
+          compatibilityAssistants,
+          compatibilityRuns,
+          nextCompatibilityRunId++,
+          nextCompatibilityTaskId++,
+        ),
+      );
+    }
+    const compatibilityStreamMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs\/stream-probe$/);
+    if (compatibilityStreamMatch && route.request().method() === "POST") {
+      return fulfillJson(
+        route,
+        compatibilityStreamProbeResponse(
+          route,
+          compatibilityStreamMatch[1],
+          compatibilityAssistants,
+          compatibilityRuns,
+          nextCompatibilityRunId++,
+          nextCompatibilityTaskId++,
+        ),
+      );
+    }
+    const compatibilityGetRunMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs\/(\d+)$/);
+    if (compatibilityGetRunMatch && route.request().method() === "GET") {
+      return fulfillJson(
+        route,
+        compatibilityGetRunResponse(compatibilityRuns, compatibilityGetRunMatch[1], Number(compatibilityGetRunMatch[2])),
+      );
+    }
+    const compatibilityStreamStatusMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs\/(\d+)\/stream-status$/);
+    if (compatibilityStreamStatusMatch && route.request().method() === "GET") {
+      return fulfillJson(
+        route,
+        compatibilityStreamStatusResponse(compatibilityRuns, compatibilityStreamStatusMatch[1], Number(compatibilityStreamStatusMatch[2])),
+      );
+    }
+    const compatibilityReplayMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs\/(\d+)\/events$/);
+    if (compatibilityReplayMatch && route.request().method() === "GET") {
+      return fulfillJson(
+        route,
+        compatibilityReplayResponse(route, compatibilityRuns, compatibilityReplayMatch[1], Number(compatibilityReplayMatch[2])),
+      );
+    }
+    const compatibilityJoinMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs\/(\d+)\/join$/);
+    if (compatibilityJoinMatch && route.request().method() === "POST") {
+      return fulfillJson(
+        route,
+        compatibilityRunActionResponse(compatibilityRuns, compatibilityJoinMatch[1], Number(compatibilityJoinMatch[2]), "succeeded", "run.join"),
+      );
+    }
+    const compatibilityCancelMatch = path.match(/^\/v1\/console\/compatibility\/langgraph\/threads\/([^/]+)\/runs\/(\d+)\/cancel$/);
+    if (compatibilityCancelMatch && route.request().method() === "POST") {
+      return fulfillJson(
+        route,
+        compatibilityRunActionResponse(compatibilityRuns, compatibilityCancelMatch[1], Number(compatibilityCancelMatch[2]), "cancelled", "run.cancel"),
+      );
+    }
+    if (path === "/v1/console/compatibility/migration-report" && route.request().method() === "POST") {
+      return fulfillJson(route, compatibilityMigrationReportResponse(route));
     }
     if (path === "/v1/published-surfaces/validate" && route.request().method() === "POST") {
       return fulfillJson(route, publishedSurfaceValidationResponse(route));
@@ -389,6 +477,12 @@ function parseRequestBody(route: Route): Record<string, unknown> {
   return parsed && typeof parsed === "object" && !Array.isArray(parsed)
     ? parsed as Record<string, unknown>
     : {};
+}
+
+function recordValue(record: unknown, key: string): unknown {
+  return record && typeof record === "object" && !Array.isArray(record)
+    ? (record as Record<string, unknown>)[key]
+    : undefined;
 }
 
 function deployment(id: number, runtimeStatus: string, replicas: number): NativeDeploymentRead {
@@ -1242,6 +1336,390 @@ function humanTaskDecisionResponse(route: Route, api: DashboardApiFixture, taskI
     item: task,
     request_id: "e2e-request",
     audit_required: true,
+  };
+}
+
+function compatibilityAssistantResponse(
+  route: Route,
+  assistants: Array<Record<string, unknown>>,
+): unknown {
+  const body = parseRequestBody(route);
+  const assistantId = `assistant_${assistants.length + 1}`;
+  const result = {
+    operation: "assistant.create",
+    compat_response: {
+      assistant_id: assistantId,
+      name: String(body.name || "support-agent"),
+      metadata: {
+        dimoorun_mapping: {
+          tenant_id: 1,
+          project_id: 1,
+          deployment_id: null,
+          agent_id: 1,
+          agent_version_id: 11,
+        },
+      },
+    },
+    native_resources: {
+      assistant_id: assistantId,
+      deployment_id: null,
+      agent_id: 1,
+      agent_version_id: 11,
+      tenant_id: 1,
+      project_id: 1,
+    },
+    resource_links: [{ label: "Agent #1", path: "/agents" }],
+    unsupported_capability_explanations: [],
+    divergence_reason: null,
+    golden_record: {
+      operation: "assistant.create",
+      divergence_reason: null,
+    },
+  };
+  assistants.unshift(result);
+  return result;
+}
+
+function compatibilityGetAssistantResponse(
+  assistants: Array<Record<string, unknown>>,
+  assistantId: string,
+): unknown {
+  return assistants.find(
+    (item) => recordValue(item.compat_response, "assistant_id") === assistantId,
+  ) ?? assistants[0];
+}
+
+function compatibilityThreadResponse(
+  route: Route,
+  threads: Array<Record<string, unknown>>,
+): unknown {
+  const body = parseRequestBody(route);
+  const threadId = `thread_${threads.length + 1}`;
+  const result = {
+    operation: "thread.create",
+    compat_response: {
+      thread_id: threadId,
+      metadata: {
+        label: String(recordValue(body.metadata, "label") || "migration-check"),
+        dimoorun_mapping: {
+          checkpoint_thread_id: threadId,
+          tenant_id: 1,
+          project_id: 1,
+        },
+      },
+    },
+    native_resources: {
+      thread_id: threadId,
+      checkpoint_thread_id: threadId,
+      tenant_id: 1,
+      project_id: 1,
+    },
+    resource_links: [],
+    unsupported_capability_explanations: [],
+    divergence_reason: null,
+    golden_record: {
+      operation: "thread.create",
+      divergence_reason: null,
+    },
+  };
+  threads.unshift(result);
+  return result;
+}
+
+function compatibilityGetThreadResponse(
+  threads: Array<Record<string, unknown>>,
+  threadId: string,
+): unknown {
+  return threads.find(
+    (item) => recordValue(item.compat_response, "thread_id") === threadId,
+  ) ?? threads[0];
+}
+
+function compatibilityRunResponse(
+  route: Route,
+  threadId: string,
+  assistants: Array<Record<string, unknown>>,
+  runs: Array<Record<string, unknown>>,
+  runId: number,
+  taskId: number,
+): unknown {
+  const body = parseRequestBody(route);
+  const assistantId = String(body.assistant_id || "");
+  const assistant = assistants.find(
+    (item) => recordValue(item.compat_response, "assistant_id") === assistantId,
+  );
+  const result = {
+    operation: "run.create",
+    compat_response: {
+      run_id: runId,
+      thread_id: threadId,
+      assistant_id: assistantId,
+      status: "queued",
+      metadata: {
+        dimoorun_mapping: {
+          run_id: runId,
+          task_id: taskId,
+        },
+      },
+    },
+    native_resources: {
+      run_id: runId,
+      task_id: taskId,
+      thread_id: threadId,
+      assistant_id: assistantId,
+      deployment_id: recordValue(assistant?.native_resources, "deployment_id"),
+      agent_id: recordValue(assistant?.native_resources, "agent_id") || 1,
+      agent_version_id: recordValue(assistant?.native_resources, "agent_version_id") || 11,
+    },
+    resource_links: [
+      { label: `Run #${runId}`, path: `/runs/${runId}` },
+      { label: `Task #${taskId}`, path: "/tasks" },
+      { label: "Agent #1", path: "/agents" },
+    ],
+    unsupported_capability_explanations: [],
+    divergence_reason: null,
+    golden_record: {
+      operation: "run.create",
+      expected_semantics: {
+        operation: "run.create",
+        compat_resource_type: "run",
+        native_source_of_truth: ["run", "task", "event", "audit"],
+        sdk_shape: "langgraph.run",
+        thread_id: threadId,
+        assistant_id: assistantId,
+        compat_status: "queued",
+        native_run_id: runId,
+        native_task_id: taskId,
+      },
+      divergence_reason: null,
+    },
+  };
+  runs.unshift(result);
+  return result;
+}
+
+function compatibilityGetRunResponse(
+  runs: Array<Record<string, unknown>>,
+  threadId: string,
+  runId: number,
+): unknown {
+  return runs.find(
+    (item) => Number(recordValue(item.compat_response, "run_id")) === runId
+      && recordValue(item.compat_response, "thread_id") === threadId,
+  ) ?? runs[0];
+}
+
+function compatibilityStreamProbeResponse(
+  route: Route,
+  threadId: string,
+  assistants: Array<Record<string, unknown>>,
+  runs: Array<Record<string, unknown>>,
+  runId: number,
+  taskId: number,
+): unknown {
+  const result = compatibilityRunResponse(route, threadId, assistants, runs, runId, taskId) as Record<
+    string,
+    unknown
+  >;
+  result.operation = "run.stream_probe";
+  recordValue(result.compat_response, "status");
+  (result.compat_response as Record<string, unknown>).status = "running";
+  result.stream_events = [
+    { event_id: `${runId}:1`, sequence: 1, type: "run.created", payload: { task_id: taskId } },
+    { event_id: `${runId}:2`, sequence: 2, type: "task.queued", payload: { task_id: taskId } },
+    { event_id: `${runId}:3`, sequence: 3, type: "run.started", payload: { thread_id: threadId } },
+  ];
+  result.golden_record = {
+    operation: "run.stream_probe",
+    expected_semantics: {
+      operation: "run.stream_probe",
+      compat_resource_type: "run",
+      native_source_of_truth: ["run", "task", "event", "audit"],
+      sdk_shape: "langgraph.run",
+      thread_id: threadId,
+      assistant_id: recordValue(result.compat_response, "assistant_id"),
+      compat_status: "running",
+      native_run_id: runId,
+      native_task_id: taskId,
+      stream_mode: "events",
+      event_types: ["run.created", "task.queued", "run.started"],
+    },
+    divergence_reason: null,
+  };
+  result.stream_status = {
+    event_count: 3,
+    latest_event_id: `${runId}:3`,
+    replay_from_event_id: `${runId}:1`,
+    run_status: "running",
+  };
+  return result;
+}
+
+function compatibilityStreamStatusResponse(
+  runs: Array<Record<string, unknown>>,
+  threadId: string,
+  runId: number,
+): unknown {
+  const run = compatibilityGetRunResponse(runs, threadId, runId) as Record<string, unknown>;
+  return {
+    ...run,
+    operation: "run.stream_status",
+    golden_record: {
+      operation: "run.stream_status",
+      expected_semantics: {
+        operation: "run.stream_status",
+        compat_resource_type: "run",
+        native_source_of_truth: ["run", "task", "event", "audit"],
+        sdk_shape: "langgraph.run",
+        thread_id: threadId,
+        assistant_id: recordValue(recordValue(run, "compat_response") as Record<string, unknown>, "assistant_id"),
+        compat_status: recordValue(run.compat_response, "status") || "running",
+        native_run_id: runId,
+        native_task_id: Number(recordValue(recordValue(run, "native_resources") as Record<string, unknown>, "task_id") || 0),
+        supports_last_event_id_replay: true,
+        latest_event_id: `${runId}:3`,
+        replay_from_event_id: `${runId}:1`,
+      },
+      divergence_reason: null,
+    },
+    stream_status: {
+      event_count: 3,
+      latest_event_id: `${runId}:3`,
+      replay_from_event_id: `${runId}:1`,
+      run_status: recordValue(run.compat_response, "status") || "running",
+    },
+  };
+}
+
+function compatibilityReplayResponse(
+  route: Route,
+  runs: Array<Record<string, unknown>>,
+  threadId: string,
+  runId: number,
+): unknown {
+  const url = new URL(route.request().url());
+  const lastEventId = url.searchParams.get("last_event_id") || `${runId}:1`;
+  const run = compatibilityGetRunResponse(runs, threadId, runId) as Record<string, unknown>;
+  const events = lastEventId === `${runId}:1`
+    ? [
+      { event_id: `${runId}:2`, sequence: 2, type: "task.queued", payload: { task_id: runId + 1000 } },
+      { event_id: `${runId}:3`, sequence: 3, type: "run.started", payload: { thread_id: threadId } },
+    ]
+    : [
+      { event_id: `${runId}:3`, sequence: 3, type: "run.started", payload: { thread_id: threadId } },
+    ];
+  return {
+    ...run,
+    operation: "run.replay",
+    golden_record: {
+      operation: "run.replay",
+      expected_semantics: {
+        operation: "run.replay",
+        compat_resource_type: "run",
+        native_source_of_truth: ["run", "task", "event", "audit"],
+        sdk_shape: "langgraph.run",
+        thread_id: threadId,
+        assistant_id: recordValue(recordValue(run, "compat_response") as Record<string, unknown>, "assistant_id"),
+        compat_status: recordValue(run.compat_response, "status") || "running",
+        native_run_id: runId,
+        native_task_id: Number(recordValue(recordValue(run, "native_resources") as Record<string, unknown>, "task_id") || 0),
+        supports_last_event_id_replay: true,
+        replayed_event_types: events.map((event) => String(recordValue(event, "type") || "")),
+      },
+      divergence_reason: null,
+    },
+    stream_events: events,
+  };
+}
+
+function compatibilityRunActionResponse(
+  runs: Array<Record<string, unknown>>,
+  threadId: string,
+  runId: number,
+  status: string,
+  operation: string,
+): unknown {
+  const run = runs.find(
+    (item) => Number(recordValue(item.compat_response, "run_id")) === runId
+      && recordValue(item.compat_response, "thread_id") === threadId,
+  ) ?? runs[0];
+  if (run) {
+    (run.compat_response as Record<string, unknown>).status = status;
+    run.operation = operation;
+    run.golden_record = {
+      operation,
+      expected_semantics: {
+        operation,
+        compat_resource_type: "run",
+        native_source_of_truth: ["run", "task", "event", "audit"],
+        sdk_shape: "langgraph.run",
+        thread_id: threadId,
+        assistant_id: recordValue(run.compat_response, "assistant_id"),
+        compat_status: status,
+        native_run_id: runId,
+        native_task_id: Number(recordValue(run.native_resources, "task_id") || 0),
+      },
+      divergence_reason: null,
+    };
+  }
+  return run;
+}
+
+function compatibilityMigrationReportResponse(route: Route): unknown {
+  const body = parseRequestBody(route);
+  const capabilities = Array.isArray(body.capabilities) ? body.capabilities.map(String) : [];
+  const unsupported = capabilities.includes("hosted_deployments")
+    ? [
+      {
+        capability: "hosted_deployments",
+        reason: "compatibility_not_supported",
+        recommended_workaround: "Use native DimooRun runtime semantics for this feature.",
+      },
+    ]
+    : [];
+  return {
+    report: {
+      framework: String(body.framework || "langgraph"),
+      adapter: String(body.adapter || "langgraph"),
+      overall_status: unsupported.length > 0 ? "migration_required" : "compatible",
+      blocked_reason: null,
+      unsupported_capabilities: unsupported,
+      required_dimoorun_config: [
+        "project.name",
+        "agents[].manifest",
+        "execution_profiles.default",
+        "checkpoint runtime store",
+      ],
+      adapter_contract_version: "1.0",
+      checkpoint_requirements: {
+        required: body.uses_checkpointing === true,
+        mode: body.uses_checkpointing === true ? "native_runtime_store" : "optional",
+      },
+      streaming_support: {
+        requested_modes: Array.isArray(body.streaming_modes) ? body.streaming_modes : [],
+        supported_modes: ["events", "updates"],
+        unsupported_modes: [],
+        last_event_id_replay: true,
+      },
+      governance_implications: [
+        "Compatibility requests still require tenant and project scoped authentication.",
+      ],
+      recommended_actions: [
+        "Run the compatibility explorer to confirm native Run and Task creation.",
+      ],
+    },
+    golden_record: {
+      operation: "migration.report",
+      expected_semantics: {
+        framework: String(body.framework || "langgraph"),
+        adapter: String(body.adapter || "langgraph"),
+        capabilities,
+        streaming_modes: Array.isArray(body.streaming_modes) ? body.streaming_modes : [],
+        supports_last_event_id_replay: true,
+      },
+      divergence_reason: unsupported.length > 0 ? "compatibility_not_supported" : null,
+    },
+    request_id: "e2e-request",
   };
 }
 

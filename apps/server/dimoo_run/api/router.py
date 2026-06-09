@@ -15,6 +15,7 @@ from dimoo_run.api.admin import router as admin_router
 from dimoo_run.api.admin import secrets as secret_router
 from dimoo_run.api.admin import tools as tool_router
 from dimoo_run.api.compat import router as compat_router
+from dimoo_run.api.console import compatibility as console_compatibility_router
 from dimoo_run.api.console import published as console_published_router
 from dimoo_run.api.console import router as console_router
 from dimoo_run.api.native import router as native_router
@@ -25,6 +26,7 @@ router.include_router(auth_router.router)
 router.include_router(native_router)
 router.include_router(live_ingress_router.router)
 router.include_router(console_router)
+router.include_router(console_compatibility_router.router)
 router.include_router(console_published_router.router)
 router.include_router(policy_router.router)
 router.include_router(published_surface_router.router)

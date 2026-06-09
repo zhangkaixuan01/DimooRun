@@ -748,3 +748,15 @@ test("verifies live e2e reports with required step markers in order", async () =
     assert.equal(failureResult.ok, false);
     assert.ok(failureResult.failures.includes("spawn EPERM"));
 });
+
+test("defines a dedicated compatibility browser workflow for hosted proof", () => {
+    const packageJson = read("package.json");
+    const workflow = read("../../.github/workflows/ci.yml");
+
+    assert.match(packageJson, /"test:e2e:0i"/);
+    assert.match(packageJson, /tests\/e2e\/compatibility-explorer\.spec\.ts/);
+    assert.match(packageJson, /--output test-results-0i/);
+    assert.match(workflow, /npm run test:e2e:0i/);
+    assert.match(workflow, /PLAYWRIGHT_HTML_REPORT: playwright-report-0i/);
+    assert.match(workflow, /console-playwright-0i-report/);
+});

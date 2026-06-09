@@ -54,3 +54,18 @@ def test_ci_runs_phase_0h_browser_workflow_with_managed_chromium_report() -> Non
     assert "playwright-report" in workflow_text
     assert "console-playwright-0h-report" in workflow_text
     assert "apps/console/playwright-report-0h" in workflow_text
+
+
+def test_ci_runs_phase_0i_browser_workflow_with_managed_chromium_report() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
+
+    assert '"test:e2e:0i"' in package_text
+    assert "tests/e2e/compatibility-explorer.spec.ts" in package_text
+    assert "--project=chrome" in package_text
+    assert "--output test-results-0i" in package_text
+    assert "npm run test:e2e:0i" in workflow_text
+    assert "PLAYWRIGHT_HTML_REPORT: playwright-report-0i" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
+    assert "console-playwright-0i-report" in workflow_text
+    assert "apps/console/playwright-report-0i" in workflow_text

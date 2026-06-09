@@ -421,3 +421,40 @@ export type SecretRotationResult = {
   lastUsed: Record<string, unknown>;
   accessAudit: Record<string, unknown>;
 };
+
+export type CompatibilityResourceLink = {
+  label: string;
+  path: string;
+};
+
+export type CompatibilityExplorerResult = {
+  operation: string;
+  compatResponse: Record<string, unknown>;
+  nativeResources: Record<string, unknown>;
+  resourceLinks: CompatibilityResourceLink[];
+  unsupportedCapabilityExplanations: Array<Record<string, unknown>>;
+  divergenceReason: string | null;
+  goldenRecord: Record<string, unknown>;
+  streamEvents?: Array<Record<string, unknown>>;
+  streamStatus?: Record<string, unknown>;
+};
+
+export type CompatibilityMigrationReport = {
+  framework: string;
+  adapter: string;
+  overallStatus: string;
+  blockedReason: string | null;
+  unsupportedCapabilities: Array<Record<string, unknown>>;
+  requiredDimooRunConfig: string[];
+  adapterContractVersion: string;
+  checkpointRequirements: Record<string, unknown>;
+  streamingSupport: Record<string, unknown>;
+  governanceImplications: string[];
+  recommendedActions: string[];
+};
+
+export type CompatibilityMigrationResponse = {
+  report: CompatibilityMigrationReport;
+  goldenRecord: Record<string, unknown>;
+  requestId: string | null;
+};

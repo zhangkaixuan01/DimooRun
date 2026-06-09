@@ -1175,11 +1175,11 @@ Current status note on 2026-06-09:
 
 Tasks:
 
-- [ ] Add Console APIs for LangGraph assistants, threads, runs, run cancel, run join, stream status, and last-event replay mapped onto native Agent/Run/Task/Event records.
-- [ ] Add migration report API that checks unsupported capabilities, required DimooRun config, adapter contract version, checkpoint requirements, streaming mode support, and governance implications.
-- [ ] Add request builder and stream tester for core compatibility calls with response mapping, native resource links, and capability-not-supported explanations.
-- [ ] Add golden compatibility runner that records request, expected third-party semantics, DimooRun response, native resources created, and divergence reason.
-- [ ] Add browser tests for assistant create/list, thread create, run create, stream reconnect, cancel, join, migration report, and unsupported capability explanation.
+- [x] Add Console APIs for LangGraph assistants, threads, runs, run cancel, run join, stream status, and last-event replay mapped onto native Agent/Run/Task/Event records.
+- [x] Add migration report API that checks unsupported capabilities, required DimooRun config, adapter contract version, checkpoint requirements, streaming mode support, and governance implications.
+- [x] Add request builder and stream tester for core compatibility calls with response mapping, native resource links, and capability-not-supported explanations.
+- [x] Add golden compatibility runner that records request, expected third-party semantics, DimooRun response, native resources created, and divergence reason.
+- [x] Add browser tests for assistant create/list, thread create, run create, stream reconnect, cancel, join, migration report, and unsupported capability explanation.
 - [ ] Commit as `feat(compat): add migration and runtime explorer`.
 
 Acceptance:

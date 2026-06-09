@@ -1,4 +1,4 @@
-import type { Agent, AgentVersion, BackupDryRunResult, ConsoleRuntimeOverview, ConsoleWriteOptions, DatasetCapture, Deployment, DeploymentPromotionPreview, ExperimentRunResult, HumanTask, IncidentWorkflowResult, IngressRouteTestResult, ModelGatewayTestResult, NotificationTestResult, PackageValidationResult, PolicyActivation, PolicyDraft, PolicySimulation, PublishedSurfaceDetail, PublishedSurfacePublishResult, PublishedSurfaceRolloutResult, PublishValidationResult, QualityGatePreview, ReplayComparison, ResourceId, RestoreDryRunResult, Run, RunAttempt, RunDatasetCapture, RuntimeEvent, SecretRotationResult, SecretValidationResult, Task, TaskCreateResult, ToolDryRunResult } from "./types";
+import type { Agent, AgentVersion, BackupDryRunResult, CompatibilityExplorerResult, CompatibilityMigrationResponse, ConsoleRuntimeOverview, ConsoleWriteOptions, DatasetCapture, Deployment, DeploymentPromotionPreview, ExperimentRunResult, HumanTask, IncidentWorkflowResult, IngressRouteTestResult, ModelGatewayTestResult, NotificationTestResult, PackageValidationResult, PolicyActivation, PolicyDraft, PolicySimulation, PublishedSurfaceDetail, PublishedSurfacePublishResult, PublishedSurfaceRolloutResult, PublishValidationResult, QualityGatePreview, ReplayComparison, ResourceId, RestoreDryRunResult, Run, RunAttempt, RunDatasetCapture, RuntimeEvent, SecretRotationResult, SecretValidationResult, Task, TaskCreateResult, ToolDryRunResult } from "./types";
 import {
   type ConsoleDashboardSummaryRead,
   type ConsoleRuntimeOverviewRead,
@@ -690,6 +690,56 @@ function mapSecretRotation(result: Record<string, unknown>): SecretRotationResul
   };
 }
 
+function mapCompatibilityExplorerResult(result: Record<string, unknown>): CompatibilityExplorerResult {
+  return {
+    operation: String(result.operation || "unknown"),
+    compatResponse: isRecord(result.compat_response) ? result.compat_response : {},
+    nativeResources: isRecord(result.native_resources) ? result.native_resources : {},
+    resourceLinks: Array.isArray(result.resource_links)
+      ? result.resource_links.filter(isRecord).map((item) => ({
+        label: String(item.label || ""),
+        path: String(item.path || ""),
+      }))
+      : [],
+    unsupportedCapabilityExplanations: Array.isArray(result.unsupported_capability_explanations)
+      ? result.unsupported_capability_explanations.filter(isRecord)
+      : [],
+    divergenceReason: typeof result.divergence_reason === "string" ? result.divergence_reason : null,
+    goldenRecord: isRecord(result.golden_record) ? result.golden_record : {},
+    streamEvents: Array.isArray(result.stream_events) ? result.stream_events.filter(isRecord) : undefined,
+    streamStatus: isRecord(result.stream_status) ? result.stream_status : undefined,
+  };
+}
+
+function mapCompatibilityMigrationResponse(result: Record<string, unknown>): CompatibilityMigrationResponse {
+  const report = isRecord(result.report) ? result.report : {};
+  return {
+    report: {
+      framework: String(report.framework || "langgraph"),
+      adapter: String(report.adapter || "langgraph"),
+      overallStatus: String(report.overall_status || "unknown"),
+      blockedReason: typeof report.blocked_reason === "string" ? report.blocked_reason : null,
+      unsupportedCapabilities: Array.isArray(report.unsupported_capabilities)
+        ? report.unsupported_capabilities.filter(isRecord)
+        : [],
+      requiredDimooRunConfig: Array.isArray(report.required_dimoorun_config)
+        ? report.required_dimoorun_config.map(String)
+        : [],
+      adapterContractVersion: String(report.adapter_contract_version || ""),
+      checkpointRequirements: isRecord(report.checkpoint_requirements) ? report.checkpoint_requirements : {},
+      streamingSupport: isRecord(report.streaming_support) ? report.streaming_support : {},
+      governanceImplications: Array.isArray(report.governance_implications)
+        ? report.governance_implications.map(String)
+        : [],
+      recommendedActions: Array.isArray(report.recommended_actions)
+        ? report.recommended_actions.map(String)
+        : [],
+    },
+    goldenRecord: isRecord(result.golden_record) ? result.golden_record : {},
+    requestId: typeof result.request_id === "string" ? result.request_id : null,
+  };
+}
+
 export const liveConsoleClient = {
   async login(email: string, password: string): Promise<ConsoleLogin> {
     return nativeClient().login(email, password);
@@ -965,6 +1015,119 @@ export const liveConsoleClient = {
   async listHumanTasks(): Promise<CursorPage<HumanTask>> {
     const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/human-tasks");
     return page(payload.items.map(mapAdminHumanTask));
+  },
+  async listCompatibilityAssistants(): Promise<CursorPage<CompatibilityExplorerResult>> {
+    const payload = await nativeClient().listAdminCollection<Record<string, unknown>>(
+      "/v1/console/compatibility/langgraph/assistants",
+    );
+    return page(payload.items.map((item) => mapCompatibilityExplorerResult(item as Record<string, unknown>)));
+  },
+  async createCompatibilityAssistant(payload: Record<string, unknown>): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/console/compatibility/langgraph/assistants",
+      payload,
+    );
+    return mapCompatibilityExplorerResult(response as Record<string, unknown>);
+  },
+  async createCompatibilityThread(payload: Record<string, unknown> = {}): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/console/compatibility/langgraph/threads",
+      payload,
+    );
+    return mapCompatibilityExplorerResult(response as Record<string, unknown>);
+  },
+  async createCompatibilityRun(threadId: string, payload: Record<string, unknown>): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}/runs`,
+      payload,
+    );
+    return mapCompatibilityExplorerResult(response as Record<string, unknown>);
+  },
+  async probeCompatibilityStream(threadId: string, payload: Record<string, unknown>): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}/runs/stream-probe`,
+      payload,
+    );
+    return mapCompatibilityExplorerResult(response as Record<string, unknown>);
+  },
+  async joinCompatibilityRun(threadId: string, runId: ResourceId): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}/runs/${runId}/join`,
+    );
+    return mapCompatibilityExplorerResult(response as Record<string, unknown>);
+  },
+  async cancelCompatibilityRun(threadId: string, runId: ResourceId): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}/runs/${runId}/cancel`,
+    );
+    return mapCompatibilityExplorerResult(response as Record<string, unknown>);
+  },
+  async createCompatibilityMigrationReport(payload: Record<string, unknown>): Promise<CompatibilityMigrationResponse> {
+    const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      "/v1/console/compatibility/migration-report",
+      payload,
+    );
+    return mapCompatibilityMigrationResponse(response as Record<string, unknown>);
+  },
+  async getCompatibilityAssistant(assistantId: string): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient().listAdminCollection<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/assistants/${assistantId}`,
+    ) as unknown as Record<string, unknown>;
+    return mapCompatibilityExplorerResult(response);
+  },
+  async getCompatibilityThread(threadId: string): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient().listAdminCollection<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}`,
+    ) as unknown as Record<string, unknown>;
+    return mapCompatibilityExplorerResult(response);
+  },
+  async getCompatibilityRun(threadId: string, runId: ResourceId): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient().listAdminCollection<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}/runs/${runId}`,
+    ) as unknown as Record<string, unknown>;
+    return mapCompatibilityExplorerResult(response);
+  },
+  async getCompatibilityStreamStatus(threadId: string, runId: ResourceId): Promise<CompatibilityExplorerResult> {
+    const response = await nativeClient().listAdminCollection<Record<string, unknown>>(
+      `/v1/console/compatibility/langgraph/threads/${threadId}/runs/${runId}/stream-status`,
+    ) as unknown as Record<string, unknown>;
+    return mapCompatibilityExplorerResult(response);
+  },
+  async replayCompatibilityEvents(
+    threadId: string,
+    runId: ResourceId,
+    lastEventId: string,
+  ): Promise<CompatibilityExplorerResult> {
+    const baseUrl = apiBaseUrl();
+    if (!baseUrl) {
+      throw new Error("DimooRun API base URL is not configured.");
+    }
+    const response = await fetch(
+      `${baseUrl}/v1/console/compatibility/langgraph/threads/${threadId}/runs/${runId}/events?last_event_id=${encodeURIComponent(lastEventId)}`,
+      {
+        method: "GET",
+        headers: nativeHeaders(),
+      },
+    );
+    if (!response.ok) {
+      let detail: unknown = null;
+      try {
+        const body = await response.json() as { detail?: unknown };
+        detail = body.detail ?? body;
+      } catch {
+        detail = { message: `HTTP ${response.status}` };
+      }
+      if (isRecord(detail)) {
+        throw {
+          errorCode: typeof detail.error_code === "string" ? detail.error_code : `http_${response.status}`,
+          message: typeof detail.message === "string" ? detail.message : `HTTP ${response.status}`,
+          requestId: typeof detail.request_id === "string" ? detail.request_id : null,
+          details: isRecord(detail.details) ? detail.details : null,
+        };
+      }
+      throw detail;
+    }
+    return mapCompatibilityExplorerResult(await response.json() as Record<string, unknown>);
   },
   async decideHumanTask(taskId: ResourceId, decision: "approve" | "reject", comment = ""): Promise<HumanTask> {
     const payload = await nativeClient(crypto.randomUUID()).postAdminAction<AdminResource>(
