@@ -271,6 +271,14 @@ def authenticate_api_key(
             scopes=frozenset({"*"}),
             api_key_id=None,
         )
+    if dev_key and runtime_mode != "dev" and plain_key == dev_key:
+        return error_response(
+            status_code=401,
+            error_code="api_key_invalid",
+            message="Development API keys are only accepted in dev mode.",
+            request_id=request_id,
+            details={},
+        )
     try:
         return (authenticator or default_api_key_authenticator()).authenticate(
             plain_key,

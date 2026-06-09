@@ -13,18 +13,18 @@ def test_agent_instance_cache_key_and_reuse() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id="profile_1",
     )
     registry.mark_ready(first.id)
     reused = registry.get_ready(
         deployment_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         execution_profile_id="profile_1",
     )
 
-    assert first.cache_key == "deployment_1:version_1:profile_1"
+    assert first.cache_key == "1:1:profile_1"
     assert reused == first
 
 
@@ -36,7 +36,7 @@ def test_agent_instance_status_changes_use_registry_clock() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id="profile_1",
     )
@@ -56,13 +56,13 @@ def test_restart_and_stop_evict_cached_instances() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id=None,
     )
     registry.mark_ready(instance.id)
 
-    evicted = registry.evict_deployment("deployment_1", reason="restart")
+    evicted = registry.evict_deployment(1, reason="restart")
 
     assert evicted == [instance]
     assert instance.status == "evicted"
@@ -77,7 +77,7 @@ def test_idle_instances_can_be_evicted_by_policy() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id=None,
     )
@@ -97,7 +97,7 @@ def test_runtime_status_aggregates_instance_health() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id=None,
     )
@@ -106,7 +106,7 @@ def test_runtime_status_aggregates_instance_health() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_2",
         execution_profile_id=None,
     )
@@ -115,7 +115,7 @@ def test_runtime_status_aggregates_instance_health() -> None:
 
     summary = aggregate_runtime_status(
         desired_status=DeploymentDesiredStatus.active,
-        instances=registry.list_by_deployment("deployment_1"),
+        instances=registry.list_by_deployment(1),
         running_runs=2,
         queue_backlog=5,
     )

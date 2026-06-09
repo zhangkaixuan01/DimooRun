@@ -6,7 +6,7 @@ from dimoo_run.scheduler.in_memory import InMemoryTaskBackend
 
 
 class FailingEnqueueBackend(InMemoryTaskBackend):
-    async def enqueue(self, task: dict[str, object]) -> str:
+    async def enqueue(self, task: dict[str, object]) -> int:
         raise RuntimeError("enqueue failed")
 
 
@@ -19,7 +19,7 @@ async def test_run_manager_creates_run_and_enqueues_task() -> None:
         tenant_id=1,
         project_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         deployment_id=1,
         input_data={"message": "hello"},
     )
@@ -44,18 +44,18 @@ async def test_run_manager_removes_created_run_when_enqueue_fails() -> None:
             run_id=1,
         )
 
-    assert "run_1" not in run_store.runs
+    assert 1 not in run_store.runs
 
 
 async def test_run_manager_rejects_cross_scope_deployment_run() -> None:
     gate = DeploymentRuntimeControlService()
     gate.deployments.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="prod",
             desired_status=DeploymentDesiredStatus.active,
         )
@@ -68,10 +68,10 @@ async def test_run_manager_rejects_cross_scope_deployment_run() -> None:
 
     with pytest.raises(PermissionError, match="deployment_scope_mismatch"):
         await manager.create_run_task(
-            tenant_id="tenant_2",
+            tenant_id=2,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             deployment_id=1,
             input_data={"message": "hello"},
         )
@@ -81,11 +81,11 @@ async def test_run_manager_rejects_deployment_agent_version_mismatch() -> None:
     gate = DeploymentRuntimeControlService()
     gate.deployments.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="prod",
             desired_status=DeploymentDesiredStatus.active,
         )
@@ -101,7 +101,7 @@ async def test_run_manager_rejects_deployment_agent_version_mismatch() -> None:
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_2",
+            agent_version_id=2,
             deployment_id=1,
             input_data={"message": "hello"},
         )

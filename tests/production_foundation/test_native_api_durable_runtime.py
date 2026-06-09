@@ -9,6 +9,7 @@ from dimoo_run.api.native.runtime import (
     set_default_native_runtime,
 )
 from dimoo_run.domain.models import Agent, AuditLog, Deployment, Event, Run, Task
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.persistence.database import Base
 from dimoo_run.runtime.state_machine import InvalidStateTransitionError
 from dimoo_run.server import create_app
@@ -74,6 +75,35 @@ def auth_headers(api_key: str, *, idempotency_key: str | None = None) -> dict[st
     return headers
 
 
+def validated_version_payload() -> dict[str, object]:
+    manifest = {
+        "runtime": {
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+        },
+        "capabilities": {"invoke": True},
+    }
+    return {
+        "version": "0.1.0",
+        "package_uri": "file://support-agent",
+        "framework": "langgraph",
+        "adapter": "langgraph",
+        "entrypoint": "agent:create_agent",
+        "manifest": {
+            **manifest,
+            "validation_token": validation_token(
+                package_uri="file://support-agent",
+                framework="langgraph",
+                adapter="langgraph",
+                entrypoint="agent:create_agent",
+                manifest=manifest,
+            ),
+        },
+        "status": "ready",
+    }
+
+
 def test_native_api_can_use_sqlalchemy_runtime_store(
     durable_client: tuple[TestClient, Session, str],
 ) -> None:
@@ -86,13 +116,7 @@ def test_native_api_can_use_sqlalchemy_runtime_store(
     version = client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     ).json()
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -126,13 +150,7 @@ def test_native_api_durable_runtime_replays_idempotent_create(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     )
 
     first = client.post(
@@ -195,13 +213,7 @@ def test_native_api_cancel_responses_reflect_sqlalchemy_state(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -242,13 +254,7 @@ def test_native_api_cancel_uses_runtime_state_machine(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -284,13 +290,7 @@ def test_native_api_exposes_dead_letter_task_details(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -328,13 +328,7 @@ def test_native_api_exposes_task_runtime_scheduling_details(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",
@@ -344,7 +338,7 @@ def test_native_api_exposes_task_runtime_scheduling_details(
     task = session.get(Task, task_response["task_id"])
     assert task is not None
     task.metadata_json = {
-        "partition_key": "tenant_1:project_1",
+        "partition_key": "1:1",
         "resource_class": "gpu",
         "quota_blocking_reason": {
             "error_code": "runtime_quota_exceeded",
@@ -362,7 +356,7 @@ def test_native_api_exposes_task_runtime_scheduling_details(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["partition_key"] == "tenant_1:project_1"
+    assert body["partition_key"] == "1:1"
     assert body["resource_class"] == "gpu"
     assert body["quota_blocking_reason"]["scope"] == "project"
 
@@ -407,13 +401,7 @@ def test_native_api_uses_request_scoped_sqlalchemy_runtime_from_env(
     client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=auth_headers(api_key),
-        json={
-            "version": "0.1.0",
-            "package_uri": "file://support-agent",
-            "framework": "langgraph",
-            "adapter": "langgraph",
-            "entrypoint": "agent:create_agent",
-        },
+        json=validated_version_payload(),
     )
     task_response = client.post(
         f"/v1/agents/{agent['id']}/tasks",

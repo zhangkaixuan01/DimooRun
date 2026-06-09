@@ -16,6 +16,7 @@ class FakeRedis:
         self.lists: dict[str, list[str]] = {}
         self.published: list[tuple[str, str]] = []
         self.pubsub_messages: list[dict[str, str]] = []
+        self.counters: dict[str, int] = {}
 
     def hset(self, key: str, *, mapping: dict[str, str]) -> None:
         self.hashes.setdefault(key, {}).update(mapping)
@@ -51,6 +52,11 @@ class FakeRedis:
 
     def pubsub(self) -> "FakePubSub":
         return FakePubSub(self)
+
+    def incr(self, key: str) -> int:
+        value = self.counters.get(key, 0) + 1
+        self.counters[key] = value
+        return value
 
 
 class EvalRedis(FakeRedis):

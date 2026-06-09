@@ -33,9 +33,9 @@ def context() -> RuntimeContext:
         run_id=1,
         task_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         deployment_id=1,
-        user_id="user_1",
+        user_id=1,
         thread_id="thread_1",
     )
 
@@ -469,9 +469,9 @@ def test_catalog_prompt_assets_and_sandbox_policy_are_governed_boundaries() -> N
 
     assert item.status == "active"
     assert prompt.version == "1.0.0"
-    assert prompts.resolve_prompt("tenant_1", "project_1", "support-system", "1.0.0") == prompt
+    assert prompts.resolve_prompt(1, 1, "support-system", "1.0.0") == prompt
     with pytest.raises(AssetVersionError):
-        prompts.resolve_prompt("tenant_1", "project_1", "support-system", "latest")
+        prompts.resolve_prompt(1, 1, "support-system", "latest")
     with pytest.raises(SandboxPolicyViolation):
         sandbox.validate_env({"OPENAI_API_KEY": "leaked"})
 

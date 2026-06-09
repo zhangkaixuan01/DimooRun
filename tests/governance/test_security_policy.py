@@ -65,7 +65,7 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
     )
 
     assert actor.actor_type == "service_account"
-    assert actor.actor_id == service_account.id
+    assert actor.actor_id == str(service_account.id)
     assert authenticator.keys[api_key.id].last_used_at == now
     assert audit_sink.records[0].actor_type == "service_account"
     assert audit_sink.records[0].result == "allow"
@@ -85,7 +85,7 @@ def test_api_key_authentication_enforces_scope_project_status_and_last_used() ->
         authenticator.authenticate(
             plain_key,
             tenant_id=1,
-            project_id="project_2",
+            project_id=2,
             required_scope="agent:invoke",
         )
 
@@ -120,7 +120,7 @@ def test_api_key_creation_requires_owner_scope_status_and_same_tenant_project() 
 
     with pytest.raises(APIKeyScopeError, match="owner_scope_mismatch"):
         authenticator.create_key(
-            tenant_id="tenant_2",
+            tenant_id=2,
             project_id=1,
             name="cross-tenant",
             owner_type="service_account",
@@ -131,7 +131,7 @@ def test_api_key_creation_requires_owner_scope_status_and_same_tenant_project() 
     with pytest.raises(APIKeyScopeError, match="owner_scope_mismatch"):
         authenticator.create_key(
             tenant_id=1,
-            project_id="project_2",
+            project_id=2,
             name="cross-project",
             owner_type="service_account",
             owner_id=service_account.id,

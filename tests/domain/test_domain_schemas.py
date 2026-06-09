@@ -74,11 +74,11 @@ def test_status_enums_match_design_spec() -> None:
 
 def test_deployment_schema_separates_desired_and_runtime_status() -> None:
     deployment = DeploymentRead(
-        id="dep_1",
+        id=1,
         tenant_id=1,
         project_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         environment="local",
         desired_status=DeploymentDesiredStatus.active,
         runtime_status=DeploymentRuntimeStatus.ready,
@@ -91,14 +91,14 @@ def test_deployment_schema_separates_desired_and_runtime_status() -> None:
 
 def test_run_schema_keeps_nullable_service_account_id() -> None:
     run = RunRead(
-        id="run_1",
+        id=1,
         tenant_id=1,
         project_id=1,
-        user_id="user_1",
+        user_id=1,
         service_account_id=None,
         agent_id=1,
-        agent_version_id="version_1",
-        deployment_id="dep_1",
+        agent_version_id=1,
+        deployment_id=1,
         status=RunStatus.pending,
     )
 

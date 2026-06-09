@@ -3,6 +3,7 @@ from dimoo_run.api.native.deployments import default_deployment_control, reset_d
 from dimoo_run.deployments.service import DeploymentRecord
 from dimoo_run.domain.enums import DeploymentDesiredStatus
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
@@ -37,11 +38,11 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
     service = default_deployment_control()
     service.deployments.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="dev",
             desired_status=DeploymentDesiredStatus.draft,
         )
@@ -51,7 +52,7 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id=None,
     )
@@ -60,7 +61,7 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
     client = TestClient(create_app())
 
     response = client.post(
-        "/v1/deployments/deployment_1/activate",
+        "/v1/deployments/1/activate",
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_1",
@@ -69,7 +70,7 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
         },
     )
     instances_response = client.get(
-        "/v1/deployments/deployment_1/instances",
+        "/v1/deployments/1/instances",
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Tenant-Id": "1",
@@ -81,7 +82,7 @@ def test_deployment_control_api_updates_status_and_lists_instances() -> None:
     assert response.json()["desired_status"] == "active"
     assert instances_response.status_code == 200
     assert instances_response.json()[0]["worker_id"] == "worker_1"
-    assert service.audit_sink.entries[0].actor_id == service_account.id
+    assert service.audit_sink.entries[0].actor_id == str(service_account.id)
 
 
 def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
@@ -105,7 +106,36 @@ def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
             "X-Tenant-Id": "1",
             "X-Project-Id": "1",
         },
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file://support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+            "manifest": {
+                "runtime": {
+                    "framework": "langgraph",
+                    "adapter": "langgraph",
+                    "entrypoint": "agent:create_agent",
+                },
+                "capabilities": {"invoke": True},
+                "validation_token": validation_token(
+                    package_uri="file://support-agent",
+                    framework="langgraph",
+                    adapter="langgraph",
+                    entrypoint="agent:create_agent",
+                    manifest={
+                        "runtime": {
+                            "framework": "langgraph",
+                            "adapter": "langgraph",
+                            "entrypoint": "agent:create_agent",
+                        },
+                        "capabilities": {"invoke": True},
+                    },
+                ),
+            },
+            "status": "ready",
+        },
     ).json()
 
     response = client.post(
@@ -141,7 +171,7 @@ def test_deployment_api_creates_deployment_with_deploy_scope() -> None:
     assert response.status_code == 201
     assert response.json()["agent_id"] == agent["id"]
     assert response.json()["runtime_status"] == "not_loaded"
-    assert default_deployment_control().audit_sink.entries[0].actor_id == service_account.id
+    assert default_deployment_control().audit_sink.entries[0].actor_id == str(service_account.id)
     assert duplicate.status_code == 409
     assert duplicate.json()["error_code"] == "deployment_already_exists"
 
@@ -168,7 +198,7 @@ def test_deployment_api_rejects_missing_agent_version_binding() -> None:
         },
         json={
             "agent_id": agent["id"],
-            "agent_version_id": "missing_version",
+            "agent_version_id": 999999,
             "environment": "dev",
         },
     )
@@ -182,7 +212,7 @@ def test_deployment_control_api_returns_stable_error_response() -> None:
     client = TestClient(create_app())
 
     response = client.post(
-        "/v1/deployments/missing/activate",
+        "/v1/deployments/999999/activate",
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Request-Id": "req_missing",
@@ -196,7 +226,7 @@ def test_deployment_control_api_returns_stable_error_response() -> None:
         "error_code": "deployment_not_found",
         "message": "Deployment was not found.",
         "request_id": "req_missing",
-        "details": {"deployment_id": "missing"},
+        "details": {"deployment_id": 999999},
     }
 
 
@@ -204,21 +234,21 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
     service = default_deployment_control()
     service.deployments.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="dev",
         )
     )
     service.deployments.add(
         DeploymentRecord(
-            id="deployment_2",
-            tenant_id="tenant_2",
-            project_id="project_2",
-            agent_id="agent_2",
-            agent_version_id="version_2",
+            id=2,
+            tenant_id=2,
+            project_id=2,
+            agent_id=2,
+            agent_version_id=2,
             environment="dev",
         )
     )
@@ -235,7 +265,7 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
         },
     )
     cross_scope = client.get(
-        "/v1/deployments/deployment_2",
+        "/v1/deployments/2",
         headers={
             "Authorization": f"Bearer {plain_key}",
             "X-Tenant-Id": "1",
@@ -245,7 +275,7 @@ def test_deployment_api_requires_request_scope_and_filters_by_scope() -> None:
 
     assert missing_scope.status_code == 400
     assert missing_scope.json()["error_code"] == "request_scope_required"
-    assert [deployment["id"] for deployment in scoped.json()] == ["deployment_1"]
+    assert [deployment["id"] for deployment in scoped.json()] == [1]
     assert cross_scope.status_code == 404
     assert cross_scope.json()["error_code"] == "deployment_not_found"
 
@@ -254,11 +284,11 @@ def test_deployment_control_api_requires_api_key_with_deploy_scope() -> None:
     service = default_deployment_control()
     service.deployments.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="dev",
         )
     )
@@ -266,11 +296,11 @@ def test_deployment_control_api_requires_api_key_with_deploy_scope() -> None:
     client = TestClient(create_app())
 
     missing_auth = client.post(
-        "/v1/deployments/deployment_1/activate",
+        "/v1/deployments/1/activate",
         headers={"X-Tenant-Id": "1", "X-Project-Id": "1"},
     )
     insufficient_scope = client.post(
-        "/v1/deployments/deployment_1/activate",
+        "/v1/deployments/1/activate",
         headers={
             "Authorization": f"Bearer {read_only_key}",
             "X-Tenant-Id": "1",

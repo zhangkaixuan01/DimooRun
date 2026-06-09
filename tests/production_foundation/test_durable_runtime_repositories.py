@@ -28,7 +28,7 @@ def test_durable_agent_version_run_task_event_flow() -> None:
 
         agent = agents.create(
             Agent(
-                id="agent_1",
+                id=1,
                 tenant_id=1,
                 project_id=1,
                 name="support-agent",
@@ -37,7 +37,7 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         )
         version = versions.create(
             AgentVersion(
-                id="agent_version_1",
+                id=1,
                 agent_id=agent.id,
                 version="0.1.0",
                 package_uri="file://support-agent",
@@ -48,7 +48,7 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         )
         deployment = deployments.create(
             Deployment(
-                id="deployment_1",
+                id=1,
                 tenant_id=1,
                 project_id=1,
                 agent_id=agent.id,
@@ -59,18 +59,18 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         )
         run = runs.create(
             Run(
-                id="run_1",
+                id=1,
                 tenant_id=1,
                 project_id=1,
                 agent_id=agent.id,
                 agent_version_id=version.id,
-                input_ref="artifact://run_1/input",
+                input_ref="artifact://1/input",
                 idempotency_key="idem_1",
             )
         )
         task = tasks.create(
             Task(
-                id="task_1",
+                id=1,
                 run_id=run.id,
                 tenant_id=1,
                 project_id=1,
@@ -95,7 +95,6 @@ def test_durable_agent_version_run_task_event_flow() -> None:
             payload={"task_id": task.id},
         )
         audits.append(
-            audit_id="audit_1",
             tenant_id=1,
             project_id=1,
             action="run.create",
@@ -106,27 +105,27 @@ def test_durable_agent_version_run_task_event_flow() -> None:
         )
         session.commit()
 
-        assert agents.get_by_name("tenant_1", "project_1", "support-agent") == agent
+        assert agents.get_by_name(1, 1, "support-agent") == agent
         assert versions.get_by_agent_version(agent.id, "0.1.0") == version
         assert (
             deployments.get_by_environment(
-                "tenant_1",
-                "project_1",
+                1,
+                1,
                 environment="dev",
                 agent_id=agent.id,
             )
             == deployment
         )
-        assert runs.list_by_project("tenant_1", "project_1") == [run]
+        assert runs.list_by_project(1, 1) == [run]
         assert tasks.list_by_run(run.id) == [task]
         assert [event.type for event in events.list_by_run(run.id)] == [
             "run.created",
             "task.queued",
         ]
         assert first.sequence == 1
-        assert first.event_id == "run_1:1"
+        assert first.event_id == "1:1"
         assert second.sequence == 2
-        assert second.event_id == "run_1:2"
+        assert second.event_id == "1:2"
 
 
 def test_durable_run_and_task_transitions_set_timestamps() -> None:
@@ -138,16 +137,16 @@ def test_durable_run_and_task_transitions_set_timestamps() -> None:
         tasks = TaskRepository(session)
         run = runs.create(
             Run(
-                id="run_1",
+                id=1,
                 tenant_id=1,
                 project_id=1,
                 agent_id=1,
-                agent_version_id="agent_version_1",
+                agent_version_id=1,
             )
         )
         task = tasks.create(
             Task(
-                id="task_1",
+                id=1,
                 run_id=run.id,
                 tenant_id=1,
                 project_id=1,
@@ -175,11 +174,11 @@ def test_durable_deployment_transition_updates_control_state() -> None:
         deployments = DeploymentRepository(session)
         deployment = deployments.create(
             Deployment(
-                id="deployment_1",
+                id=1,
                 tenant_id=1,
                 project_id=1,
                 agent_id=1,
-                agent_version_id="agent_version_1",
+                agent_version_id=1,
                 environment="prod",
             )
         )
@@ -192,4 +191,4 @@ def test_durable_deployment_transition_updates_control_state() -> None:
 
         assert updated.desired_status == "active"
         assert updated.runtime_status == "warming_up"
-        assert deployments.list_by_project("tenant_1", "project_1") == [deployment]
+        assert deployments.list_by_project(1, 1) == [deployment]

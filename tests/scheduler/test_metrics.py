@@ -14,11 +14,11 @@ def test_sqlalchemy_scheduler_metrics_snapshot_counts_runtime_queue() -> None:
     now = datetime(2026, 1, 1, tzinfo=UTC)
     session.add_all(
         [
-            _task("task_queued", "queued"),
-            _task("task_running", "running"),
-            _task("task_leased_expired", "leased", leased_until=now - timedelta(seconds=1)),
-            _task("task_retrying", "retrying"),
-            _task("task_dead_letter", "dead_letter"),
+            _task(1, "queued"),
+            _task(2, "running"),
+            _task(3, "leased", leased_until=now - timedelta(seconds=1)),
+            _task(4, "retrying"),
+            _task(5, "dead_letter"),
         ]
     )
     session.flush()
@@ -44,7 +44,7 @@ def _task(
 ) -> Task:
     return Task(
         id=task_id,
-        run_id=f"run_{task_id}",
+        run_id=task_id,
         tenant_id=1,
         project_id=1,
         status=status,

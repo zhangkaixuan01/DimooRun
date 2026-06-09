@@ -17,11 +17,11 @@ def create_service() -> tuple[DeploymentRuntimeControlService, InMemoryDeploymen
     store = InMemoryDeploymentStore()
     store.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="dev",
         )
     )
@@ -39,16 +39,16 @@ def test_deployment_control_actions_update_desired_status_and_audit() -> None:
     service, store = create_service()
 
     activated = service.activate(
-        "deployment_1",
-        actor_id="user_1",
+        1,
+        actor_id="1",
         tenant_id=1,
         project_id=1,
         request_id="req_1",
     )
-    paused = service.pause("deployment_1", actor_id="user_1")
-    resumed = service.resume("deployment_1", actor_id="user_1")
-    draining = service.drain("deployment_1", actor_id="user_1")
-    stopped = service.stop("deployment_1", actor_id="user_1")
+    paused = service.pause(1, actor_id="1")
+    resumed = service.resume(1, actor_id="1")
+    draining = service.drain(1, actor_id="1")
+    stopped = service.stop(1, actor_id="1")
 
     assert activated.desired_status == DeploymentDesiredStatus.active
     assert paused.desired_status == DeploymentDesiredStatus.paused
@@ -65,7 +65,7 @@ def test_deployment_control_actions_update_desired_status_and_audit() -> None:
     assert service.audit_sink.entries[0].tenant_id == 1
     assert service.audit_sink.entries[0].project_id == 1
     assert service.audit_sink.entries[0].request_id == "req_1"
-    assert store.get("deployment_1").runtime_status == DeploymentRuntimeStatus.stopped
+    assert store.get(1).runtime_status == DeploymentRuntimeStatus.stopped
 
 
 def test_deployment_control_rejects_scope_mismatch_before_policy() -> None:
@@ -73,16 +73,16 @@ def test_deployment_control_rejects_scope_mismatch_before_policy() -> None:
 
     with pytest.raises(PolicyDeniedError, match="deployment_scope_mismatch"):
         service.activate(
-            "deployment_1",
-            actor_id="user_1",
-            tenant_id="tenant_2",
+            1,
+            actor_id="1",
+            tenant_id=2,
             project_id=1,
             request_id="req_scope",
         )
 
-    assert store.get("deployment_1").desired_status == DeploymentDesiredStatus.draft
+    assert store.get(1).desired_status == DeploymentDesiredStatus.draft
     assert service.audit_sink.entries[0].result == "denied"
-    assert service.audit_sink.entries[0].tenant_id == "tenant_2"
+    assert service.audit_sink.entries[0].tenant_id == 2
     assert service.audit_sink.entries[0].project_id == 1
     assert service.audit_sink.entries[0].request_id == "req_scope"
     assert service.audit_sink.entries[0].metadata["reason"] == "deployment_scope_mismatch"
@@ -93,8 +93,8 @@ def test_policy_denied_error_exposes_stable_error_code() -> None:
 
     with pytest.raises(PolicyDeniedError) as exc_info:
         service.assert_accepts_new_run(
-            "deployment_1",
-            tenant_id="tenant_2",
+            1,
+            tenant_id=2,
             project_id=1,
         )
 
@@ -109,38 +109,38 @@ def test_restart_evicts_instances_without_changing_agent_version() -> None:
         project_id=1,
         deployment_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         worker_id="worker_1",
         execution_profile_id="profile_1",
     )
 
-    deployment = service.restart("deployment_1", actor_id="user_1")
+    deployment = service.restart(1, actor_id="1")
 
-    assert deployment.agent_version_id == "version_1"
+    assert deployment.agent_version_id == 1
     assert deployment.desired_status == DeploymentDesiredStatus.active
-    assert service.instances.list_by_deployment("deployment_1")[0].status == "evicted"
+    assert service.instances.list_by_deployment(1)[0].status == "evicted"
 
 
 def test_reactivating_stopped_deployment_recomputes_runtime_status() -> None:
     service, store = create_service()
 
-    service.stop("deployment_1", actor_id="user_1")
-    activated = service.activate("deployment_1", actor_id="user_1")
+    service.stop(1, actor_id="1")
+    activated = service.activate(1, actor_id="1")
 
     assert activated.desired_status == DeploymentDesiredStatus.active
     assert activated.runtime_status == DeploymentRuntimeStatus.not_loaded
-    assert store.get("deployment_1").runtime_status == DeploymentRuntimeStatus.not_loaded
+    assert store.get(1).runtime_status == DeploymentRuntimeStatus.not_loaded
 
 
 def test_policy_denial_blocks_control_action_and_writes_denied_audit() -> None:
     store = InMemoryDeploymentStore()
     store.add(
         DeploymentRecord(
-            id="deployment_1",
+            id=1,
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             environment="prod",
         )
     )
@@ -153,14 +153,14 @@ def test_policy_denial_blocks_control_action_and_writes_denied_audit() -> None:
 
     with pytest.raises(PolicyDeniedError):
         service.activate(
-            "deployment_1",
-            actor_id="user_1",
+            1,
+            actor_id="1",
             tenant_id=1,
             project_id=1,
             request_id="req_denied",
         )
 
-    assert store.get("deployment_1").desired_status == DeploymentDesiredStatus.draft
+    assert store.get(1).desired_status == DeploymentDesiredStatus.draft
     assert audit_sink.entries[0].result == "denied"
     assert audit_sink.entries[0].tenant_id == 1
     assert audit_sink.entries[0].project_id == 1
@@ -171,7 +171,7 @@ def test_policy_denial_blocks_control_action_and_writes_denied_audit() -> None:
 @pytest.mark.asyncio
 async def test_run_manager_rejects_new_runs_for_paused_deployment() -> None:
     service, _ = create_service()
-    service.pause("deployment_1", actor_id="user_1")
+    service.pause(1, actor_id="1")
     run_manager = RunManager(
         run_store=InMemoryRunStore(),
         task_backend=InMemoryTaskBackend(),
@@ -183,7 +183,7 @@ async def test_run_manager_rejects_new_runs_for_paused_deployment() -> None:
             tenant_id=1,
             project_id=1,
             agent_id=1,
-            agent_version_id="version_1",
+            agent_version_id=1,
             deployment_id=1,
             input_data={"message": "hello"},
         )

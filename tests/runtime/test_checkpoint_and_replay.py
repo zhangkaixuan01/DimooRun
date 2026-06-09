@@ -16,7 +16,7 @@ def test_checkpoint_index_stores_lookup_metadata_without_payload_parsing() -> No
     )
 
     assert checkpoint.payload_uri == "framework://checkpoint/1"
-    assert store.list_by_run("run_1") == [checkpoint]
+    assert store.list_by_run(1) == [checkpoint]
 
 
 def test_checkpoint_index_created_at_uses_fresh_timestamp() -> None:
@@ -46,17 +46,17 @@ async def test_replay_scheduler_creates_new_run_and_task() -> None:
         tenant_id=1,
         project_id=1,
         agent_id=1,
-        agent_version_id="version_1",
+        agent_version_id=1,
         deployment_id=1,
         input_data={"message": "hello"},
     )
 
     replay_run = await scheduler.replay_run(
         source_run_id=source_run.run_id,
-        candidate_agent_version_id="version_2",
+        candidate_agent_version_id=2,
     )
 
     assert replay_run.run_id != source_run.run_id
     assert replay_run.input_data == source_run.input_data
-    assert replay_run.agent_version_id == "version_2"
+    assert replay_run.agent_version_id == 2
     assert len(task_backend.tasks) == 1

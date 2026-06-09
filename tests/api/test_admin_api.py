@@ -265,7 +265,10 @@ def test_incident_decision_actions_update_persisted_admin_record() -> None:
     acknowledged = client.post(
         f"/v1/incidents/{incident_id}/acknowledge",
         headers=scoped_admin_headers("req_incident_ack"),
-        json={"decision_payload": {"acknowledged_by": "console"}},
+        json={
+            "audit_note": "triaged in console",
+            "decision_payload": {"acknowledged_by": "console"},
+        },
     )
     listed = client.get("/v1/incidents", headers=scoped_admin_headers("req_incident_list"))
 

@@ -6,6 +6,7 @@ from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_
 from dimoo_run.api.native.deployments import reset_deployment_control
 from dimoo_run.api.native.runtime import reset_native_runtime
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 
@@ -90,6 +91,29 @@ def create_agent_with_version(client: TestClient, key: str) -> tuple[int, int]:
             "framework": "langgraph",
             "adapter": "langgraph",
             "entrypoint": "agent:create_agent",
+            "manifest": {
+                "runtime": {
+                    "framework": "langgraph",
+                    "adapter": "langgraph",
+                    "entrypoint": "agent:create_agent",
+                },
+                "capabilities": {"invoke": True},
+                "validation_token": validation_token(
+                    package_uri="file://support-agent",
+                    framework="langgraph",
+                    adapter="langgraph",
+                    entrypoint="agent:create_agent",
+                    manifest={
+                        "runtime": {
+                            "framework": "langgraph",
+                            "adapter": "langgraph",
+                            "entrypoint": "agent:create_agent",
+                        },
+                        "capabilities": {"invoke": True},
+                    },
+                ),
+            },
+            "status": "ready",
         },
     )
     assert version.status_code == 201

@@ -53,11 +53,7 @@ class IngressPreflightMiddleware:
         return bool(headers.get("origin") and headers.get("access-control-request-method"))
 
 
-@router.api_route(
-    "/v1/ingress/{ingress_path:path}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-)
-async def invoke_published_surface(
+async def _invoke_published_surface(
     ingress_path: str,
     request: Request,
     x_request_id: RequestIdHeader = None,
@@ -82,6 +78,51 @@ async def invoke_published_surface(
     if status_code >= 400:
         return JSONResponse(status_code=status_code, content=payload, headers=response_headers)
     return JSONResponse(status_code=status_code, content=payload, headers=response_headers)
+
+
+@router.get("/v1/ingress/{ingress_path:path}", operation_id="ingress_get")
+async def ingress_get(
+    ingress_path: str,
+    request: Request,
+    x_request_id: RequestIdHeader = None,
+) -> Any:
+    return await _invoke_published_surface(ingress_path, request, x_request_id)
+
+
+@router.post("/v1/ingress/{ingress_path:path}", operation_id="ingress_post")
+async def ingress_post(
+    ingress_path: str,
+    request: Request,
+    x_request_id: RequestIdHeader = None,
+) -> Any:
+    return await _invoke_published_surface(ingress_path, request, x_request_id)
+
+
+@router.put("/v1/ingress/{ingress_path:path}", operation_id="ingress_put")
+async def ingress_put(
+    ingress_path: str,
+    request: Request,
+    x_request_id: RequestIdHeader = None,
+) -> Any:
+    return await _invoke_published_surface(ingress_path, request, x_request_id)
+
+
+@router.patch("/v1/ingress/{ingress_path:path}", operation_id="ingress_patch")
+async def ingress_patch(
+    ingress_path: str,
+    request: Request,
+    x_request_id: RequestIdHeader = None,
+) -> Any:
+    return await _invoke_published_surface(ingress_path, request, x_request_id)
+
+
+@router.delete("/v1/ingress/{ingress_path:path}", operation_id="ingress_delete")
+async def ingress_delete(
+    ingress_path: str,
+    request: Request,
+    x_request_id: RequestIdHeader = None,
+) -> Any:
+    return await _invoke_published_surface(ingress_path, request, x_request_id)
 
 
 def _correlation_headers(payload: dict[str, Any]) -> dict[str, str]:
