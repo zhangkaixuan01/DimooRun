@@ -30236,7 +30236,7 @@
             "required": true,
             "schema": {
               "title": "Policy Id",
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -30374,7 +30374,7 @@
             "required": true,
             "schema": {
               "title": "Policy Id",
-              "type": "string"
+              "type": "integer"
             }
           },
           {

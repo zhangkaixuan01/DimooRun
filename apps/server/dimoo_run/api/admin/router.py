@@ -330,12 +330,12 @@ _DB_COLLECTIONS: dict[str, AdminDbCollectionSpec] = {
         expose_name_from_metadata=True,
     ),
     "schedules": AdminDbCollectionSpec(
-        getattr(domain_models, "ScheduledRuns"),
+        domain_models.ScheduledRuns,
         defaults={"metadata_json": {}},
         expose_name_from_metadata=True,
     ),
     "batch_runs": AdminDbCollectionSpec(
-        getattr(domain_models, "BatchRuns"),
+        domain_models.BatchRuns,
         defaults={"metadata_json": {}},
         expose_name_from_metadata=True,
     ),

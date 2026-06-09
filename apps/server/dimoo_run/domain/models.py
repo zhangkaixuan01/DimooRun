@@ -1231,3 +1231,6 @@ for _table_name in [
     globals()["".join(part.capitalize() for part in _table_name.split("_"))] = (
         create_metadata_model(_table_name)
     )
+
+ScheduledRuns = globals()["ScheduledRuns"]
+BatchRuns = globals()["BatchRuns"]
