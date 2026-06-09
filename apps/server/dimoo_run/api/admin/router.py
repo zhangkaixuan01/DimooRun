@@ -1196,13 +1196,15 @@ def _db_payload_attrs(
     metadata = dict(getattr(existing, "metadata_json", None) or attrs.get("metadata_json") or {})
     if isinstance(data.get("metadata"), dict):
         metadata.update(dict(data["metadata"]))
+    if isinstance(data.get("metadata_json"), dict):
+        metadata.update(dict(data["metadata_json"]))
     if "name" in data and "name" not in columns:
         metadata["name"] = data["name"]
     if spec.environment_in_metadata and environment is not None and "environment" not in columns:
         metadata["_environment"] = environment
 
     for key, value in data.items():
-        if key in {"id", "tenant_id", "project_id", "environment", "metadata"}:
+        if key in {"id", "tenant_id", "project_id", "environment", "metadata", "metadata_json"}:
             continue
         if key in columns and key not in _AUDIT_FIELD_NAMES:
             attrs[key] = _coerce_column_value(spec.model, key, value)
@@ -1780,19 +1782,30 @@ def list_human_tasks(
 @router.post("/human-tasks", status_code=201)
 def create_human_task(
     response: Response,
+    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)],
     payload: AdminPayload = None,
-    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)] | None = None,
     x_request_id: RequestIdHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_environment: EnvironmentHeader = None,
 ) -> dict[str, Any]:
     data = payload or {}
+    human_task_metadata = {
+        "name": data.get("name"),
+        "source": data.get("source") or data.get("name") or "admin",
+        "risk": data.get("risk") or "medium",
+        "assignee": data.get("assignee") or data.get("assignee_role") or "unassigned",
+        "requester": data.get("requester"),
+        "risk_reason": data.get("risk_reason"),
+        "decision_context": dict(data.get("decision_context") or {}),
+        "diff": dict(data.get("diff") or {}),
+    }
     create_payload = {
         "type": data.get("type") or "approval",
         "status": data.get("status") or "pending",
         "assignee_role": data.get("assignee") or data.get("assignee_role"),
         "payload_ref": "inline:payload",
+        "metadata_json": human_task_metadata,
     }
     result = _create(
         "human_tasks",
@@ -1807,16 +1820,7 @@ def create_human_task(
     item = result.get("item")
     if isinstance(item, dict) and "id" in item:
         task_id = int(item["id"])
-        _HUMAN_TASK_CONTEXT[task_id] = {
-            "name": data.get("name"),
-            "source": data.get("source") or data.get("name") or "admin",
-            "risk": data.get("risk") or "medium",
-            "assignee": data.get("assignee") or data.get("assignee_role") or "unassigned",
-            "requester": data.get("requester"),
-            "risk_reason": data.get("risk_reason"),
-            "decision_context": dict(data.get("decision_context") or {}),
-            "diff": dict(data.get("diff") or {}),
-        }
+        _HUMAN_TASK_CONTEXT[task_id] = human_task_metadata
         result["item"] = _decorate_human_task_item(item)
     return result
 
@@ -1914,8 +1918,9 @@ def _record_human_decision(
                 "decision": decision,
             }
             _HUMAN_TASK_CONTEXT[task_id] = context
+            item = _serialize_db_admin_record(task, spec)
             return {
-                "item": _serialize_db_admin_record(task, spec),
+                "item": _decorate_human_task_item(item),
                 "request_id": request_id,
                 "audit_required": True,
             }
