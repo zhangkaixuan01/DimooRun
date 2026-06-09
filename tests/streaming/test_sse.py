@@ -12,7 +12,7 @@ def test_encode_sse_event_includes_id_event_and_json_payload() -> None:
         )
     )
 
-    assert "id: run_1:1" in encoded
+    assert "id: 1:1" in encoded
     assert "event: agent.stream_chunk" in encoded
     assert 'data: {"delta":"hello"}' in encoded
     assert encoded.endswith("\n\n")

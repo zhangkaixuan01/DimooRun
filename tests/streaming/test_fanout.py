@@ -56,10 +56,10 @@ class FakePubSub:
 
 def test_stream_fanout_delivers_events_to_subscribers() -> None:
     hub = StreamFanOutHub(max_buffer_size=2)
-    first = hub.subscribe("run_1", "subscriber_1")
-    second = hub.subscribe("run_1", "subscriber_2")
+    first = hub.subscribe(1, "subscriber_1")
+    second = hub.subscribe(1, "subscriber_2")
 
-    delivered = hub.publish("run_1", AgentEvent("agent.stream_chunk", {"delta": "hello"}))
+    delivered = hub.publish(1, AgentEvent("agent.stream_chunk", {"delta": "hello"}))
 
     assert delivered == 2
     assert [event.payload for event in first.drain()] == [{"delta": "hello"}]
@@ -68,15 +68,15 @@ def test_stream_fanout_delivers_events_to_subscribers() -> None:
 
 def test_stream_fanout_disconnects_slow_subscriber_on_backpressure() -> None:
     hub = StreamFanOutHub(max_buffer_size=1)
-    subscriber = hub.subscribe("run_1", "slow")
-    hub.publish("run_1", AgentEvent("agent.stream_chunk", {"delta": "first"}))
+    subscriber = hub.subscribe(1, "slow")
+    hub.publish(1, AgentEvent("agent.stream_chunk", {"delta": "first"}))
 
-    delivered = hub.publish("run_1", AgentEvent("agent.stream_chunk", {"delta": "second"}))
+    delivered = hub.publish(1, AgentEvent("agent.stream_chunk", {"delta": "second"}))
 
     assert delivered == 0
     assert subscriber.disconnected is True
     assert subscriber.disconnect_reason == "stream_backpressure"
-    assert hub.subscriber_count("run_1") == 0
+    assert hub.subscriber_count(1) == 0
 
 
 @pytest.mark.asyncio
@@ -85,22 +85,22 @@ async def test_redis_stream_fanout_writes_replay_stream_and_pubsub() -> None:
     bridge = RedisStreamFanOutBridge(redis)
 
     stream_id = await bridge.publish(
-        "run_1",
+        1,
         AgentEvent(
             "agent.stream_chunk",
             {"delta": "hello"},
             run_id=1,
             sequence=3,
-            event_id="run_1:3",
+            event_id="1:3",
         ),
     )
 
     assert stream_id == "1-0"
-    assert list(redis.streams) == ["dimoorun:stream:run_1"]
-    stored = json.loads(redis.streams["dimoorun:stream:run_1"][0]["event"])
-    assert stored["event_id"] == "run_1:3"
+    assert list(redis.streams) == ["dimoorun:stream:1"]
+    stored = json.loads(redis.streams["dimoorun:stream:1"][0]["event"])
+    assert stored["event_id"] == "1:3"
     assert stored["payload"] == {"delta": "hello"}
-    assert redis.published[0][0] == "dimoorun:fanout:run_1"
+    assert redis.published[0][0] == "dimoorun:fanout:1"
     assert json.loads(redis.published[0][1]) == stored
 
 
@@ -109,17 +109,17 @@ async def test_redis_stream_fanout_replays_after_last_event_id() -> None:
     redis = FakeRedis()
     bridge = RedisStreamFanOutBridge(redis)
     await bridge.publish(
-        "run_1",
+        1,
         AgentEvent("agent.stream_chunk", {"delta": "first"}, run_id=1, sequence=1),
     )
     await bridge.publish(
-        "run_1",
+        1,
         AgentEvent("agent.stream_chunk", {"delta": "second"}, run_id=1, sequence=2),
     )
 
-    events = await bridge.replay("run_1", last_event_id="run_1:1")
+    events = await bridge.replay(1, last_event_id="1:1")
 
-    assert [event.event_id for event in events] == ["run_1:2"]
+    assert [event.event_id for event in events] == ["1:2"]
     assert events[0].payload == {"delta": "second"}
 
 
@@ -127,19 +127,19 @@ async def test_redis_stream_fanout_replays_after_last_event_id() -> None:
 async def test_redis_stream_fanout_relays_pubsub_to_local_hub() -> None:
     redis = FakeRedis()
     hub = StreamFanOutHub()
-    subscriber = hub.subscribe("run_1", "subscriber_1")
+    subscriber = hub.subscribe(1, "subscriber_1")
     payload = {
         "run_id": 1,
         "attempt_id": None,
         "sequence": 1,
-        "event_id": "run_1:1",
+        "event_id": "1:1",
         "type": "agent.stream_chunk",
         "payload": {"delta": "hello"},
         "visibility_level": "internal",
     }
     redis.pubsub_messages.append({"data": json.dumps(payload)})
 
-    delivered = await RedisStreamFanOutBridge(redis).relay_once("run_1", hub)
+    delivered = await RedisStreamFanOutBridge(redis).relay_once(1, hub)
 
     assert delivered == 1
     assert [event.payload for event in subscriber.drain()] == [{"delta": "hello"}]

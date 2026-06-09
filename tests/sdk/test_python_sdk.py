@@ -1,8 +1,12 @@
+import os
 import sys
+import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
+from dimoo_run.packages.validation import validation_token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk-python"))
 
@@ -14,6 +18,13 @@ from dimoo_run.api.native.runtime import reset_native_runtime  # noqa: E402
 from dimoo_run.server import create_app  # noqa: E402
 from dimoorun import DimooRun, DimooRunAPIError  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+
+
+def setup_function() -> None:
+    os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
+    os.environ["DATABASE_URL"] = (
+        f"sqlite:///{tempfile.gettempdir()}/dimoorun-sdk-{uuid4().hex}.db"
+    )
 
 
 def test_python_sdk_preserves_platform_error_code() -> None:
@@ -116,7 +127,36 @@ def test_python_sdk_can_create_run_against_native_api() -> None:
     test_client.post(
         f"/v1/agents/{agent['id']}/versions",
         headers=headers,
-        json={"version": "0.1.0"},
+        json={
+            "version": "0.1.0",
+            "package_uri": "file:///opt/dimoorun/agents/support-agent",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+            "manifest": {
+                "runtime": {
+                    "framework": "langgraph",
+                    "adapter": "langgraph",
+                    "entrypoint": "agent:create_agent",
+                },
+                "capabilities": {"invoke": True},
+                "validation_token": validation_token(
+                    package_uri="file:///opt/dimoorun/agents/support-agent",
+                    framework="langgraph",
+                    adapter="langgraph",
+                    entrypoint="agent:create_agent",
+                    manifest={
+                        "runtime": {
+                            "framework": "langgraph",
+                            "adapter": "langgraph",
+                            "entrypoint": "agent:create_agent",
+                        },
+                        "capabilities": {"invoke": True},
+                    },
+                ),
+            },
+            "status": "ready",
+        },
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -146,6 +186,8 @@ def test_python_sdk_can_create_run_against_native_api() -> None:
 
     payload = client.create_run(agent_id=agent["id"], input={"message": "hello"})
 
-    assert payload["run_id"].startswith("run_")
-    assert payload["task_id"].startswith("task_")
+    assert isinstance(payload["run_id"], int)
+    assert payload["run_id"] > 0
+    assert isinstance(payload["task_id"], int)
+    assert payload["task_id"] > 0
     assert payload["status"] == "queued"

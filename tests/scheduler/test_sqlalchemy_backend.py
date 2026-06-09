@@ -32,7 +32,7 @@ def create_run(
             tenant_id=tenant_id,
             project_id=project_id,
             agent_id=agent_id,
-            agent_version_id="agent_version_1",
+            agent_version_id=1,
             deployment_id=deployment_id,
             input_ref='json:{"message":"hello"}',
         )
@@ -45,14 +45,14 @@ async def test_sqlalchemy_backend_leases_by_priority_and_sets_fencing_token() ->
     session = make_session()
     current = datetime(2026, 1, 1, tzinfo=UTC)
     backend = SQLAlchemyTaskBackend(session, now=lambda: current)
-    create_run(session, "run_low")
-    create_run(session, "run_high")
+    create_run(session, 1)
+    create_run(session, 2)
     low_id = await backend.enqueue(
         {
             "tenant_id": 1,
             "project_id": 1,
             "queue": "default",
-            "run_id": "run_low",
+            "run_id": 1,
         }
     )
     high_id = await backend.enqueue(
@@ -61,7 +61,7 @@ async def test_sqlalchemy_backend_leases_by_priority_and_sets_fencing_token() ->
             "project_id": 1,
             "queue": "default",
             "priority": 10,
-            "run_id": "run_high",
+            "run_id": 2,
         }
     )
 
@@ -71,7 +71,7 @@ async def test_sqlalchemy_backend_leases_by_priority_and_sets_fencing_token() ->
     assert leased["task_id"] == high_id
     assert leased["fencing_token"] == 1
     assert leased["input_data"] == {"message": "hello"}
-    assert leased["partition_key"] == "tenant_1:project_1"
+    assert leased["partition_key"] == "1:1"
     assert leased["resource_class"] == "default"
     assert session.get(Task, low_id).status == "queued"  # type: ignore[union-attr]
     assert session.get(Task, high_id).status == "leased"  # type: ignore[union-attr]
@@ -203,13 +203,13 @@ async def test_sqlalchemy_backend_blocks_lease_when_project_quota_is_exceeded() 
             RuntimeQuota(project_max_running_tasks=1),
         ),
     )
-    create_run(session, "run_1")
-    create_run(session, "run_2")
+    create_run(session, 1)
+    create_run(session, 2)
     first_id = await backend.enqueue(
         {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 1}
     )
     second_id = await backend.enqueue(
-        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": "run_2"}
+        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 2}
     )
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
     backend.mark_running(first_id, "worker_1", first["fencing_token"])  # type: ignore[index]
@@ -237,21 +237,16 @@ async def test_sqlalchemy_backend_skips_quota_blocked_partition() -> None:
             RuntimeQuota(project_max_running_tasks=1),
         ),
     )
-    create_run(session, "run_project_1_active")
-    create_run(session, "run_project_1_waiting")
-    create_run(
-        session,
-        "run_project_2_waiting",
-        tenant_id=1,
-        project_id="project_2",
-    )
+    create_run(session, 1)
+    create_run(session, 2)
+    create_run(session, 3, tenant_id=1, project_id=2)
     active_id = await backend.enqueue(
         {
             "tenant_id": 1,
             "project_id": 1,
             "queue": "default",
             "priority": 10,
-            "run_id": "run_project_1_active",
+            "run_id": 1,
         }
     )
     await backend.enqueue(
@@ -260,15 +255,15 @@ async def test_sqlalchemy_backend_skips_quota_blocked_partition() -> None:
             "project_id": 1,
             "queue": "default",
             "priority": 10,
-            "run_id": "run_project_1_waiting",
+            "run_id": 2,
         }
     )
     project_2_id = await backend.enqueue(
         {
             "tenant_id": 1,
-            "project_id": "project_2",
+            "project_id": 2,
             "queue": "default",
-            "run_id": "run_project_2_waiting",
+            "run_id": 3,
         }
     )
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
@@ -292,13 +287,13 @@ async def test_sqlalchemy_backend_blocks_lease_when_agent_quota_is_exceeded() ->
             RuntimeQuota(agent_max_running_tasks=1),
         ),
     )
-    create_run(session, "run_1", agent_id=1)
-    create_run(session, "run_2", agent_id=1)
+    create_run(session, 1, agent_id=1)
+    create_run(session, 2, agent_id=1)
     first_id = await backend.enqueue(
         {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 1}
     )
     await backend.enqueue(
-        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": "run_2"}
+        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 2}
     )
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
     backend.mark_running(first_id, "worker_1", first["fencing_token"])  # type: ignore[index]
@@ -321,13 +316,13 @@ async def test_sqlalchemy_backend_blocks_lease_when_deployment_quota_is_exceeded
             RuntimeQuota(deployment_max_running_tasks=1),
         ),
     )
-    create_run(session, "run_1", deployment_id=1)
-    create_run(session, "run_2", deployment_id=1)
+    create_run(session, 1, deployment_id=1)
+    create_run(session, 2, deployment_id=1)
     first_id = await backend.enqueue(
         {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 1}
     )
     await backend.enqueue(
-        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": "run_2"}
+        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 2}
     )
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
     backend.mark_running(first_id, "worker_1", first["fencing_token"])  # type: ignore[index]
@@ -350,13 +345,13 @@ async def test_sqlalchemy_backend_releases_quota_after_terminal_state() -> None:
             RuntimeQuota(project_max_running_tasks=1),
         ),
     )
-    create_run(session, "run_1")
-    create_run(session, "run_2")
+    create_run(session, 1)
+    create_run(session, 2)
     first_id = await backend.enqueue(
         {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 1}
     )
     second_id = await backend.enqueue(
-        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": "run_2"}
+        {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 2}
     )
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)
     assert first is not None
@@ -380,8 +375,8 @@ async def test_sqlalchemy_backend_checks_project_quota_on_enqueue() -> None:
             RuntimeQuota(project_max_running_tasks=1),
         ),
     )
-    create_run(session, "run_1")
-    create_run(session, "run_2")
+    create_run(session, 1)
+    create_run(session, 2)
     first_id = await backend.enqueue(
         {"tenant_id": 1, "project_id": 1, "queue": "default", "run_id": 1}
     )
@@ -395,7 +390,7 @@ async def test_sqlalchemy_backend_checks_project_quota_on_enqueue() -> None:
                 "tenant_id": 1,
                 "project_id": 1,
                 "queue": "default",
-                "run_id": "run_2",
+                "run_id": 2,
             }
         )
 
@@ -482,7 +477,7 @@ async def test_sqlalchemy_backend_stores_partition_and_resource_class_metadata()
     task = session.get(Task, task_id)
 
     assert task is not None
-    assert task.metadata_json["partition_key"] == "tenant_1:project_1"
+    assert task.metadata_json["partition_key"] == "1:1"
     assert task.metadata_json["resource_class"] == "gpu"
 
 
@@ -490,16 +485,16 @@ async def test_sqlalchemy_backend_stores_partition_and_resource_class_metadata()
 async def test_sqlalchemy_backend_fairness_covers_multiple_tenants() -> None:
     session = make_session()
     backend = SQLAlchemyTaskBackend(session, now=lambda: datetime(2026, 1, 1, tzinfo=UTC))
-    create_run(session, "run_tenant_1_active", tenant_id=1, project_id=1)
-    create_run(session, "run_tenant_1_waiting", tenant_id=1, project_id=1)
-    create_run(session, "run_tenant_2_waiting", tenant_id="tenant_2", project_id="project_2")
+    create_run(session, 1, tenant_id=1, project_id=1)
+    create_run(session, 2, tenant_id=1, project_id=1)
+    create_run(session, 3, tenant_id=2, project_id=2)
     active_id = await backend.enqueue(
         {
             "tenant_id": 1,
             "project_id": 1,
             "queue": "default",
             "priority": 10,
-            "run_id": "run_tenant_1_active",
+            "run_id": 1,
         }
     )
     await backend.enqueue(
@@ -508,15 +503,15 @@ async def test_sqlalchemy_backend_fairness_covers_multiple_tenants() -> None:
             "project_id": 1,
             "queue": "default",
             "priority": 10,
-            "run_id": "run_tenant_1_waiting",
+            "run_id": 2,
         }
     )
     tenant_2_id = await backend.enqueue(
         {
-            "tenant_id": "tenant_2",
-            "project_id": "project_2",
+            "tenant_id": 2,
+            "project_id": 2,
             "queue": "default",
-            "run_id": "run_tenant_2_waiting",
+            "run_id": 3,
         }
     )
     first = await backend.lease("default", worker_id="worker_1", lease_seconds=30)

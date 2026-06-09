@@ -459,7 +459,8 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveSmoke, /Exposure health: ready/);
     assert.match(liveSmoke, /published_surface\.revoke/);
     assert.match(liveSmoke, /Rollback surface/);
-    assert.match(liveSmoke, /rollback_to_version: 1/);
+    assert.match(liveSmoke, /fetchSurfaceDetail/);
+    assert.match(liveSmoke, /rollout_history\.at\(-1\)\?\.rollback_to_version/);
     assert.match(liveSmoke, /logStep\("rollback completed"\)/);
     assert.match(liveCleanup, /live-backend-pids\.json/);
     assert.match(liveCleanup, /process\.kill\(pid/);
