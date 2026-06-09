@@ -52,9 +52,10 @@ class WorkerLoop:
                 return self.heartbeat
         if self.execute_once is not None:
             import anyio
+            execute_once = self.execute_once
 
             async def invoke_execute_once() -> Any:
-                return await self.execute_once(
+                return await execute_once(
                     queue=self.queue,
                     lease_seconds=self.lease_seconds,
                 )
@@ -108,4 +109,5 @@ class WorkerLoop:
 
             anyio.run(invoke_cancel)
             return
+        assert callable(handler)
         anyio.run(handler, message)

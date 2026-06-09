@@ -57,3 +57,4 @@ async def test_replay_rejects_replay_of_running_source_run() -> None:
             candidate_agent_version_id="version_new",
             requested_by="user_1",
         )
+# mypy: disable-error-code="arg-type,comparison-overlap"

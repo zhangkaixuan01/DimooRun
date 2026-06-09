@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
 
 from dimoo_run.domain.models import APIKey
 from dimoo_run.identity.service_accounts import ServiceAccountRegistry
@@ -143,7 +144,7 @@ class APIKeyAuthenticator:
             AuditRecord(
                 tenant_id=tenant_id,
                 project_id=project_id,
-                actor_id=record.owner_id,
+                actor_id=str(record.owner_id),
                 actor_type=record.owner_type,
                 resource_type="api_key",
                 resource_id=record.id,
@@ -234,7 +235,7 @@ class APIKeyAuthenticator:
     ) -> list[APIKeyRecord]:
         if self._session_factory is not None:
             with self._session_factory() as session:
-                conditions = [APIKey.is_deleted.is_(False)]
+                conditions: list[ColumnElement[bool]] = [APIKey.is_deleted.is_(False)]
                 if owner_type is not None:
                     conditions.append(APIKey.owner_type == owner_type)
                 if owner_id is not None:
@@ -312,6 +313,7 @@ def _model_from_record(record: APIKeyRecord) -> APIKey:
         updated_at=record.created_at,
         expires_at=record.expires_at,
     )
+
 
 def _record_from_model(model: APIKey) -> APIKeyRecord:
     return APIKeyRecord(

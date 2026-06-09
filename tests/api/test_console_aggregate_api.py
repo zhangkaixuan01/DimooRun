@@ -238,3 +238,4 @@ def test_action_summary_explains_disabled_actions_without_granting_authorization
         headers=auth_headers(key, environment="production"),
     )
     assert denied_write.status_code == 403
+# mypy: disable-error-code="no-any-return,union-attr"

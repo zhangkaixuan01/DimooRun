@@ -201,7 +201,7 @@ async def test_worker_executor_streams_adapter_events_when_requested() -> None:
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": StreamOnlyAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": StreamOnlyAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -237,7 +237,7 @@ async def test_worker_executor_persists_stream_events_before_stream_failure() ->
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": FailingStreamAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FailingStreamAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -271,7 +271,7 @@ async def test_worker_executor_runs_adapter_and_persists_events() -> None:
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": FakeAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FakeAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -318,7 +318,7 @@ async def test_worker_executor_applies_task_override_config_to_adapter_runtime_c
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": adapter},  # type: ignore[dict-item]
+        adapters={"fake": adapter},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -350,7 +350,7 @@ async def test_worker_executor_does_not_mark_run_failed_on_stale_complete() -> N
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": FakeAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FakeAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -381,7 +381,7 @@ async def test_worker_executor_does_not_fail_attempt_after_stale_adapter_error()
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": FailingAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FailingAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -412,7 +412,7 @@ async def test_worker_executor_does_not_complete_task_before_run_success_is_pers
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=replay_buffer,
-        adapters={"fake": FakeAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FakeAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -439,7 +439,7 @@ async def test_worker_executor_retries_adapter_failure() -> None:
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=ReplayBuffer(),
-        adapters={"fake": FailingAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FailingAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -473,7 +473,7 @@ async def test_worker_executor_dead_letters_after_retry_exhaustion() -> None:
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=ReplayBuffer(),
-        adapters={"fake": FailingAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": FailingAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -504,7 +504,7 @@ async def test_worker_executor_calls_adapter_cancel_when_supported() -> None:
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=ReplayBuffer(),
-        adapters={"fake": adapter},  # type: ignore[dict-item]
+        adapters={"fake": adapter},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -536,7 +536,7 @@ async def test_worker_executor_marks_cancel_best_effort_when_unsupported() -> No
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=ReplayBuffer(),
-        adapters={"fake": UnsupportedCancelAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": UnsupportedCancelAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -563,7 +563,7 @@ async def test_worker_executor_marks_run_timeout_after_retry_exhaustion() -> Non
         task_backend=task_backend,
         run_store=run_store,
         replay_buffer=ReplayBuffer(),
-        adapters={"fake": SlowAdapter()},  # type: ignore[dict-item]
+        adapters={"fake": SlowAdapter()},
         agent_specs={
             "version_1": AgentRuntimeSpec(
                 adapter="fake",
@@ -588,3 +588,4 @@ async def test_worker_executor_marks_run_timeout_after_retry_exhaustion() -> Non
         "run.timeout",
         "stream.failed",
     ]
+# mypy: disable-error-code="arg-type,dict-item,index,return-value"

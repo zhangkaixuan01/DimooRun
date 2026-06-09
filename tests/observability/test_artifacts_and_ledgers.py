@@ -202,3 +202,4 @@ def test_metrics_registry_tracks_runtime_counters_and_gauges() -> None:
     assert snapshot.counters["run_success_total"] == 1
     assert snapshot.histograms["run_latency_seconds"] == [1.25]
     assert snapshot.gauges["task_queue_size"] == 3
+# mypy: disable-error-code="arg-type"

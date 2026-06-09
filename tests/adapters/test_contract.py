@@ -138,3 +138,4 @@ def test_adapter_version_info_checked_at_uses_fresh_timestamp() -> None:
     second = AdapterVersionInfo(framework="langgraph", framework_version="1.2.1")
 
     assert first.checked_at is not second.checked_at
+# mypy: disable-error-code="arg-type"

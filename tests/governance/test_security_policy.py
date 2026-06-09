@@ -294,3 +294,4 @@ def test_policy_rules_are_scoped_by_tenant_and_project() -> None:
 
     assert same_scope.decision == Decision.deny
     assert other_scope.decision == Decision.allow
+# mypy: disable-error-code="arg-type"

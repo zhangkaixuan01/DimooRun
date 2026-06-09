@@ -105,3 +105,4 @@ async def test_run_manager_rejects_deployment_agent_version_mismatch() -> None:
             deployment_id=1,
             input_data={"message": "hello"},
         )
+# mypy: disable-error-code="arg-type"

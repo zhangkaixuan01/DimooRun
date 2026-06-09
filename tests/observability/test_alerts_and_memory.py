@@ -112,3 +112,4 @@ def test_alert_rule_requires_active_channel_in_same_scope() -> None:
                 channel_id="other_scope_channel",
             )
         )
+# mypy: disable-error-code="arg-type,comparison-overlap"

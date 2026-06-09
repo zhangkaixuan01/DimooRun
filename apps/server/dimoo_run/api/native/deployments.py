@@ -176,7 +176,7 @@ NativeRuntimeDep = Annotated[
     NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     Depends(get_native_runtime),
 ]
-CONTROL_RESPONSES: dict[int, dict[str, Any]] = {
+CONTROL_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: {"model": ErrorResponse},
     403: {"model": ErrorResponse},
     404: {"model": ErrorResponse},
@@ -329,8 +329,8 @@ def create_deployment(
             request_id=x_request_id,
             result="allowed",
             metadata={
-                "agent_id": payload.agent_id,
-                "agent_version_id": payload.agent_version_id,
+                "agent_id": str(payload.agent_id),
+                "agent_version_id": str(payload.agent_version_id),
                 "environment": payload.environment,
             },
         )

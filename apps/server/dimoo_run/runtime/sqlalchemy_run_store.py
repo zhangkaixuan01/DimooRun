@@ -208,7 +208,7 @@ def _attempt_from_model(attempt: RunAttempt) -> RuntimeAttempt:
     return RuntimeAttempt(
         attempt_id=attempt.id,
         run_id=attempt.run_id,
-        task_id=attempt.task_id or "",
+        task_id=attempt.task_id or 0,
         worker_id=attempt.worker_id or "",
         attempt_no=attempt.attempt_no,
         status=attempt.status,

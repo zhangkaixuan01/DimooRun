@@ -61,12 +61,17 @@ class InMemorySecretProvider:
         secret_name: str,
         context: RuntimeContext,
     ) -> str:
+        actor_id = (
+            str(context.user_id or context.service_account_id)
+            if context.user_id is not None or context.service_account_id is not None
+            else None
+        )
         if tenant_id != context.tenant_id or project_id != context.project_id:
             self.policy_engine.record_violation(
                 PolicyRequest(
                     tenant_id=context.tenant_id,
                     project_id=context.project_id,
-                    actor_id=context.user_id or context.service_account_id,
+                    actor_id=actor_id,
                     actor_type="service_account" if context.service_account_id else "user",
                     resource_type="secret",
                     resource_id=None,
@@ -83,7 +88,7 @@ class InMemorySecretProvider:
             PolicyRequest(
                 tenant_id=tenant_id,
                 project_id=project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=actor_id,
                 actor_type="service_account" if context.service_account_id else "user",
                 resource_type="secret",
                 resource_id=None,
@@ -102,7 +107,7 @@ class InMemorySecretProvider:
             AuditRecord(
                 tenant_id=tenant_id,
                 project_id=project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=actor_id,
                 actor_type="service_account" if context.service_account_id else "user",
                 resource_type="secret",
                 resource_id=None,

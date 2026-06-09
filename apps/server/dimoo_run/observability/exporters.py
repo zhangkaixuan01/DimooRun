@@ -42,7 +42,7 @@ class ObservabilityExporter:
         self.delivered: list[dict[str, Any]] = []
 
     def export_event(self, event: AgentEvent) -> bool:
-        trace_id = event.event_id or event.run_id or event.type
+        trace_id = str(event.event_id or event.run_id or event.type)
         if not self.config.enabled or not self.sampling_policy.should_sample(trace_id):
             return False
         return self._send(

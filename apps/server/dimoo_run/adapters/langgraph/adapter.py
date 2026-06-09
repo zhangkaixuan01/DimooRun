@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, cast
 
 from dimoo_run.adapters.base.capabilities import CapabilityModel
 from dimoo_run.adapters.base.contract import CapabilityNotSupportedError
@@ -97,7 +97,11 @@ class LangGraphAdapter:
                 framework=self.framework,
             ) from exc
 
-        output = await call_invoke(agent, Command(resume=payload), self._config(context))
+        output = await call_invoke(
+            agent,
+            cast(dict[str, Any], Command(resume=payload)),
+            self._config(context),
+        )
         return AgentResult(output=output if isinstance(output, dict) else {"output": output})
 
     async def cancel(self, run_id: int, context: RuntimeContext) -> None:

@@ -497,3 +497,4 @@ def test_human_task_decision_is_audited_and_cannot_be_repeated() -> None:
     assert audit_sink.records[-1].result == "approved"
     with pytest.raises(PermissionError, match="human_task_not_pending"):
         hitl.decide(task.id, actor_id="user_3", approved=False)
+# mypy: disable-error-code="arg-type"

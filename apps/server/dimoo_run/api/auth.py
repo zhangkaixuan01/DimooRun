@@ -182,7 +182,7 @@ def change_password(
     if isinstance(actor, JSONResponse):
         return actor
     changed = change_console_operator_password(
-        actor.actor_id,
+        int(actor.actor_id),
         current_password=payload.current_password,
         new_password=payload.new_password,
     )

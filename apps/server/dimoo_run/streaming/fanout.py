@@ -75,7 +75,7 @@ class RedisStreamFanOutBridge:
         self.redis_client = redis_client
         self.stream_prefix = stream_prefix
         self.channel_prefix = channel_prefix
-        self._pubsubs: dict[str, Any] = {}
+        self._pubsubs: dict[int, Any] = {}
 
     async def publish(self, run_id: int, event: AgentEvent) -> str | None:
         payload = {
@@ -118,8 +118,11 @@ class RedisStreamFanOutBridge:
             pubsub = self.redis_client.pubsub()
             await _maybe_await(pubsub.subscribe(f"{self.channel_prefix}:{run_id}"))
             self._pubsubs[run_id] = pubsub
-        message = await _maybe_await(
+        message = cast(
+            dict[str, Any] | None,
+            await _maybe_await(
             pubsub.get_message(ignore_subscribe_messages=True, timeout=0)
+            ),
         )
         if not message:
             return 0
@@ -144,12 +147,15 @@ def _event_payload(fields: dict[str, Any]) -> dict[str, Any]:
 
 
 def _event_from_payload(payload: dict[str, Any]) -> AgentEvent:
+    run_id = payload.get("run_id")
+    attempt_id = payload.get("attempt_id")
+    sequence = payload.get("sequence")
     return AgentEvent(
         type=payload["type"],
         payload=payload.get("payload") or {},
-        run_id=payload.get("run_id"),
-        attempt_id=payload.get("attempt_id"),
-        sequence=payload.get("sequence"),
+        run_id=int(run_id) if run_id is not None else None,
+        attempt_id=int(attempt_id) if attempt_id is not None else None,
+        sequence=int(sequence) if sequence is not None else None,
         event_id=payload.get("event_id"),
         visibility_level=payload.get("visibility_level", "internal"),
     )

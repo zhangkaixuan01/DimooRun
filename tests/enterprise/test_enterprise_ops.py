@@ -434,3 +434,4 @@ def test_container_pool_enforces_deployment_status_policy_and_audits() -> None:
             operation=lambda: {"should_not_run": True},
         )
     assert [record.result for record in audit.records] == ["allow", "deny", "deny"]
+# mypy: disable-error-code="arg-type"

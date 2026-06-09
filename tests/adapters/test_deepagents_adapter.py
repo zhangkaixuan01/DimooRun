@@ -78,3 +78,4 @@ async def test_deepagents_adapter_resume_is_not_certified_in_contract_scaffold()
 
     with pytest.raises(CapabilityNotSupportedError):
         await adapter.resume(FakeDeepAgent(), "run_1", {"resume": "ok"}, make_context())
+# mypy: disable-error-code="arg-type"

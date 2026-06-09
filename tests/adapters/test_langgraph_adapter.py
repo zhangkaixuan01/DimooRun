@@ -120,3 +120,4 @@ def test_langgraph_adapter_certifies_checkpoint_and_resume() -> None:
 
     assert adapter.capabilities.checkpoint is True
     assert adapter.capabilities.resume is True
+# mypy: disable-error-code="arg-type"

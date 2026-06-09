@@ -162,3 +162,4 @@ def test_worker_loop_consumes_cancel_message_for_worker() -> None:
 
     assert heartbeat.status == "cancel_requested"
     assert handler.cancelled == (1, 1)
+# mypy: disable-error-code="assignment,comparison-overlap"

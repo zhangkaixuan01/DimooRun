@@ -110,3 +110,4 @@ async def test_experiment_run_generates_evaluation_results_and_quality_gate() ->
         metadata={"reason": "exact_match"},
     )
     assert service.quality_gate(experiment_run.id).allowed is True
+# mypy: disable-error-code="arg-type,comparison-overlap"

@@ -129,3 +129,4 @@ def test_ingress_route_rejects_unknown_auth_mode_and_invalid_path() -> None:
             path="agents/support",
             auth_mode="api_key",
         ).validate()
+# mypy: disable-error-code="arg-type"

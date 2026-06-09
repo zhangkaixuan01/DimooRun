@@ -66,6 +66,11 @@ def _ensure_checksum(storage_uri: str, encoded: bytes, expected: str) -> None:
         raise ArtifactChecksumMismatchError(storage_uri)
 
 
+def _context_actor_id(context: RuntimeContext) -> str | None:
+    actor_id = context.user_id or context.service_account_id
+    return str(actor_id) if actor_id is not None else None
+
+
 class InMemoryArtifactStore:
     def __init__(self, *, audit_log: InMemoryComplianceAuditLog) -> None:
         self.audit_log = audit_log
@@ -124,7 +129,7 @@ class InMemoryArtifactStore:
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -138,7 +143,7 @@ class InMemoryArtifactStore:
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -152,7 +157,7 @@ class InMemoryArtifactStore:
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -168,7 +173,7 @@ class InMemoryArtifactStore:
         self.audit_log.record(
             tenant_id=context.tenant_id,
             project_id=context.project_id,
-            actor_id=context.user_id or context.service_account_id,
+            actor_id=_context_actor_id(context),
             actor_type="service_account" if context.service_account_id else "user",
             action="artifact.read",
             resource_type="artifact",
@@ -251,7 +256,7 @@ class LocalArtifactStore(InMemoryArtifactStore):
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -266,7 +271,7 @@ class LocalArtifactStore(InMemoryArtifactStore):
         self.audit_log.record(
             tenant_id=context.tenant_id,
             project_id=context.project_id,
-            actor_id=context.user_id or context.service_account_id,
+            actor_id=_context_actor_id(context),
             actor_type="service_account" if context.service_account_id else "user",
             action="artifact.read",
             resource_type="artifact",
@@ -295,7 +300,7 @@ class LocalArtifactStore(InMemoryArtifactStore):
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -309,7 +314,7 @@ class LocalArtifactStore(InMemoryArtifactStore):
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -377,7 +382,7 @@ class S3CompatibleArtifactStore(LocalArtifactStore):
             self.audit_log.record(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=_context_actor_id(context),
                 actor_type="service_account" if context.service_account_id else "user",
                 action="artifact.read",
                 resource_type="artifact",
@@ -392,7 +397,7 @@ class S3CompatibleArtifactStore(LocalArtifactStore):
         self.audit_log.record(
             tenant_id=context.tenant_id,
             project_id=context.project_id,
-            actor_id=context.user_id or context.service_account_id,
+            actor_id=_context_actor_id(context),
             actor_type="service_account" if context.service_account_id else "user",
             action="artifact.read",
             resource_type="artifact",

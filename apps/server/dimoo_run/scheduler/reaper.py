@@ -22,7 +22,7 @@ class LeaseReaper:
             reaped_count=0,
         )
 
-    def reap(self) -> list[str]:
+    def reap(self) -> list[int]:
         if not hasattr(self.backend, "tasks"):
             reaped_count = self.backend.reap_expired_leases()
             self._record_heartbeat(reaped_count)

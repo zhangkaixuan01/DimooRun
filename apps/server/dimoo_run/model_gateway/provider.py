@@ -103,6 +103,11 @@ class InMemoryModelGatewayProvider:
         requested_model: str | None,
         estimated_cost: float,
     ) -> PreparedModelRequest:
+        actor_id = (
+            str(context.user_id or context.service_account_id)
+            if context.user_id is not None or context.service_account_id is not None
+            else None
+        )
         policy = self.policies[(context.tenant_id, context.project_id)]
         model = requested_model or policy.default_model
         if policy.allowed_models and model not in policy.allowed_models:
@@ -125,7 +130,7 @@ class InMemoryModelGatewayProvider:
             PolicyRequest(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
-                actor_id=context.user_id or context.service_account_id,
+                actor_id=actor_id,
                 actor_type="service_account" if context.service_account_id else "user",
                 resource_type="model_gateway",
                 resource_id=gateway.id,
@@ -187,12 +192,17 @@ class InMemoryModelGatewayProvider:
         gateway: ModelGatewayConfig,
         context: RuntimeContext,
     ) -> None:
+        actor_id = (
+            str(context.user_id or context.service_account_id)
+            if context.user_id is not None or context.service_account_id is not None
+            else None
+        )
         if gateway.tenant_id != context.tenant_id or gateway.project_id != context.project_id:
             self.policy_engine.record_violation(
                 PolicyRequest(
                     tenant_id=context.tenant_id,
                     project_id=context.project_id,
-                    actor_id=context.user_id or context.service_account_id,
+                    actor_id=actor_id,
                     actor_type="service_account" if context.service_account_id else "user",
                     resource_type="model_gateway",
                     resource_id=gateway.id,

@@ -92,3 +92,4 @@ def test_langchain_agent_adapter_maps_model_callback_event() -> None:
 
     assert event.type == "model.started"
     assert event.payload == {"name": "openai", "tokens": 12}
+# mypy: disable-error-code="arg-type"

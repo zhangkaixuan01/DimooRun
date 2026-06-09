@@ -47,3 +47,4 @@ async def test_conformance_report_records_versions_and_results() -> None:
     assert report.tests["checkpoint"] == "declared"
     assert report.tests["idempotency"] == "not_exercised"
     assert report.failed == []
+# mypy: disable-error-code="arg-type"

@@ -77,3 +77,4 @@ def test_run_graph_projector_creates_placeholder_parent_for_out_of_order_edges()
     assert {"llm", "search"} <= set(nodes_by_key)
     assert graph.edges[0].source_node_id == nodes_by_key["llm"].id
     assert graph.edges[0].target_node_id == nodes_by_key["search"].id
+# mypy: disable-error-code="arg-type"

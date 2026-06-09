@@ -330,12 +330,12 @@ _DB_COLLECTIONS: dict[str, AdminDbCollectionSpec] = {
         expose_name_from_metadata=True,
     ),
     "schedules": AdminDbCollectionSpec(
-        domain_models.ScheduledRuns,
+        getattr(domain_models, "ScheduledRuns"),
         defaults={"metadata_json": {}},
         expose_name_from_metadata=True,
     ),
     "batch_runs": AdminDbCollectionSpec(
-        domain_models.BatchRuns,
+        getattr(domain_models, "BatchRuns"),
         defaults={"metadata_json": {}},
         expose_name_from_metadata=True,
     ),
@@ -1079,7 +1079,8 @@ def _public_field_name(column_name: str) -> str:
 
 def _db_record_environment(record: Any) -> str | None:
     if hasattr(record, "environment"):
-        return record.environment
+        value = record.environment
+        return str(value) if value is not None else None
     metadata = getattr(record, "metadata_json", None)
     if isinstance(metadata, dict):
         value = metadata.get("_environment")
@@ -1706,7 +1707,7 @@ def create_policy(
 
 @router.patch("/policies/{policy_id}")
 def update_policy(
-    policy_id: str,
+    policy_id: int,
     response: Response,
     payload: AdminPayload = None,
     x_request_id: RequestIdHeader = None,
@@ -1728,7 +1729,7 @@ def update_policy(
 
 @router.delete("/policies/{policy_id}")
 def delete_policy(
-    policy_id: str,
+    policy_id: int,
     response: Response,
     x_request_id: RequestIdHeader = None,
     x_tenant_id: TenantIdHeader = None,
@@ -1780,7 +1781,7 @@ def list_human_tasks(
 def create_human_task(
     response: Response,
     payload: AdminPayload = None,
-    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)] = None,
+    actor: Annotated[AuthenticatedActor, Depends(enforce_console_actor)] | None = None,
     x_request_id: RequestIdHeader = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
