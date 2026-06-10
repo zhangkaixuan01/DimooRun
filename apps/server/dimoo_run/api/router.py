@@ -5,6 +5,7 @@ from dimoo_run.api import ingress as live_ingress_router
 from dimoo_run.api.admin import backups as backup_router
 from dimoo_run.api.admin import datasets as dataset_router
 from dimoo_run.api.admin import experiments as experiment_router
+from dimoo_run.api.admin import identity_workflows as identity_workflow_router
 from dimoo_run.api.admin import incidents as incident_router
 from dimoo_run.api.admin import ingress_routes as ingress_route_router
 from dimoo_run.api.admin import model_gateways as model_gateway_router
@@ -17,6 +18,7 @@ from dimoo_run.api.admin import tools as tool_router
 from dimoo_run.api.compat import router as compat_router
 from dimoo_run.api.console import agent_instances as console_agent_instances_router
 from dimoo_run.api.console import compatibility as console_compatibility_router
+from dimoo_run.api.console import identity as console_identity_router
 from dimoo_run.api.console import published as console_published_router
 from dimoo_run.api.console import router as console_router
 from dimoo_run.api.console import workers as console_workers_router
@@ -31,6 +33,7 @@ router.include_router(console_router)
 router.include_router(console_workers_router.router)
 router.include_router(console_agent_instances_router.router)
 router.include_router(console_compatibility_router.router)
+router.include_router(console_identity_router.router)
 router.include_router(console_published_router.router)
 router.include_router(policy_router.router)
 router.include_router(published_surface_router.router)
@@ -43,6 +46,7 @@ router.include_router(backup_router.router)
 router.include_router(model_gateway_router.router)
 router.include_router(tool_router.router)
 router.include_router(secret_router.router)
+router.include_router(identity_workflow_router.router)
 router.include_router(admin_router)
 router.include_router(compat_router)
 

@@ -227,6 +227,25 @@ class APIKeyAuthenticator:
         record.status = "deleted"
         return record
 
+    def expire_key(self, key_id: int, *, actor_id: str) -> APIKeyRecord:
+        now = self._now()
+        if self._session_factory is not None:
+            with self._session_factory() as session:
+                model = session.get(APIKey, key_id)
+                if model is None or model.is_deleted:
+                    raise KeyError(key_id)
+                model.status = "disabled"
+                model.expires_at = now
+                model.updated_by = actor_id
+                model.updated_at = now
+                session.commit()
+                session.refresh(model)
+                return _record_from_model(model)
+        record = self.keys[key_id]
+        record.status = "disabled"
+        record.expires_at = now
+        return record
+
     def list_keys(
         self,
         *,

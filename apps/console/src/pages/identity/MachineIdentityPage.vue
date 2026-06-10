@@ -32,6 +32,7 @@
             <p v-if="selectedAccount" class="muted">{{ accountScopeLabel(selectedAccount) }}</p>
           </div>
           <div class="detail-actions">
+            <button class="button" type="button" :disabled="!selectedAccount" @click="openAccountDetail">详情</button>
             <button class="button" type="button" :disabled="!selectedAccount || !canWriteServiceAccount" @click="openServiceAccountEditDrawer">编辑</button>
             <button class="button danger" type="button" :disabled="!selectedAccount || !canWriteServiceAccount" @click="deleteServiceAccount">{{ t("delete") }}</button>
             <button class="button primary" type="button" :disabled="!canCreateKey" @click="openKeyDrawer">
@@ -208,6 +209,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError } from "../../api/client";
 import { readCurrentScope } from "../../api/scope";
@@ -221,6 +223,7 @@ import { formatDateTime } from "../../utils/dateTime";
 
 const { t } = useI18n();
 const auth = useAuthStore();
+const router = useRouter();
 const mode = apiMode();
 const serviceAccounts = ref<AdminResource[]>([]);
 const selectedAccount = ref<AdminResource | null>(null);
@@ -421,6 +424,11 @@ function openServiceAccountEditDrawer() {
   mutationError.value = null;
   serviceAccountDrawerOpen.value = true;
   void loadOptions();
+}
+
+function openAccountDetail() {
+  if (!selectedAccount.value) return;
+  router.push(`/identity/service-accounts/${selectedAccount.value.id}`);
 }
 
 function closeServiceAccountDrawer() {

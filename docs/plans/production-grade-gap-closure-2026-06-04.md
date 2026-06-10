@@ -1241,12 +1241,12 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add role permission matrix API with effective permission preview, changed permission diff, affected users/service accounts, and policy-conflict warnings.
-- [ ] Add user access detail API with assigned roles, inherited permissions, active sessions, API keys created by the user, recent audit actions, and disable impact.
-- [ ] Add service account workflow with key creation, key rotation, disable/enable, scope diff, last-used timestamp, and dependent published surfaces or deployments.
-- [ ] Add session and token controls for revoke own session, revoke user sessions, rotate service account key, and force API key expiry.
-- [ ] Add Console role matrix with search, grouped permissions, diff before save, audit reason, and disabled-action explanations.
-- [ ] Add browser tests for role edit diff, blocked self-lockout, service account rotation, session revoke, and effective permission preview.
+- [x] Add role permission matrix API with effective permission preview, changed permission diff, affected users/service accounts, and policy-conflict warnings.
+- [x] Add user access detail API with assigned roles, inherited permissions, active sessions, API keys created by the user, recent audit actions, and disable impact.
+- [x] Add service account workflow with key creation, key rotation, disable/enable, scope diff, last-used timestamp, and dependent published surfaces or deployments.
+- [x] Add session and token controls for revoke own session, revoke user sessions, rotate service account key, and force API key expiry.
+- [x] Add Console role matrix with search, grouped permissions, diff before save, audit reason, and disabled-action explanations.
+- [x] Add browser tests for role edit diff, blocked self-lockout, service account rotation, session revoke, and effective permission preview.
 - [ ] Commit as `feat(identity): add production access governance workflow`.
 
 Acceptance:

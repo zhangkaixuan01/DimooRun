@@ -12,7 +12,9 @@ apps/console/dist/
 apps/console/dev-server.log
 apps/console/dev-server.err.log
 apps/console/playwright-report/
+apps/console/playwright-report-*/
 apps/console/test-results/
+apps/console/test-results*/
 
 # Virtual environments
 .venv

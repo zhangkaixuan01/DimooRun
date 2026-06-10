@@ -84,3 +84,18 @@ def test_ci_runs_phase_0j_browser_workflow_with_managed_chromium_report() -> Non
     assert "actions/upload-artifact" in workflow_text
     assert "console-playwright-0j-report" in workflow_text
     assert "apps/console/playwright-report-0j" in workflow_text
+
+
+def test_ci_runs_phase_0k_browser_workflow_with_managed_chromium_report() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
+
+    assert '"test:e2e:0k"' in package_text
+    assert "tests/e2e/identity-governance.spec.ts" in package_text
+    assert "--project=chrome" in package_text
+    assert "--output test-results-0k-ci-proof" in package_text
+    assert "npm run test:e2e:0k" in workflow_text
+    assert "PLAYWRIGHT_HTML_REPORT: playwright-report-0k" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
+    assert "console-playwright-0k-report" in workflow_text
+    assert "apps/console/playwright-report-0k" in workflow_text

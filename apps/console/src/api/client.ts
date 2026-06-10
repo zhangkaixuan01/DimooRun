@@ -119,6 +119,55 @@ export type ConsoleOperatorSession = AdminResource & {
   ip_address: string | null;
   user_agent: string | null;
 };
+export type RolePermissionMatrix = {
+  items: AdminResource[];
+  permissions: AdminResource[];
+  request_id: string | null;
+};
+export type RolePermissionPreview = {
+  role_id: ResourceId;
+  role_name: string;
+  current_permissions: string[];
+  preview_permissions: string[];
+  change: {
+    added: string[];
+    removed: string[];
+    unchanged: string[];
+  };
+  affected_operators: Array<{
+    operator_id: ResourceId;
+    email: string;
+    name: string;
+    current_permissions?: string[];
+    preview_permissions?: string[];
+  }>;
+  affected_service_accounts: Array<Record<string, unknown>>;
+  warnings: Array<Record<string, unknown>>;
+  policy_conflicts: Array<Record<string, unknown>>;
+};
+export type OperatorAccessDetail = {
+  item: ConsoleOperator & {
+    active_sessions: ConsoleOperatorSession[];
+    api_keys_created: AdminResource[];
+    recent_audit_actions: AdminResource[];
+    disable_impact: {
+      active_session_count: number;
+      api_keys_created_count: number;
+    };
+  };
+  request_id: string | null;
+};
+export type ServiceAccountDetail = {
+  item: AdminResource & {
+    tenant_id: number;
+    project_id: number | null;
+    permissions: string[];
+    last_used_at: string | null;
+    api_keys: Array<AdminResource & { scope_diff?: Record<string, unknown> }>;
+    dependent_deployments: Array<Record<string, unknown>>;
+  };
+  request_id: string | null;
+};
 export type MachineApiKeyCreate = {
   item: AdminResource;
   plain_key: string;
@@ -1488,6 +1537,58 @@ export const liveConsoleClient = {
   async listServiceAccountApiKeys(serviceAccountId: ResourceId): Promise<CursorPage<AdminResource>> {
     return this.listAdminCollection(`/v1/identity/service-accounts/${serviceAccountId}/api-keys`);
   },
+  async getRolePermissionMatrix(): Promise<RolePermissionMatrix> {
+    return requestConsolePath<RolePermissionMatrix>("/v1/console/identity/role-matrix");
+  },
+  async previewRoleMatrix(roleId: ResourceId, permissions: string[]): Promise<RolePermissionPreview> {
+    const response = await requestConsolePath<{ item: RolePermissionPreview; request_id: string | null }>(
+      `/v1/identity/workflows/roles/${roleId}/preview`,
+      {
+        method: "POST",
+        body: JSON.stringify({ permissions }),
+      },
+    );
+    return response.item;
+  },
+  async applyRoleMatrix(
+    roleId: ResourceId,
+    permissions: string[],
+    auditReason: string,
+  ): Promise<RolePermissionPreview> {
+    const response = await requestConsolePath<{ item: RolePermissionPreview; request_id: string | null }>(
+      `/v1/identity/workflows/roles/${roleId}/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ permissions }),
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async getOperatorAccessDetail(operatorId: ResourceId): Promise<OperatorAccessDetail> {
+    return requestConsolePath<OperatorAccessDetail>(`/v1/console/identity/operators/${operatorId}`);
+  },
+  async revokeOwnConsoleSession(token: string): Promise<void> {
+    await requestConsolePath<{ ok: boolean; request_id: string | null }>(
+      "/v1/identity/workflows/sessions/revoke-self",
+      {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      },
+    );
+  },
+  async revokeOperatorSession(operatorId: ResourceId, sessionId: ResourceId): Promise<void> {
+    await requestConsolePath<{ ok: boolean; request_id: string | null }>(
+      `/v1/identity/workflows/operators/${operatorId}/sessions/${sessionId}/revoke`,
+      {
+        method: "POST",
+      },
+    );
+  },
+  async getServiceAccountDetail(serviceAccountId: ResourceId): Promise<ServiceAccountDetail> {
+    return requestConsolePath<ServiceAccountDetail>(`/v1/console/identity/service-accounts/${serviceAccountId}`);
+  },
   async createServiceAccountApiKey(serviceAccountId: ResourceId, payload: Record<string, unknown>): Promise<MachineApiKeyCreate> {
     return nativeClient(crypto.randomUUID()).createAdminItem<MachineApiKeyCreate["item"]>(
       `/v1/identity/service-accounts/${serviceAccountId}/api-keys`,
@@ -1510,6 +1611,37 @@ export const liveConsoleClient = {
     const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>(
       `/v1/identity/service-accounts/${serviceAccountId}/api-keys`,
       keyId,
+    );
+    return response.item;
+  },
+  async rotateServiceAccountApiKey(
+    serviceAccountId: ResourceId,
+    keyId: ResourceId,
+    payload: Record<string, unknown>,
+    auditReason: string,
+  ): Promise<MachineApiKeyCreate & { rotated_from: AdminResource; scope_diff: Record<string, unknown> }> {
+    return requestConsolePath<MachineApiKeyCreate & { rotated_from: AdminResource; scope_diff: Record<string, unknown> }>(
+      `/v1/identity/workflows/service-accounts/${serviceAccountId}/api-keys/${keyId}/rotate`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      undefined,
+      { auditReason },
+    );
+  },
+  async forceExpireServiceAccountApiKey(
+    serviceAccountId: ResourceId,
+    keyId: ResourceId,
+    auditReason: string,
+  ): Promise<AdminResource> {
+    const response = await requestConsolePath<{ item: AdminResource; request_id: string | null }>(
+      `/v1/identity/workflows/service-accounts/${serviceAccountId}/api-keys/${keyId}/force-expire`,
+      {
+        method: "POST",
+      },
+      undefined,
+      { auditReason },
     );
     return response.item;
   },

@@ -247,6 +247,161 @@ export async function installConsoleApiMocks(
   const compatibilityAssistants: Array<Record<string, unknown>> = [];
   const compatibilityThreads: Array<Record<string, unknown>> = [];
   const compatibilityRuns: Array<Record<string, unknown>> = [];
+  const identityPermissions: Array<Record<string, unknown>> = [
+    { id: 1, code: "admin:read", resource: "admin", action: "read", status: "active" },
+    { id: 2, code: "identity:role:write", resource: "identity:role", action: "write", status: "active" },
+    { id: 3, code: "identity:operator:write", resource: "identity:operator", action: "write", status: "active" },
+    { id: 4, code: "identity:service-account:write", resource: "identity:service_account", action: "write", status: "active" },
+    { id: 5, code: "run:read", resource: "run", action: "read", status: "active" },
+  ];
+  const identityRoles: Array<Record<string, unknown>> = [
+    {
+      id: 11,
+      name: "platform_admin",
+      description: "Primary operator role",
+      status: "active",
+      permissions: [
+        "admin:read",
+        "identity:role:write",
+        "identity:operator:write",
+        "identity:service-account:write",
+        "run:read",
+      ],
+    },
+    {
+      id: 12,
+      name: "runtime_operator",
+      description: "Runtime monitoring role",
+      status: "active",
+      permissions: ["run:read"],
+    },
+  ];
+  const identityOperators: Array<Record<string, unknown>> = [
+    {
+      id: 1,
+      email: "admin@local.dimoorun",
+      name: "E2E Operator",
+      roles: ["platform_admin"],
+      permissions: ["admin:read", "identity:role:write", "identity:operator:write", "identity:service-account:write", "run:read"],
+      allowed_scopes: [e2eScope],
+      status: "active",
+      created_at: createdAt,
+      updated_at: createdAt,
+      last_login_at: createdAt,
+      password_changed_at: createdAt,
+      active_sessions: [
+        {
+          id: 101,
+          operator_id: 1,
+          status: "active",
+          last_used_at: createdAt,
+          expires_at: "2026-12-31T00:00:00.000Z",
+          revoked_at: null,
+          revoke_reason: null,
+          ip_address: "127.0.0.1",
+          user_agent: "Playwright Chrome",
+        },
+      ],
+      api_keys_created: [
+        {
+          id: 601,
+          name: "created-for-runtime",
+          owner_id: 301,
+          scopes: ["run:read"],
+          status: "active",
+          created_at: createdAt,
+          expires_at: "2026-12-31T00:00:00.000Z",
+        },
+      ],
+      recent_audit_actions: [
+        {
+          id: 9001,
+          action: "identity.role.permissions.apply",
+          resource_type: "console_role",
+          resource_id: 11,
+          result: "allowed",
+          request_id: "req_identity_preview",
+          created_at: createdAt,
+        },
+      ],
+    },
+    {
+      id: 2,
+      email: "reviewer@local.dimoorun",
+      name: "Reviewer",
+      roles: ["runtime_operator"],
+      permissions: ["run:read"],
+      allowed_scopes: [e2eScope],
+      status: "active",
+      created_at: createdAt,
+      updated_at: createdAt,
+      last_login_at: createdAt,
+      password_changed_at: createdAt,
+      active_sessions: [
+        {
+          id: 201,
+          operator_id: 2,
+          status: "active",
+          last_used_at: createdAt,
+          expires_at: "2026-12-31T00:00:00.000Z",
+          revoked_at: null,
+          revoke_reason: null,
+          ip_address: "10.0.0.2",
+          user_agent: "Chrome",
+        },
+        {
+          id: 202,
+          operator_id: 2,
+          status: "active",
+          last_used_at: createdAt,
+          expires_at: "2026-12-31T00:00:00.000Z",
+          revoked_at: null,
+          revoke_reason: null,
+          ip_address: "10.0.0.3",
+          user_agent: "Chrome",
+        },
+      ],
+      api_keys_created: [],
+      recent_audit_actions: [],
+    },
+  ];
+  const serviceAccounts: Array<Record<string, unknown>> = [
+    {
+      id: 301,
+      tenant_id: 1,
+      project_id: 1,
+      name: "ci-deployer",
+      permissions: ["run:read", "identity:service-account:write"],
+      status: "active",
+      created_by: "1",
+      created_at: createdAt,
+      last_used_at: createdAt,
+      api_keys: [
+        {
+          id: 701,
+          name: "ci-primary",
+          key_prefix: "dmr_ci",
+          scopes: ["run:read"],
+          status: "active",
+          last_used_at: createdAt,
+          expires_at: "2026-12-31T00:00:00.000Z",
+          scope_diff: {
+            added: [],
+            removed: ["identity:service-account:write"],
+            unchanged: ["run:read"],
+          },
+        },
+      ],
+      dependent_deployments: [
+        {
+          deployment_id: 10,
+          agent_id: 1,
+          environment: "local",
+          published_surfaces: [{ id: 501, name: "support ingress", status: "active" }],
+        },
+      ],
+    },
+  ];
   let nextCompatibilityRunId = 3101;
   let nextCompatibilityTaskId = 4101;
   await page.route("**/mock-api/**", async (route) => {
@@ -257,6 +412,61 @@ export async function installConsoleApiMocks(
     }
     if (path === options.errorPath) {
       return fulfillError(route);
+    }
+    if (path === "/v1/console/identity/role-matrix" && route.request().method() === "GET") {
+      return fulfillJson(route, {
+        items: identityRoles,
+        permissions: identityPermissions,
+        request_id: "e2e-request",
+      });
+    }
+    const rolePreviewMatch = path.match(/^\/v1\/identity\/workflows\/roles\/(\d+)\/(preview|apply)$/);
+    if (rolePreviewMatch && route.request().method() === "POST") {
+      return fulfillIdentityRolePreview(route, identityRoles, identityOperators, Number(rolePreviewMatch[1]), rolePreviewMatch[2]);
+    }
+    const operatorDetailMatch = path.match(/^\/v1\/console\/identity\/operators\/(\d+)$/);
+    if (operatorDetailMatch && route.request().method() === "GET") {
+      return fulfillJson(route, operatorAccessDetailResponse(identityOperators, Number(operatorDetailMatch[1])));
+    }
+    const revokeSessionMatch = path.match(/^\/v1\/identity\/workflows\/operators\/(\d+)\/sessions\/(\d+)\/revoke$/);
+    if (revokeSessionMatch && route.request().method() === "POST") {
+      return fulfillIdentitySessionRevoke(route, identityOperators, Number(revokeSessionMatch[1]), Number(revokeSessionMatch[2]));
+    }
+    if (path === "/v1/identity/workflows/sessions/revoke-self" && route.request().method() === "POST") {
+      return fulfillJson(route, { ok: true, request_id: "e2e-request" });
+    }
+    const serviceAccountDetailMatch = path.match(/^\/v1\/console\/identity\/service-accounts\/(\d+)$/);
+    if (serviceAccountDetailMatch && route.request().method() === "GET") {
+      return fulfillJson(route, serviceAccountDetailResponse(serviceAccounts, Number(serviceAccountDetailMatch[1])));
+    }
+    if (path === "/v1/identity/service-accounts" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(serviceAccounts.map(serviceAccountSummary)));
+    }
+    const serviceAccountPatchMatch = path.match(/^\/v1\/identity\/service-accounts\/(\d+)$/);
+    if (serviceAccountPatchMatch && route.request().method() === "PATCH") {
+      return fulfillIdentityServiceAccountPatch(route, serviceAccounts, Number(serviceAccountPatchMatch[1]));
+    }
+    const serviceAccountCreateKeyMatch = path.match(/^\/v1\/identity\/service-accounts\/(\d+)\/api-keys$/);
+    if (serviceAccountCreateKeyMatch && route.request().method() === "POST") {
+      return fulfillIdentityCreateApiKey(route, serviceAccounts, Number(serviceAccountCreateKeyMatch[1]));
+    }
+    const serviceAccountKeyActionMatch = path.match(/^\/v1\/identity\/service-accounts\/(\d+)\/api-keys\/(\d+)\/(disable|enable)$/);
+    if (serviceAccountKeyActionMatch && route.request().method() === "POST") {
+      return fulfillIdentityApiKeyAction(
+        route,
+        serviceAccounts,
+        Number(serviceAccountKeyActionMatch[1]),
+        Number(serviceAccountKeyActionMatch[2]),
+        serviceAccountKeyActionMatch[3],
+      );
+    }
+    const serviceAccountRotateMatch = path.match(/^\/v1\/identity\/workflows\/service-accounts\/(\d+)\/api-keys\/(\d+)\/rotate$/);
+    if (serviceAccountRotateMatch && route.request().method() === "POST") {
+      return fulfillIdentityRotateKey(route, serviceAccounts, Number(serviceAccountRotateMatch[1]), Number(serviceAccountRotateMatch[2]));
+    }
+    const serviceAccountExpireMatch = path.match(/^\/v1\/identity\/workflows\/service-accounts\/(\d+)\/api-keys\/(\d+)\/force-expire$/);
+    if (serviceAccountExpireMatch && route.request().method() === "POST") {
+      return fulfillIdentityExpireKey(route, serviceAccounts, Number(serviceAccountExpireMatch[1]), Number(serviceAccountExpireMatch[2]));
     }
     if (path === "/v1/console/workers" && route.request().method() === "GET") {
       return fulfillJson(route, makeRuntimeWorkerCollection(runtimeWorkers));
@@ -1782,7 +1992,308 @@ function responseForPath(path: string, api: DashboardApiFixture): unknown {
   if (path.match(/^\/v1\/agents\/\d+\/versions$/)) return api.versions;
   if (path === "/v1/identity/tenants") return makeAdminCollection([{ id: 1, name: "Local Tenant" }]);
   if (path === "/v1/identity/projects") return makeAdminCollection([{ id: 1, name: "DimooRun" }]);
+  if (path === "/v1/identity/permissions") {
+    return makeAdminCollection([
+      { id: 1, code: "admin:read", resource: "admin", action: "read", status: "active" },
+      { id: 2, code: "identity:role:write", resource: "identity:role", action: "write", status: "active" },
+      { id: 3, code: "identity:service-account:write", resource: "identity:service_account", action: "write", status: "active" },
+      { id: 4, code: "run:read", resource: "run", action: "read", status: "active" },
+    ]);
+  }
+  if (path === "/v1/identity/roles") {
+    return makeAdminCollection([
+      { id: 11, name: "platform_admin", permissions: ["admin:read", "identity:role:write", "run:read"] },
+      { id: 12, name: "runtime_operator", permissions: ["run:read"] },
+    ]);
+  }
   return makeAdminCollection([]);
+}
+
+function fulfillIdentityRolePreview(
+  route: Route,
+  roles: Array<Record<string, unknown>>,
+  operators: Array<Record<string, unknown>>,
+  roleId: number,
+  mode: string,
+) {
+  const role = roles.find((item) => Number(item.id) === roleId);
+  if (!role) return fulfillError(route, new Error(`Role ${roleId} not found`));
+  const permissions = parseStringList(parseRequestBody(route).permissions);
+  const currentPermissions = parseStringList(role.permissions);
+  const previewPermissions = [...new Set(permissions)];
+  const added = previewPermissions.filter((item) => !currentPermissions.includes(item));
+  const removed = currentPermissions.filter((item) => !previewPermissions.includes(item));
+  const required = ["admin:read", "identity:role:write"];
+  const warnings = required.every((item) => previewPermissions.includes(item))
+    ? []
+    : [{
+      code: "self_lockout_risk",
+      message: "Preview removes permissions required to continue role governance for the current operator.",
+      required_permissions: required,
+      missing_permissions: required.filter((item) => !previewPermissions.includes(item)),
+    }];
+  if (mode === "apply" && route.request().headers()["x-audit-reason"]?.trim().length === 0) {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "audit_reason_required",
+          message: "Audit reason is required for role permission changes.",
+          request_id: "e2e-error-request",
+          details: { field: "audit_reason" },
+        },
+      },
+    });
+  }
+  if (mode === "apply" && warnings.length > 0) {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "self_lockout_blocked",
+          message: "Current operator cannot remove permissions required for identity governance.",
+          request_id: "e2e-error-request",
+          details: { warnings },
+        },
+      },
+    });
+  }
+  if (mode === "apply") {
+    role.permissions = previewPermissions;
+    const self = operators.find((item) => Number(item.id) === 1);
+    if (self) self.permissions = previewPermissions;
+  }
+  return fulfillJson(route, {
+    item: {
+      role_id: roleId,
+      role_name: String(role.name || roleId),
+      current_permissions: currentPermissions,
+      preview_permissions: previewPermissions,
+      change: {
+        added,
+        removed,
+        unchanged: previewPermissions.filter((item) => currentPermissions.includes(item)),
+      },
+      affected_operators: operators
+        .filter((item) => Array.isArray(item.roles) && item.roles.includes(role.name))
+        .map((item) => ({
+          operator_id: item.id,
+          email: item.email,
+          name: item.name,
+          current_permissions: currentPermissions,
+          preview_permissions: previewPermissions,
+        })),
+      affected_service_accounts: [],
+      warnings,
+      policy_conflicts: warnings,
+    },
+    request_id: "e2e-request",
+  });
+}
+
+function operatorAccessDetailResponse(
+  operators: Array<Record<string, unknown>>,
+  operatorId: number,
+): Record<string, unknown> {
+  const operator = operators.find((item) => Number(item.id) === operatorId) ?? operators[0];
+  return {
+    item: {
+      ...serviceSafeClone(operator),
+      active_sessions: serviceSafeClone(operator.active_sessions),
+      api_keys_created: serviceSafeClone(operator.api_keys_created),
+      recent_audit_actions: serviceSafeClone(operator.recent_audit_actions),
+      disable_impact: {
+        active_session_count: Array.isArray(operator.active_sessions) ? operator.active_sessions.length : 0,
+        api_keys_created_count: Array.isArray(operator.api_keys_created) ? operator.api_keys_created.length : 0,
+      },
+    },
+    request_id: "e2e-request",
+  };
+}
+
+function fulfillIdentitySessionRevoke(
+  route: Route,
+  operators: Array<Record<string, unknown>>,
+  operatorId: number,
+  sessionId: number,
+) {
+  const operator = operators.find((item) => Number(item.id) === operatorId);
+  const sessions = Array.isArray(operator?.active_sessions) ? operator.active_sessions as Array<Record<string, unknown>> : [];
+  const activeSessionCount = sessions.filter((item) => item.status === "active").length;
+  if (operatorId === 1 && activeSessionCount <= 1) {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "self_lockout_blocked",
+          message: "Current operator cannot revoke the last active identity session.",
+          request_id: "e2e-error-request",
+          details: { operator_id: operatorId, session_id: sessionId },
+        },
+      },
+    });
+  }
+  const session = sessions.find((item) => Number(item.id) === sessionId);
+  if (session) {
+    operator!.active_sessions = sessions.filter((item) => Number(item.id) !== sessionId);
+  }
+  return fulfillJson(route, { ok: true, request_id: "e2e-request" });
+}
+
+function serviceAccountSummary(serviceAccount: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: serviceAccount.id,
+    tenant_id: serviceAccount.tenant_id,
+    project_id: serviceAccount.project_id,
+    name: serviceAccount.name,
+    permissions: serviceAccount.permissions,
+    status: serviceAccount.status,
+    created_by: serviceAccount.created_by,
+    created_at: serviceAccount.created_at,
+    last_used_at: serviceAccount.last_used_at,
+  };
+}
+
+function serviceAccountDetailResponse(
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+): Record<string, unknown> {
+  const account = accounts.find((item) => Number(item.id) === serviceAccountId) ?? accounts[0];
+  return {
+    item: {
+      ...serviceSafeClone(account),
+      api_keys: serviceSafeClone(account.api_keys),
+      dependent_deployments: serviceSafeClone(account.dependent_deployments),
+    },
+    request_id: "e2e-request",
+  };
+}
+
+function fulfillIdentityServiceAccountPatch(
+  route: Route,
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+) {
+  const account = accounts.find((item) => Number(item.id) === serviceAccountId);
+  if (!account) return fulfillError(route);
+  Object.assign(account, parseRequestBody(route));
+  return fulfillJson(route, { item: serviceAccountSummary(account), request_id: "e2e-request" });
+}
+
+function fulfillIdentityCreateApiKey(
+  route: Route,
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+) {
+  const account = accounts.find((item) => Number(item.id) === serviceAccountId);
+  if (!account) return fulfillError(route);
+  const payload = parseRequestBody(route);
+  const apiKeys = account.api_keys as Array<Record<string, unknown>>;
+  const nextId = Math.max(0, ...apiKeys.map((item) => Number(item.id))) + 1;
+  const key = {
+    id: nextId,
+    name: String(payload.name || `key-${nextId}`),
+    key_prefix: `dmr_${nextId}`,
+    scopes: parseStringList(payload.scopes),
+    status: "active",
+    last_used_at: null,
+    expires_at: typeof payload.expires_at === "string" ? payload.expires_at : null,
+    scope_diff: scopeDiff(parseStringList(account.permissions), parseStringList(payload.scopes)),
+  };
+  apiKeys.unshift(key);
+  return fulfillJson(route, {
+    item: key,
+    plain_key: `dmr_secret_${nextId}`,
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillIdentityApiKeyAction(
+  route: Route,
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+  keyId: number,
+  action: string,
+) {
+  const key = findServiceAccountKey(accounts, serviceAccountId, keyId);
+  if (!key) return fulfillError(route);
+  key.status = action === "enable" ? "active" : "disabled";
+  return fulfillJson(route, { item: key, request_id: "e2e-request" });
+}
+
+function fulfillIdentityRotateKey(
+  route: Route,
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+  keyId: number,
+) {
+  const account = accounts.find((item) => Number(item.id) === serviceAccountId);
+  const currentKey = findServiceAccountKey(accounts, serviceAccountId, keyId);
+  if (!account || !currentKey) return fulfillError(route);
+  const payload = parseRequestBody(route);
+  const apiKeys = account.api_keys as Array<Record<string, unknown>>;
+  const nextId = Math.max(0, ...apiKeys.map((item) => Number(item.id))) + 1;
+  currentKey.status = "disabled";
+  const scopes = parseStringList(payload.scopes).length > 0 ? parseStringList(payload.scopes) : parseStringList(currentKey.scopes);
+  const rotated = {
+    id: nextId,
+    name: String(payload.name || `${String(currentKey.name || currentKey.id)}-rotated`),
+    key_prefix: `dmr_rot_${nextId}`,
+    scopes,
+    status: "active",
+    last_used_at: null,
+    expires_at: typeof payload.expires_at === "string" ? payload.expires_at : null,
+    scope_diff: scopeDiff(parseStringList(account.permissions), scopes),
+  };
+  apiKeys.unshift(rotated);
+  return fulfillJson(route, {
+    item: rotated,
+    plain_key: `dmr_rotated_secret_${nextId}`,
+    rotated_from: currentKey,
+    scope_diff: rotated.scope_diff,
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillIdentityExpireKey(
+  route: Route,
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+  keyId: number,
+) {
+  const key = findServiceAccountKey(accounts, serviceAccountId, keyId);
+  if (!key) return fulfillError(route);
+  key.status = "expired";
+  return fulfillJson(route, { item: key, request_id: "e2e-request" });
+}
+
+function findServiceAccountKey(
+  accounts: Array<Record<string, unknown>>,
+  serviceAccountId: number,
+  keyId: number,
+): Record<string, unknown> | undefined {
+  const account = accounts.find((item) => Number(item.id) === serviceAccountId);
+  const apiKeys = Array.isArray(account?.api_keys) ? account.api_keys as Array<Record<string, unknown>> : [];
+  return apiKeys.find((item) => Number(item.id) === keyId);
+}
+
+function scopeDiff(base: string[], scopes: string[]): Record<string, unknown> {
+  return {
+    added: scopes.filter((item) => !base.includes(item)),
+    removed: base.filter((item) => !scopes.includes(item)),
+    unchanged: scopes.filter((item) => base.includes(item)),
+  };
+}
+
+function parseStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function serviceSafeClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function promotionPreviewResponse(api: DashboardApiFixture, deploymentId: number, candidateVersionId: number): unknown {

@@ -16,8 +16,10 @@ import IdentityScopePage from "../pages/identity/IdentityScopePage.vue";
 import IncidentTriagePage from "../pages/incidents/IncidentTriagePage.vue";
 import MachineIdentityPage from "../pages/identity/MachineIdentityPage.vue";
 import OperatorsPage from "../pages/identity/OperatorsPage.vue";
+import RolePermissionMatrixPage from "../pages/identity/RolePermissionMatrixPage.vue";
+import ServiceAccountDetailPage from "../pages/identity/ServiceAccountDetailPage.vue";
+import UserAccessDetailPage from "../pages/identity/UserAccessDetailPage.vue";
 import BackupRestorePage from "../pages/ops/BackupRestorePage.vue";
-import RolePermissionPage from "../pages/identity/RolePermissionPage.vue";
 import PackageRegistrationPage from "../pages/packages/PackageRegistrationPage.vue";
 import PolicyWorkbenchPage from "../pages/policies/PolicyWorkbenchPage.vue";
 import PublishedSurfacesPage from "../pages/published/PublishedSurfacesPage.vue";
@@ -66,6 +68,12 @@ export const routes: RouteRecordRaw[] = [
     component: OperatorsPage,
   },
   {
+    path: "/identity/operators/:operatorId",
+    name: "operator-detail",
+    component: UserAccessDetailPage,
+    props: true,
+  },
+  {
     path: "/identity/scopes",
     name: "identity-scopes",
     component: IdentityScopePage,
@@ -77,7 +85,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/identity/roles-permissions",
     name: "roles-permissions",
-    component: RolePermissionPage,
+    component: RolePermissionMatrixPage,
   },
   { path: "/identity/roles", redirect: "/identity/roles-permissions" },
   { path: "/identity/permissions", redirect: "/identity/roles-permissions" },
@@ -85,6 +93,12 @@ export const routes: RouteRecordRaw[] = [
     path: "/identity/machine-identities",
     name: "machine-identities",
     component: MachineIdentityPage,
+  },
+  {
+    path: "/identity/service-accounts/:serviceAccountId",
+    name: "service-account-detail",
+    component: ServiceAccountDetailPage,
+    props: true,
   },
   { path: "/identity/service-accounts", redirect: "/identity/machine-identities" },
   {

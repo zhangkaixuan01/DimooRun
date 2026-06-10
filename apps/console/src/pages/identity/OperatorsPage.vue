@@ -38,6 +38,7 @@
             <td>{{ formatDateTime(operator.last_login_at) }}</td>
             <td>
               <div class="row-actions">
+                <button class="button" type="button" @click="router.push(`/identity/operators/${operator.id}`)">详情</button>
                 <button class="button" type="button" :disabled="!canManageOperators" @click="openEditDrawer(operator)">编辑</button>
                 <button class="button" type="button" :disabled="!canManageOperators" @click="openPasswordDrawer(operator)">重置密码</button>
                 <button class="button" type="button" :disabled="!canManageOperators" @click="revokeSessions(operator)">撤销会话</button>
@@ -200,6 +201,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError, type ConsoleOperator, type ConsoleOperatorSession } from "../../api/client";
 import { readCurrentScope } from "../../api/scope";
@@ -215,6 +217,7 @@ type ScopeForm = { tenant_id: number; project_id: number; environment: string };
 
 const { t } = useI18n();
 const auth = useAuthStore();
+const router = useRouter();
 const mode = apiMode();
 const canManageOperators = computed(() => auth.can("identity:operator:write"));
 const loading = ref(false);
