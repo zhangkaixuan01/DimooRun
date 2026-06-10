@@ -345,6 +345,43 @@ class AgentInstance(IdMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
+class WorkerSnapshot(IdMixin, TimestampMixin, Base):
+    __tablename__ = "worker_snapshots"
+    __table_args__ = (
+        Index(
+            "uq_worker_snapshots_scope_worker_active",
+            "tenant_id",
+            "project_id",
+            "environment",
+            "worker_id",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        nullable=False,
+        index=True,
+    )
+    environment: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(64), default="idle", nullable=False)
+    drain_status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    version: Mapped[str] = mapped_column(String(128), default="unknown", nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    restart_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class SessionModel(IdMixin, TimestampMixin, Base):
     __tablename__ = "sessions"
 

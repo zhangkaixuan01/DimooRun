@@ -37,6 +37,9 @@ test("declares the MVP runtime control routes", () => {
       "/deployments",
       "/compatibility",
       "/published-surfaces",
+      "/runtime/workers",
+      "/runtime/agent-instances",
+      "/runtime/capacity",
       "/runs",
       "/runs/:runId",
       "/tasks",
@@ -759,4 +762,35 @@ test("defines a dedicated compatibility browser workflow for hosted proof", () =
     assert.match(workflow, /npm run test:e2e:0i/);
     assert.match(workflow, /PLAYWRIGHT_HTML_REPORT: playwright-report-0i/);
     assert.match(workflow, /console-playwright-0i-report/);
+});
+
+test("defines a dedicated runtime capacity browser workflow", () => {
+    const packageJson = read("package.json");
+    const workflow = read("../../.github/workflows/ci.yml");
+    const workersPage = read("src/pages/runtime/WorkersPage.vue");
+    const instancesPage = read("src/pages/runtime/AgentInstancesPage.vue");
+    const capacityPage = read("src/pages/runtime/CapacityPage.vue");
+    const fixture = read("tests/fixtures/api.ts");
+
+    assert.match(packageJson, /"test:e2e:0j"/);
+    assert.match(packageJson, /tests\/e2e\/runtime-capacity\.spec\.ts/);
+    assert.match(packageJson, /--output test-results-0j/);
+    assert.match(workflow, /npm run test:e2e:0j/);
+    assert.match(workflow, /PLAYWRIGHT_HTML_REPORT: playwright-report-0j/);
+    assert.match(workflow, /console-playwright-0j-report/);
+
+    assert.match(workersPage, /consoleClient\.listRuntimeWorkers/);
+    assert.match(workersPage, /consoleClient\.getRuntimeWorker/);
+    assert.match(workersPage, /consoleClient\.controlRuntimeWorker/);
+    assert.match(instancesPage, /consoleClient\.listRuntimeAgentInstances/);
+    assert.match(instancesPage, /consoleClient\.getRuntimeAgentInstance/);
+    assert.match(capacityPage, /consoleClient\.getRuntimeCapacitySummary/);
+
+    [
+      'path === "/v1/console/workers"',
+      'path === "/v1/console/agent-instances"',
+      'path === "/v1/console/capacity"',
+      "workerActionMatch",
+      "runtimeCapacitySummaryResponse",
+    ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
 });

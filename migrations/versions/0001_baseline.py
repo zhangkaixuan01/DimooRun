@@ -1352,6 +1352,34 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_agent_instances_project_id'), 'agent_instances', ['project_id'], unique=False)
     op.create_index(op.f('ix_agent_instances_tenant_id'), 'agent_instances', ['tenant_id'], unique=False)
+    op.create_table('worker_snapshots',
+    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
+    sa.Column('tenant_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('project_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('environment', sa.String(length=128), nullable=False),
+    sa.Column('worker_id', sa.String(length=128), nullable=False),
+    sa.Column('status', sa.String(length=64), nullable=False),
+    sa.Column('drain_status', sa.String(length=64), nullable=False),
+    sa.Column('version', sa.String(length=128), nullable=False),
+    sa.Column('capacity', sa.Integer(), nullable=False),
+    sa.Column('heartbeat_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('last_error', sa.Text(), nullable=True),
+    sa.Column('restart_requested_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('metadata_json', sa.JSON(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_by', sa.String(length=64), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_by', sa.String(length=64), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_by', sa.String(length=64), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_worker_snapshots_environment'), 'worker_snapshots', ['environment'], unique=False)
+    op.create_index(op.f('ix_worker_snapshots_project_id'), 'worker_snapshots', ['project_id'], unique=False)
+    op.create_index(op.f('ix_worker_snapshots_tenant_id'), 'worker_snapshots', ['tenant_id'], unique=False)
+    op.create_index(op.f('ix_worker_snapshots_worker_id'), 'worker_snapshots', ['worker_id'], unique=False)
+    op.create_index('uq_worker_snapshots_scope_worker_active', 'worker_snapshots', ['tenant_id', 'project_id', 'environment', 'worker_id'], unique=True, postgresql_where=sa.text('is_deleted = false'), sqlite_where=sa.text('is_deleted = 0'))
     op.create_table('experiment_runs',
     sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
     sa.Column('experiment_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
@@ -1906,6 +1934,12 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_agent_instances_tenant_id'), table_name='agent_instances')
     op.drop_index(op.f('ix_agent_instances_project_id'), table_name='agent_instances')
     op.drop_table('agent_instances')
+    op.drop_index('uq_worker_snapshots_scope_worker_active', table_name='worker_snapshots', postgresql_where=sa.text('is_deleted = false'), sqlite_where=sa.text('is_deleted = 0'))
+    op.drop_index(op.f('ix_worker_snapshots_worker_id'), table_name='worker_snapshots')
+    op.drop_index(op.f('ix_worker_snapshots_tenant_id'), table_name='worker_snapshots')
+    op.drop_index(op.f('ix_worker_snapshots_project_id'), table_name='worker_snapshots')
+    op.drop_index(op.f('ix_worker_snapshots_environment'), table_name='worker_snapshots')
+    op.drop_table('worker_snapshots')
     op.drop_index(op.f('ix_model_policies_tenant_id'), table_name='model_policies')
     op.drop_index(op.f('ix_model_policies_project_id'), table_name='model_policies')
     op.drop_table('model_policies')

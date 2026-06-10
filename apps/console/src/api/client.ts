@@ -1,4 +1,49 @@
-import type { Agent, AgentVersion, BackupDryRunResult, CompatibilityExplorerResult, CompatibilityMigrationResponse, ConsoleRuntimeOverview, ConsoleWriteOptions, DatasetCapture, Deployment, DeploymentPromotionPreview, ExperimentRunResult, HumanTask, IncidentWorkflowResult, IngressRouteTestResult, ModelGatewayTestResult, NotificationTestResult, PackageValidationResult, PolicyActivation, PolicyDraft, PolicySimulation, PublishedSurfaceDetail, PublishedSurfacePublishResult, PublishedSurfaceRolloutResult, PublishValidationResult, QualityGatePreview, ReplayComparison, ResourceId, RestoreDryRunResult, Run, RunAttempt, RunDatasetCapture, RuntimeEvent, SecretRotationResult, SecretValidationResult, Task, TaskCreateResult, ToolDryRunResult } from "./types";
+import type {
+  Agent,
+  AgentVersion,
+  BackupDryRunResult,
+  CompatibilityExplorerResult,
+  CompatibilityMigrationResponse,
+  ConsoleRuntimeOverview,
+  ConsoleWriteOptions,
+  DatasetCapture,
+  Deployment,
+  DeploymentPromotionPreview,
+  ExperimentRunResult,
+  HumanTask,
+  IncidentWorkflowResult,
+  IngressRouteTestResult,
+  ModelGatewayTestResult,
+  NotificationTestResult,
+  PackageValidationResult,
+  PolicyActivation,
+  PolicyDraft,
+  PolicySimulation,
+  PublishedSurfaceDetail,
+  PublishedSurfacePublishResult,
+  PublishedSurfaceRolloutResult,
+  PublishValidationResult,
+  QualityGatePreview,
+  ReplayComparison,
+  ResourceId,
+  RestoreDryRunResult,
+  Run,
+  RunAttempt,
+  RunDatasetCapture,
+  RuntimeAgentInstance,
+  RuntimeAgentInstanceDetail,
+  RuntimeCapacitySummary,
+  RuntimeControlAction,
+  RuntimeEvent,
+  RuntimeQueuePressure,
+  RuntimeWorker,
+  RuntimeWorkerDetail,
+  SecretRotationResult,
+  SecretValidationResult,
+  Task,
+  TaskCreateResult,
+  ToolDryRunResult,
+} from "./types";
 import {
   type ConsoleDashboardSummaryRead,
   type ConsoleRuntimeOverviewRead,
@@ -191,6 +236,46 @@ function handleUnauthorized(error: unknown): void {
   if (!window.location.pathname.startsWith("/login")) {
     window.location.assign(`/login?redirect=${encodeURIComponent(current)}`);
   }
+}
+
+async function requestConsolePath<T>(
+  path: string,
+  init: RequestInit = {},
+  scopeOverride?: Partial<ConsoleScope>,
+  writeOptions: ConsoleWriteOptions = {},
+): Promise<T> {
+  const baseUrl = apiBaseUrl();
+  if (!baseUrl) {
+    throw new Error("DimooRun API base URL is not configured.");
+  }
+  const headers = {
+    ...nativeHeaders(undefined, scopeOverride, writeOptions),
+    ...(init.headers || {}),
+  };
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers,
+  });
+  if (!response.ok) {
+    let detail: unknown = null;
+    try {
+      const body = await response.json() as { detail?: unknown };
+      detail = body.detail ?? body;
+    } catch {
+      detail = { message: `HTTP ${response.status}` };
+    }
+    if (isRecord(detail)) {
+      throw {
+        status: response.status,
+        errorCode: typeof detail.error_code === "string" ? detail.error_code : `http_${response.status}`,
+        message: typeof detail.message === "string" ? detail.message : `HTTP ${response.status}`,
+        requestId: typeof detail.request_id === "string" ? detail.request_id : null,
+        details: isRecord(detail.details) ? detail.details : null,
+      };
+    }
+    throw detail;
+  }
+  return await response.json() as T;
 }
 
 function mapNativeAgent(
@@ -690,6 +775,124 @@ function mapSecretRotation(result: Record<string, unknown>): SecretRotationResul
   };
 }
 
+function mapRuntimeControlAction(action: Record<string, unknown>): RuntimeControlAction {
+  return {
+    action: String(action.action || ""),
+    label: String(action.label || action.action || ""),
+    available: action.available === true,
+    disabledReasons: Array.isArray(action.disabled_reasons)
+      ? action.disabled_reasons.map(String)
+      : [],
+    requiredPermissions: Array.isArray(action.required_permissions)
+      ? action.required_permissions.map(String)
+      : [],
+    auditRequired: action.audit_required === true,
+  };
+}
+
+function mapRuntimeWorker(worker: Record<string, unknown>): RuntimeWorker {
+  return {
+    workerId: String(worker.worker_id || ""),
+    environment: String(worker.environment || ""),
+    status: String(worker.status || "unknown"),
+    drainStatus: String(worker.drain_status || "active"),
+    version: String(worker.version || "unknown"),
+    queues: Array.isArray(worker.queues) ? worker.queues.map(String) : [],
+    capacity: Number(worker.capacity || 0),
+    activeAttempts: Number(worker.active_attempts || 0),
+    activeRuns: Number(worker.active_runs || 0),
+    heartbeatAgeSeconds: typeof worker.heartbeat_age_seconds === "number"
+      ? worker.heartbeat_age_seconds
+      : null,
+    lastError: typeof worker.last_error === "string" ? worker.last_error : null,
+    liveness: String(worker.liveness || "offline"),
+    readiness: String(worker.readiness || "degraded"),
+    retryingTasks: Number(worker.retrying_tasks || 0),
+    deadLetterTasks: Number(worker.dead_letter_tasks || 0),
+    deploymentIds: Array.isArray(worker.deployment_ids) ? worker.deployment_ids.map(Number) : [],
+    restartRequestedAt: typeof worker.restart_requested_at === "string"
+      ? worker.restart_requested_at
+      : null,
+  };
+}
+
+function mapRuntimeWorkerDetail(item: Record<string, unknown>): RuntimeWorkerDetail {
+  return {
+    ...mapRuntimeWorker(item),
+    activeTaskIds: Array.isArray(item.active_task_ids) ? item.active_task_ids.map(Number) : [],
+    activeRunIds: Array.isArray(item.active_run_ids) ? item.active_run_ids.map(Number) : [],
+    actions: Array.isArray(item.actions)
+      ? item.actions.filter(isRecord).map(mapRuntimeControlAction)
+      : [],
+  };
+}
+
+function mapRuntimeAgentInstance(item: Record<string, unknown>): RuntimeAgentInstance {
+  return {
+    id: Number(item.id || 0),
+    deploymentId: Number(item.deployment_id || 0),
+    environment: String(item.environment || ""),
+    agentId: Number(item.agent_id || 0),
+    agentVersionId: Number(item.agent_version_id || 0),
+    workerId: String(item.worker_id || ""),
+    status: String(item.status || "unknown"),
+    activeRuns: Number(item.active_runs || 0),
+    recentFailures: Number(item.recent_failures || 0),
+    concurrencyLimit: Number(item.concurrency_limit || 0),
+    runtimeConfigHash: String(item.runtime_config_hash || ""),
+    executionProfileId: typeof item.execution_profile_id === "string"
+      ? item.execution_profile_id
+      : null,
+    cacheKey: String(item.cache_key || ""),
+    loadedAt: typeof item.loaded_at === "string" ? item.loaded_at : null,
+    heartbeatAt: typeof item.heartbeat_at === "string" ? item.heartbeat_at : null,
+    lastError: typeof item.last_error === "string" ? item.last_error : null,
+  };
+}
+
+function mapRuntimeAgentInstanceDetail(
+  item: Record<string, unknown>,
+): RuntimeAgentInstanceDetail {
+  return {
+    ...mapRuntimeAgentInstance(item),
+    deploymentDesiredStatus: String(item.deployment_desired_status || ""),
+    deploymentRuntimeStatus: String(item.deployment_runtime_status || ""),
+  };
+}
+
+function mapRuntimeQueuePressure(item: Record<string, unknown>): RuntimeQueuePressure {
+  return {
+    queue: String(item.queue || ""),
+    queueBacklog: Number(item.queue_backlog || 0),
+    leased: Number(item.leased || 0),
+    running: Number(item.running || 0),
+    retrying: Number(item.retrying || 0),
+    deadLetter: Number(item.dead_letter || 0),
+    oldestTaskAgeSeconds: typeof item.oldest_task_age_seconds === "number"
+      ? item.oldest_task_age_seconds
+      : null,
+  };
+}
+
+function mapRuntimeCapacitySummary(item: Record<string, unknown>): RuntimeCapacitySummary {
+  return {
+    queueBacklog: Number(item.queue_backlog || 0),
+    activeAttempts: Number(item.active_attempts || 0),
+    totalCapacity: Number(item.total_capacity || 0),
+    saturationRatio: Number(item.saturation_ratio || 0),
+    timeToDrainSeconds: Number(item.time_to_drain_seconds || 0),
+    retryPressure: Number(item.retry_pressure || 0),
+    deadLetterPressure: Number(item.dead_letter_pressure || 0),
+    recommendedAction: String(item.recommended_action || "steady_state"),
+    recommendedReason: String(item.recommended_reason || ""),
+    activeWorkers: Number(item.active_workers || 0),
+    drainingWorkers: Number(item.draining_workers || 0),
+    quarantinedWorkers: Number(item.quarantined_workers || 0),
+    criticalAttempts: Number(item.critical_attempts || 0),
+    queues: Array.isArray(item.queues) ? item.queues.filter(isRecord).map(mapRuntimeQueuePressure) : [],
+  };
+}
+
 function mapCompatibilityExplorerResult(result: Record<string, unknown>): CompatibilityExplorerResult {
   return {
     operation: String(result.operation || "unknown"),
@@ -758,6 +961,59 @@ export const liveConsoleClient = {
   },
   async getRuntimeOverview(): Promise<ConsoleRuntimeOverview> {
     return mapConsoleRuntimeOverview(await nativeClient().getConsoleRuntimeOverview());
+  },
+  async listRuntimeWorkers(): Promise<CursorPage<RuntimeWorker>> {
+    const payload = await requestConsolePath<{
+      items: Array<Record<string, unknown>>;
+      count: number;
+      request_id: string | null;
+    }>("/v1/console/workers");
+    return page(payload.items.map(mapRuntimeWorker));
+  },
+  async getRuntimeWorker(workerId: string): Promise<RuntimeWorkerDetail> {
+    const payload = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/console/workers/${encodeURIComponent(workerId)}`);
+    return mapRuntimeWorkerDetail(payload.item);
+  },
+  async controlRuntimeWorker(
+    workerId: string,
+    action: string,
+    options: ConsoleWriteOptions = {},
+  ): Promise<RuntimeWorkerDetail> {
+    const payload = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(
+      `/v1/console/workers/${encodeURIComponent(workerId)}/${encodeURIComponent(action)}`,
+      { method: "POST" },
+      undefined,
+      options,
+    );
+    return mapRuntimeWorkerDetail(payload.item);
+  },
+  async getRuntimeCapacitySummary(): Promise<RuntimeCapacitySummary> {
+    const payload = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>("/v1/console/capacity");
+    return mapRuntimeCapacitySummary(payload.item);
+  },
+  async listRuntimeAgentInstances(): Promise<CursorPage<RuntimeAgentInstance>> {
+    const payload = await requestConsolePath<{
+      items: Array<Record<string, unknown>>;
+      count: number;
+      request_id: string | null;
+    }>("/v1/console/agent-instances");
+    return page(payload.items.map(mapRuntimeAgentInstance));
+  },
+  async getRuntimeAgentInstance(instanceId: ResourceId): Promise<RuntimeAgentInstanceDetail> {
+    const payload = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/console/agent-instances/${instanceId}`);
+    return mapRuntimeAgentInstanceDetail(payload.item);
   },
   async validatePackage(payload: PackageValidationPayload): Promise<PackageValidationResult> {
     return mapPackageValidation(await nativeClient(crypto.randomUUID()).validatePackage(payload));

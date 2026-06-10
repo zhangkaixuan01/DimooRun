@@ -1203,17 +1203,26 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add worker health read model with heartbeat age, active attempts, queues, drain status, version, capacity, last error, and liveness/readiness interpretation.
-- [ ] Add agent instance read model with deployment, version, active runs, recent failures, assigned worker, concurrency limit, and runtime config hash.
-- [ ] Add capacity summary with queue backlog, time-to-drain estimate, saturation, retry pressure, dead-letter pressure, and recommended operator action.
-- [ ] Add drain, undrain, quarantine, and restart-request actions with audit reason, permission summary, and disabled-action reasons when unsafe.
-- [ ] Add Console workflows for capacity overview, worker detail, agent instance detail, queue pressure drilldown, and safe drain confirmation.
-- [ ] Add browser tests for worker health drilldown, capacity recommendation, drain blocked by active critical attempt, successful drain, and agent instance failure navigation.
+- [x] Add worker health read model with heartbeat age, active attempts, queues, drain status, version, capacity, last error, and liveness/readiness interpretation.
+- [x] Add agent instance read model with deployment, version, active runs, recent failures, assigned worker, concurrency limit, and runtime config hash.
+- [x] Add capacity summary with queue backlog, time-to-drain estimate, saturation, retry pressure, dead-letter pressure, and recommended operator action.
+- [x] Add drain, undrain, quarantine, and restart-request actions with audit reason, permission summary, and disabled-action reasons when unsafe.
+- [x] Add Console workflows for capacity overview, worker detail, agent instance detail, queue pressure drilldown, and safe drain confirmation.
+- [x] Add browser tests for worker health drilldown, capacity recommendation, drain blocked by active critical attempt, successful drain, and agent instance failure navigation.
 - [ ] Commit as `feat(runtime): add worker capacity operations workflow`.
 
 Acceptance:
 
 - Operators can answer whether the runtime has enough capacity, which worker or instance is unhealthy, what is safe to drain, and what action was taken.
+- Worker drain, undrain, quarantine, and restart-request actions remain
+  scope-safe even when the same `worker_id` is reused across environments.
+- Local proof now includes `uv run pytest -q tests/api/test_worker_capacity_console.py tests/api/test_console_aggregate_api.py`,
+  `uv run ruff check apps/server/dimoo_run/runtime/capacity.py apps/server/dimoo_run/api/console/workers.py apps/server/dimoo_run/domain/models.py apps/server/dimoo_run/api/native/runtime.py tests/api/test_worker_capacity_console.py migrations/versions/0001_baseline.py`,
+  `npm run test`, `npm run test:unit`, `npm run build:e2e`, `npx playwright test tests/e2e/runtime-capacity.spec.ts --project=chrome --output test-results-0j`,
+  and `npm run test:e2e:0j`. Regressions now also cover reused `worker_id`
+  values across environments so queue pressure, active attempts, and worker
+  control actions stay isolated to the requested scope. See
+  `docs/readiness/phase-0j-evidence.md`.
 
 ### Phase 0K: Identity, Role, Permission, Session, And Machine Identity Workflow
 

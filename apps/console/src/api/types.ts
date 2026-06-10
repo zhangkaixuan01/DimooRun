@@ -314,6 +314,92 @@ export type ConsoleRuntimeOverview = {
   }>;
 };
 
+export type RuntimeControlAction = {
+  action: string;
+  label: string;
+  available: boolean;
+  disabledReasons: string[];
+  requiredPermissions: string[];
+  auditRequired: boolean;
+};
+
+export type RuntimeWorker = {
+  workerId: string;
+  environment: string;
+  status: string;
+  drainStatus: string;
+  version: string;
+  queues: string[];
+  capacity: number;
+  activeAttempts: number;
+  activeRuns: number;
+  heartbeatAgeSeconds: number | null;
+  lastError: string | null;
+  liveness: string;
+  readiness: string;
+  retryingTasks: number;
+  deadLetterTasks: number;
+  deploymentIds: ResourceId[];
+  restartRequestedAt: string | null;
+};
+
+export type RuntimeWorkerDetail = RuntimeWorker & {
+  activeTaskIds: ResourceId[];
+  activeRunIds: ResourceId[];
+  actions: RuntimeControlAction[];
+};
+
+export type RuntimeAgentInstance = {
+  id: ResourceId;
+  deploymentId: ResourceId;
+  environment: string;
+  agentId: ResourceId;
+  agentVersionId: ResourceId;
+  workerId: string;
+  status: string;
+  activeRuns: number;
+  recentFailures: number;
+  concurrencyLimit: number;
+  runtimeConfigHash: string;
+  executionProfileId: string | null;
+  cacheKey: string;
+  loadedAt: string | null;
+  heartbeatAt: string | null;
+  lastError: string | null;
+};
+
+export type RuntimeAgentInstanceDetail = RuntimeAgentInstance & {
+  deploymentDesiredStatus: string;
+  deploymentRuntimeStatus: string;
+};
+
+export type RuntimeQueuePressure = {
+  queue: string;
+  queueBacklog: number;
+  leased: number;
+  running: number;
+  retrying: number;
+  deadLetter: number;
+  oldestTaskAgeSeconds: number | null;
+};
+
+export type RuntimeCapacitySummary = {
+  queueBacklog: number;
+  activeAttempts: number;
+  totalCapacity: number;
+  saturationRatio: number;
+  timeToDrainSeconds: number;
+  retryPressure: number;
+  deadLetterPressure: number;
+  recommendedAction: string;
+  recommendedReason: string;
+  activeWorkers: number;
+  drainingWorkers: number;
+  quarantinedWorkers: number;
+  criticalAttempts: number;
+  queues: RuntimeQueuePressure[];
+};
+
 export type PackageValidationResult = {
   status: string;
   ready: boolean;

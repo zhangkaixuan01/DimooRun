@@ -9,10 +9,11 @@ from dimoo_run.api.console.schemas import (
     ConsoleRecentFailure,
     ConsoleRuntimeOverview,
     ConsoleWorkerHealth,
-)
+    )
 from dimoo_run.api.native.runtime import NativeRun, NativeRuntimeStore, SQLAlchemyNativeRuntimeStore
 from dimoo_run.deployments.service import DeploymentRecord, DeploymentRuntimeControlService
 from dimoo_run.domain.enums import RunStatus, TaskStatus
+from dimoo_run.runtime.capacity import build_worker_health_views, default_worker_registry
 from dimoo_run.security.api_keys import AuthenticatedActor
 
 
@@ -165,17 +166,11 @@ def worker_health_summary(
     environment: str,
 ) -> list[ConsoleWorkerHealth]:
     return [
-        ConsoleWorkerHealth(
-            worker_id=f"deployment-{item.deployment_id}",
-            deployment_id=item.deployment_id,
-            environment=item.environment,
-            status="ready" if item.runtime_status == "ready" else "degraded",
-            queue_backlog=item.queue_backlog,
-            running_runs=item.running_runs,
-        )
-        for item in deployment_health_summary(
+        ConsoleWorkerHealth.model_validate(item)
+        for item in build_worker_health_views(
             runtime=runtime,
             deployments=deployments,
+            workers=default_worker_registry(),
             tenant_id=tenant_id,
             project_id=project_id,
             environment=environment,

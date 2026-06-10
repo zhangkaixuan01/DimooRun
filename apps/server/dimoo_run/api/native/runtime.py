@@ -77,6 +77,7 @@ class NativeTask:
     tenant_id: int
     project_id: int
     status: TaskStatus
+    worker_id: str | None = None
     queue: str = "default"
     priority: int = 0
     attempt: int = 0
@@ -925,6 +926,7 @@ def _task_from_model(task: Task) -> NativeTask:
         tenant_id=task.tenant_id,
         project_id=task.project_id,
         status=TaskStatus(task.status),
+        worker_id=task.worker_id,
         queue=task.queue,
         priority=task.priority,
         attempt=task.attempt,

@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from dimoo_run.runtime.capacity import default_worker_registry
+
 
 @dataclass
 class WorkerHeartbeat:
@@ -26,6 +28,11 @@ class WorkerLoop:
         cancel_subscriber: Any | None = None,
         cancel_handler: Any | None = None,
         execute_once: Any | None = None,
+        tenant_id: int = 1,
+        project_id: int = 1,
+        environment: str = "production",
+        version: str = "dev",
+        capacity: int = 1,
     ) -> None:
         self.worker_id = worker_id or f"worker_{uuid4().hex[:8]}"
         self.poll_interval_seconds = poll_interval_seconds
@@ -35,8 +42,14 @@ class WorkerLoop:
         self.cancel_subscriber = cancel_subscriber
         self.cancel_handler = cancel_handler
         self.execute_once = execute_once
+        self.tenant_id = tenant_id
+        self.project_id = project_id
+        self.environment = environment
+        self.version = version
+        self.capacity = capacity
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="starting")
         self._stopped = False
+        self._publish_heartbeat("starting")
 
     def run_once(self) -> WorkerHeartbeat:
         if self.cancel_subscriber is not None:
@@ -49,6 +62,7 @@ class WorkerLoop:
                     worker_id=self.worker_id,
                     status="cancel_requested",
                 )
+                self._publish_heartbeat("cancel_requested")
                 return self.heartbeat
         if self.execute_once is not None:
             import anyio
@@ -63,6 +77,7 @@ class WorkerLoop:
             result = anyio.run(invoke_execute_once)
             if result is not None:
                 self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="executed")
+                self._publish_heartbeat("executed")
                 return self.heartbeat
         if self.task_backend is not None:
             import anyio
@@ -80,12 +95,15 @@ class WorkerLoop:
                     leased["fencing_token"],
                 )
                 self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="running")
+                self._publish_heartbeat("running")
                 return self.heartbeat
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="idle")
+        self._publish_heartbeat("idle")
         return self.heartbeat
 
     def run_forever(self) -> None:
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="running")
+        self._publish_heartbeat("running")
         while not self._stopped:
             self.run_once()
             time.sleep(self.poll_interval_seconds)
@@ -93,6 +111,7 @@ class WorkerLoop:
     def stop(self) -> None:
         self._stopped = True
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="stopped")
+        self._publish_heartbeat("stopped")
 
     def _handle_cancel_message(self, message: dict[str, Any]) -> None:
         if self.cancel_handler is None:
@@ -111,3 +130,15 @@ class WorkerLoop:
             return
         assert callable(handler)
         anyio.run(handler, message)
+
+    def _publish_heartbeat(self, status: str) -> None:
+        default_worker_registry().heartbeat(
+            worker_id=self.worker_id,
+            tenant_id=self.tenant_id,
+            project_id=self.project_id,
+            environment=self.environment,
+            status=status,
+            queues=[self.queue],
+            version=self.version,
+            capacity=self.capacity,
+        )

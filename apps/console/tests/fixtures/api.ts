@@ -45,6 +45,21 @@ export type DashboardApiFixture = {
   incidents: AdminCollectionResponse<Record<string, unknown>>;
 };
 
+type RuntimeWorkerFixture = Record<string, unknown> & {
+  worker_id: string;
+  drain_status: string;
+  active_attempts: number;
+  active_runs: number;
+  _blocked_actions?: Record<string, string>;
+  _active_task_ids?: number[];
+  _active_run_ids?: number[];
+};
+
+type RuntimeAgentInstanceFixture = Record<string, unknown> & {
+  id: number;
+  worker_id: string;
+};
+
 type MockOptions = {
   empty?: boolean;
   errorPath?: string;
@@ -193,6 +208,8 @@ export async function installConsoleApiMocks(
   options: MockOptions = {},
 ): Promise<void> {
   const api = makeDashboardApi({ empty: options.empty });
+  const runtimeWorkers = makeRuntimeWorkers();
+  const runtimeAgentInstances = makeRuntimeAgentInstances();
   let capturedRunDataset = false;
   const incidentTimeline: Array<Record<string, unknown>> = [];
   const incidentDeliveries: Array<Record<string, unknown>> = [];
@@ -240,6 +257,32 @@ export async function installConsoleApiMocks(
     }
     if (path === options.errorPath) {
       return fulfillError(route);
+    }
+    if (path === "/v1/console/workers" && route.request().method() === "GET") {
+      return fulfillJson(route, makeRuntimeWorkerCollection(runtimeWorkers));
+    }
+    const workerDetailMatch = path.match(/^\/v1\/console\/workers\/([^/]+)$/);
+    if (workerDetailMatch && route.request().method() === "GET") {
+      return fulfillJson(route, runtimeWorkerDetailResponse(runtimeWorkers, decodeURIComponent(workerDetailMatch[1])));
+    }
+    const workerActionMatch = path.match(/^\/v1\/console\/workers\/([^/]+)\/(drain|undrain|quarantine|restart-request)$/);
+    if (workerActionMatch && route.request().method() === "POST") {
+      return fulfillRuntimeWorkerAction(
+        route,
+        runtimeWorkers,
+        decodeURIComponent(workerActionMatch[1]),
+        workerActionMatch[2],
+      );
+    }
+    if (path === "/v1/console/agent-instances" && route.request().method() === "GET") {
+      return fulfillJson(route, makeRuntimeAgentInstanceCollection(runtimeAgentInstances));
+    }
+    const instanceDetailMatch = path.match(/^\/v1\/console\/agent-instances\/(\d+)$/);
+    if (instanceDetailMatch && route.request().method() === "GET") {
+      return fulfillJson(route, runtimeAgentInstanceDetailResponse(runtimeAgentInstances, Number(instanceDetailMatch[1])));
+    }
+    if (path === "/v1/console/capacity" && route.request().method() === "GET") {
+      return fulfillJson(route, runtimeCapacitySummaryResponse(runtimeWorkers));
     }
     if (path === "/v1/published-surfaces" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(publishedSurfaces));
@@ -2022,6 +2065,307 @@ function runtimeOverview(
       required_permissions: ["agent:deploy"],
       audit_required: true,
     })),
+  };
+}
+
+function makeRuntimeWorkers(): RuntimeWorkerFixture[] {
+  return [
+    {
+      worker_id: "worker_1",
+      environment: "local",
+      status: "running",
+      drain_status: "active",
+      version: "2026.06.10",
+      queues: ["default", "priority"],
+      capacity: 2,
+      active_attempts: 1,
+      active_runs: 1,
+      heartbeat_age_seconds: 14,
+      last_error: "provider timeout",
+      liveness: "alive",
+      readiness: "ready",
+      retrying_tasks: 0,
+      dead_letter_tasks: 1,
+      deployment_ids: [10],
+      restart_requested_at: null,
+      _blocked_actions: {
+        drain: "Worker has active critical attempt and cannot drain safely.",
+      },
+      _active_task_ids: [5001],
+      _active_run_ids: [1001],
+    },
+    {
+      worker_id: "worker_2",
+      environment: "local",
+      status: "idle",
+      drain_status: "active",
+      version: "2026.06.10",
+      queues: ["default"],
+      capacity: 3,
+      active_attempts: 0,
+      active_runs: 0,
+      heartbeat_age_seconds: 9,
+      last_error: null,
+      liveness: "alive",
+      readiness: "ready",
+      retrying_tasks: 0,
+      dead_letter_tasks: 0,
+      deployment_ids: [11],
+      restart_requested_at: null,
+      _active_task_ids: [],
+      _active_run_ids: [],
+    },
+  ];
+}
+
+function makeRuntimeAgentInstances(): RuntimeAgentInstanceFixture[] {
+  return [
+    {
+      id: 901,
+      deployment_id: 10,
+      environment: "local",
+      agent_id: 1,
+      agent_version_id: 11,
+      worker_id: "worker_1",
+      status: "failed",
+      active_runs: 1,
+      recent_failures: 3,
+      concurrency_limit: 4,
+      runtime_config_hash: "cfgf11aa22bb",
+      execution_profile_id: "default",
+      cache_key: "10:11:default",
+      loaded_at: createdAt,
+      heartbeat_at: createdAt,
+      last_error: "provider timeout",
+      deployment_desired_status: "active",
+      deployment_runtime_status: "degraded",
+    },
+    {
+      id: 902,
+      deployment_id: 11,
+      environment: "local",
+      agent_id: 1,
+      agent_version_id: 12,
+      worker_id: "worker_2",
+      status: "ready",
+      active_runs: 0,
+      recent_failures: 0,
+      concurrency_limit: 8,
+      runtime_config_hash: "cfgf22bb33cc",
+      execution_profile_id: "high-memory",
+      cache_key: "11:12:high-memory",
+      loaded_at: createdAt,
+      heartbeat_at: createdAt,
+      last_error: null,
+      deployment_desired_status: "active",
+      deployment_runtime_status: "ready",
+    },
+  ];
+}
+
+function makeRuntimeWorkerCollection(workers: RuntimeWorkerFixture[]): Record<string, unknown> {
+  return {
+    items: workers.map(runtimeWorkerSummary),
+    count: workers.length,
+    request_id: "e2e-request",
+  };
+}
+
+function runtimeWorkerSummary(worker: RuntimeWorkerFixture): Record<string, unknown> {
+  return {
+    worker_id: worker.worker_id,
+    environment: worker.environment,
+    status: worker.status,
+    drain_status: worker.drain_status,
+    version: worker.version,
+    queues: worker.queues,
+    capacity: worker.capacity,
+    active_attempts: worker.active_attempts,
+    active_runs: worker.active_runs,
+    heartbeat_age_seconds: worker.heartbeat_age_seconds,
+    last_error: worker.last_error,
+    liveness: worker.liveness,
+    readiness: worker.readiness,
+    retrying_tasks: worker.retrying_tasks,
+    dead_letter_tasks: worker.dead_letter_tasks,
+    deployment_ids: worker.deployment_ids,
+    restart_requested_at: worker.restart_requested_at,
+  };
+}
+
+function runtimeWorkerActions(worker: RuntimeWorkerFixture): Array<Record<string, unknown>> {
+  const blocked = worker._blocked_actions ?? {};
+  const actions = [
+    { action: "drain", label: "Drain worker" },
+    { action: "undrain", label: "Resume scheduling" },
+    { action: "quarantine", label: "Quarantine worker" },
+    { action: "restart-request", label: "Request restart" },
+  ];
+  return actions.map((action) => {
+    const disabledReasons: string[] = [];
+    if (action.action === "drain" && worker.drain_status !== "active") {
+      disabledReasons.push("Worker must be active before it can drain.");
+    }
+    if (action.action === "undrain" && worker.drain_status !== "draining") {
+      disabledReasons.push("Worker must be draining before it can resume scheduling.");
+    }
+    if (action.action === "quarantine" && worker.active_attempts !== 0) {
+      disabledReasons.push("Worker still has active attempts and cannot quarantine safely.");
+    }
+    if (action.action === "restart-request" && typeof worker.restart_requested_at === "string") {
+      disabledReasons.push("Worker already has a pending restart request.");
+    }
+    if (blocked[action.action]) {
+      disabledReasons.unshift(blocked[action.action]);
+    }
+    return {
+      ...action,
+      available: disabledReasons.length === 0,
+      disabled_reasons: disabledReasons,
+      required_permissions: ["agent:deploy"],
+      audit_required: true,
+    };
+  });
+}
+
+function runtimeWorkerDetailResponse(
+  workers: RuntimeWorkerFixture[],
+  workerId: string,
+): Record<string, unknown> {
+  const worker = workers.find((item) => item.worker_id === workerId) ?? workers[0];
+  return {
+    item: {
+      ...runtimeWorkerSummary(worker),
+      active_task_ids: worker._active_task_ids || [],
+      active_run_ids: worker._active_run_ids || [],
+      actions: runtimeWorkerActions(worker),
+    },
+    request_id: "e2e-request",
+  };
+}
+
+function fulfillRuntimeWorkerAction(
+  route: Route,
+  workers: RuntimeWorkerFixture[],
+  workerId: string,
+  action: string,
+) {
+  const worker = workers.find((item) => item.worker_id === workerId);
+  if (!worker) return fulfillError(route);
+  const selectedAction = runtimeWorkerActions(worker).find((item) => item.action === action);
+  if (!selectedAction) return fulfillError(route);
+  if (selectedAction.available !== true) {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        error_code: "worker_action_blocked",
+        message: String(selectedAction.disabled_reasons?.[0] || "Blocked"),
+        request_id: "e2e-error-request",
+        details: {
+          worker_id: workerId,
+          action,
+          disabled_reasons: selectedAction.disabled_reasons,
+        },
+      },
+    });
+  }
+  if (action === "drain") worker.drain_status = "draining";
+  if (action === "undrain") worker.drain_status = "active";
+  if (action === "quarantine") worker.drain_status = "quarantined";
+  if (action === "restart-request") worker.restart_requested_at = createdAt;
+  return fulfillJson(route, runtimeWorkerDetailResponse(workers, workerId));
+}
+
+function makeRuntimeAgentInstanceCollection(
+  instances: RuntimeAgentInstanceFixture[],
+): Record<string, unknown> {
+  return {
+    items: instances.map((instance) => runtimeAgentInstanceSummary(instance)),
+    count: instances.length,
+    request_id: "e2e-request",
+  };
+}
+
+function runtimeAgentInstanceSummary(
+  instance: RuntimeAgentInstanceFixture,
+): Record<string, unknown> {
+  return {
+    id: instance.id,
+    deployment_id: instance.deployment_id,
+    environment: instance.environment,
+    agent_id: instance.agent_id,
+    agent_version_id: instance.agent_version_id,
+    worker_id: instance.worker_id,
+    status: instance.status,
+    active_runs: instance.active_runs,
+    recent_failures: instance.recent_failures,
+    concurrency_limit: instance.concurrency_limit,
+    runtime_config_hash: instance.runtime_config_hash,
+    execution_profile_id: instance.execution_profile_id,
+    cache_key: instance.cache_key,
+    loaded_at: instance.loaded_at,
+    heartbeat_at: instance.heartbeat_at,
+    last_error: instance.last_error,
+  };
+}
+
+function runtimeAgentInstanceDetailResponse(
+  instances: RuntimeAgentInstanceFixture[],
+  instanceId: number,
+): Record<string, unknown> {
+  const instance = instances.find((item) => item.id === instanceId) ?? instances[0];
+  return {
+    item: instance,
+    request_id: "e2e-request",
+  };
+}
+
+function runtimeCapacitySummaryResponse(workers: RuntimeWorkerFixture[]): Record<string, unknown> {
+  return {
+    item: {
+      queue_backlog: 3,
+      active_attempts: workers.reduce(
+        (total, worker) => total + Number(worker.active_attempts || 0),
+        0,
+      ),
+      total_capacity: workers.reduce(
+        (total, worker) => total + Number(worker.capacity || 0),
+        0,
+      ),
+      saturation_ratio: 0.5,
+      time_to_drain_seconds: 135,
+      retry_pressure: 1,
+      dead_letter_pressure: 1,
+      recommended_action: "hold_drain",
+      recommended_reason:
+        "Critical attempts are still active. Keep drains blocked until they clear.",
+      active_workers: workers.filter((worker) => worker.drain_status === "active").length,
+      draining_workers: workers.filter((worker) => worker.drain_status === "draining").length,
+      quarantined_workers: workers.filter((worker) => worker.drain_status === "quarantined").length,
+      critical_attempts: 1,
+      queues: [
+        {
+          queue: "default",
+          queue_backlog: 2,
+          leased: 0,
+          running: 1,
+          retrying: 1,
+          dead_letter: 1,
+          oldest_task_age_seconds: 48,
+        },
+        {
+          queue: "priority",
+          queue_backlog: 1,
+          leased: 0,
+          running: 0,
+          retrying: 0,
+          dead_letter: 0,
+          oldest_task_age_seconds: 12,
+        },
+      ],
+    },
+    request_id: "e2e-request",
   };
 }
 

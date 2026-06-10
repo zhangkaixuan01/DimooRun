@@ -1,9 +1,19 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from dimoo_run.api.console import service
+from dimoo_run.api.console.common import (
+    AuthorizationHeader,
+    DeploymentControlDep,
+    EnvironmentHeader,
+    NativeRuntimeDep,
+    ProjectIdHeader,
+    RequestIdHeader,
+    TenantIdHeader,
+    console_read_actor,
+)
 from dimoo_run.api.console.schemas import (
     ConsoleActionSummary,
     ConsoleDashboardSummary,
@@ -13,60 +23,8 @@ from dimoo_run.api.console.schemas import (
     ConsoleRuntimeOverview,
     ConsoleWorkerHealth,
 )
-from dimoo_run.api.dependencies import (
-    AuthorizationHeader,
-    EnvironmentHeader,
-    ProjectIdHeader,
-    RequestIdHeader,
-    TenantIdHeader,
-    authenticate_api_key,
-    error_response,
-)
-from dimoo_run.api.native.dependencies import get_native_runtime
-from dimoo_run.api.native.deployments import get_deployment_control
-from dimoo_run.api.native.runtime import NativeRuntimeStore, SQLAlchemyNativeRuntimeStore
-from dimoo_run.deployments.service import DeploymentRuntimeControlService
-from dimoo_run.security.api_keys import AuthenticatedActor
 
 router = APIRouter(prefix="/v1/console", tags=["console-aggregate"])
-
-NativeRuntimeDep = Annotated[
-    NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
-    Depends(get_native_runtime),
-]
-DeploymentControlDep = Annotated[
-    DeploymentRuntimeControlService,
-    Depends(get_deployment_control),
-]
-
-
-def _console_read_actor(
-    *,
-    authorization: str | None,
-    tenant_id: int | None,
-    project_id: int | None,
-    environment: str | None,
-    request_id: str | None,
-) -> tuple[AuthenticatedActor, int, int, str] | JSONResponse:
-    if tenant_id is None or project_id is None:
-        return error_response(
-            status_code=400,
-            error_code="request_scope_required",
-            message="X-Tenant-Id and X-Project-Id headers are required.",
-            request_id=request_id,
-            details={"required_headers": ["X-Tenant-Id", "X-Project-Id"]},
-        )
-    actor = authenticate_api_key(
-        authorization=authorization,
-        tenant_id=tenant_id,
-        project_id=project_id,
-        environment=environment,
-        required_scope="agent:read",
-        request_id=request_id,
-    )
-    if isinstance(actor, JSONResponse):
-        return actor
-    return actor, tenant_id, project_id, environment or "production"
 
 
 @router.get("/dashboard-summary", response_model=ConsoleDashboardSummary)
@@ -79,7 +37,7 @@ def get_dashboard_summary(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> ConsoleDashboardSummary | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -108,7 +66,7 @@ def get_runtime_overview(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> ConsoleRuntimeOverview | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -138,7 +96,7 @@ def get_deployment_health(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> list[ConsoleDeploymentHealth] | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -167,7 +125,7 @@ def get_worker_health(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> list[ConsoleWorkerHealth] | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -196,7 +154,7 @@ def get_recent_failures(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> list[ConsoleRecentFailure] | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -225,7 +183,7 @@ def get_pending_actions(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> list[ConsolePendingAction] | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -256,7 +214,7 @@ def get_action_summary(
     x_environment: EnvironmentHeader = None,
     x_request_id: RequestIdHeader = None,
 ) -> ConsoleActionSummary | JSONResponse:
-    auth = _console_read_actor(
+    auth = console_read_actor(
         authorization=authorization,
         tenant_id=x_tenant_id,
         project_id=x_project_id,

@@ -26,6 +26,9 @@ import ExperimentsPage from "../pages/quality/ExperimentsPage.vue";
 import QualityGatePage from "../pages/quality/QualityGatePage.vue";
 import ReplayPage from "../pages/replay/ReplayPage.vue";
 import ReplayComparisonPage from "../pages/replay/ReplayComparisonPage.vue";
+import AgentInstancesPage from "../pages/runtime/AgentInstancesPage.vue";
+import CapacityPage from "../pages/runtime/CapacityPage.vue";
+import WorkersPage from "../pages/runtime/WorkersPage.vue";
 import RunDetailPage from "../pages/runs/RunDetailPage.vue";
 import RunTriagePage from "../pages/runs/RunTriagePage.vue";
 import RunsPage from "../pages/runs/RunsPage.vue";
@@ -44,6 +47,9 @@ export const routes: RouteRecordRaw[] = [
   { path: "/compatibility", name: "compatibility", component: CompatibilityExplorerPage },
   { path: "/published-surfaces", name: "published-surfaces", component: PublishedSurfacesPage },
   { path: "/published-surfaces/:surfaceId", name: "published-surface-detail", component: PublishedSurfacesPage, props: true },
+  { path: "/runtime/workers", name: "runtime-workers", component: WorkersPage },
+  { path: "/runtime/agent-instances", name: "runtime-agent-instances", component: AgentInstancesPage },
+  { path: "/runtime/capacity", name: "runtime-capacity", component: CapacityPage },
   { path: "/runs", name: "runs", component: RunsPage },
   { path: "/runs/:runId", name: "run-detail", component: RunDetailPage, props: true },
   { path: "/runs/:runId/triage", name: "run-triage", component: RunTriagePage, props: true },
