@@ -2,6 +2,7 @@ import os
 import tempfile
 from uuid import uuid4
 
+import pytest
 from dimoo_run.api.dependencies import (
     default_api_key_authenticator,
     reset_api_key_authenticator,
@@ -20,14 +21,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 
-def setup_function() -> None:
-    os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
-    os.environ["DIMOORUN_NATIVE_RUNTIME_STORE"] = "sqlalchemy"
-    os.environ["DIMOORUN_QUEUE_BACKEND"] = "redis"
-    os.environ["DIMOORUN_SECRET_PROVIDER"] = "vault"
-    os.environ["DIMOORUN_MODEL_GATEWAY_PROVIDER"] = "newapi"
-    os.environ["DATABASE_URL"] = (
-        f"sqlite:///{tempfile.gettempdir()}/dimoorun-platform-settings-{uuid4().hex}.db"
+@pytest.fixture(autouse=True)
+def configure_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "dev")
+    monkeypatch.setenv("DIMOORUN_NATIVE_RUNTIME_STORE", "sqlalchemy")
+    monkeypatch.setenv("DIMOORUN_QUEUE_BACKEND", "redis")
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.setenv("DIMOORUN_MODEL_GATEWAY_PROVIDER", "newapi")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        f"sqlite:///{tempfile.gettempdir()}/dimoorun-platform-settings-{uuid4().hex}.db",
     )
     reset_api_key_authenticator()
 
@@ -135,7 +138,9 @@ def test_settings_snapshot_reports_platform_mode_and_safety() -> None:
     ]
 
 
-def test_provider_status_reflects_configured_outage_and_exporter_health() -> None:
+def test_provider_status_reflects_configured_outage_and_exporter_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = TestClient(create_app())
     api_key = create_api_key()
     session_factory = create_session_factory(os.environ["DATABASE_URL"])
@@ -153,7 +158,7 @@ def test_provider_status_reflects_configured_outage_and_exporter_health() -> Non
         )
         session.commit()
 
-    os.environ["DIMOORUN_SECRET_PROVIDER"] = "memory"
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "memory")
     response = client.get("/v1/console/settings/providers", headers=headers(api_key))
 
     assert response.status_code == 200
@@ -190,13 +195,15 @@ def test_scoped_default_update_persists_environment_change() -> None:
         assert record.config_json["default_deployment_strategy"] == "blue_green"
 
 
-def test_production_read_only_blocks_organization_default_change() -> None:
-    os.environ["DIMOORUN_RUNTIME_MODE"] = "production"
-    os.environ["DIMOORUN_SECRET_PROVIDER"] = "vault"
-    os.environ["OBJECT_STORE_BACKEND"] = "s3"
-    os.environ["OBJECT_STORE_ACCESS_KEY"] = "prod-key"
-    os.environ["OBJECT_STORE_SECRET_KEY"] = "prod-secret"
-    os.environ["DIMOORUN_CORS_ORIGINS"] = "https://console.example.com"
+def test_production_read_only_blocks_organization_default_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.setenv("OBJECT_STORE_BACKEND", "s3")
+    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY", "prod-key")
+    monkeypatch.setenv("OBJECT_STORE_SECRET_KEY", "prod-secret")
+    monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "https://console.example.com")
     client = TestClient(create_app())
     api_key = create_api_key()
 
@@ -210,8 +217,10 @@ def test_production_read_only_blocks_organization_default_change() -> None:
     assert response.json()["error_code"] == "platform_setting_read_only"
 
 
-def test_dangerous_action_preflight_blocks_unhealthy_provider_dependency() -> None:
-    os.environ["DIMOORUN_SECRET_PROVIDER"] = "memory"
+def test_dangerous_action_preflight_blocks_unhealthy_provider_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "memory")
     client = TestClient(create_app())
     api_key = create_api_key()
 

@@ -74,7 +74,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.once:
         status = run_once()
-        print(f"DimooRun worker process ready ({status})")
+        display_status = "idle" if status == "idle" else f"{status}; idle"
+        print(f"DimooRun worker process ready ({display_status})")
         return
     run_forever(poll_interval_seconds=args.poll_interval)
 

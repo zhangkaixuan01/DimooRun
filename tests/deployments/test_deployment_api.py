@@ -1,3 +1,7 @@
+import os
+import tempfile
+from uuid import uuid4
+
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.deployments import default_deployment_control, reset_deployment_control
 from dimoo_run.deployments.service import DeploymentRecord
@@ -9,6 +13,11 @@ from fastapi.testclient import TestClient
 
 
 def setup_function() -> None:
+    os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
+    os.environ["DIMOORUN_NATIVE_RUNTIME_STORE"] = "memory"
+    os.environ["DATABASE_URL"] = (
+        f"sqlite:///{tempfile.gettempdir()}/dimoorun-deployments-{uuid4().hex}.db"
+    )
     reset_api_key_authenticator()
     reset_deployment_control()
 
