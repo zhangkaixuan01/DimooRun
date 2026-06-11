@@ -82,12 +82,20 @@ class WorkerRegistry:
         last_error: str | None = None,
         now: datetime | None = None,
     ) -> WorkerRecord:
-        record = WorkerRecord(
+        record = self.get(
+            worker_id,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            environment=environment,
+        ) or WorkerRecord(
             worker_id=worker_id,
             tenant_id=tenant_id,
             project_id=project_id,
             environment=environment,
         )
+        record.tenant_id = tenant_id
+        record.project_id = project_id
+        record.environment = environment
         record.touch(
             status=status,
             heartbeat_at=now or datetime.now(UTC),

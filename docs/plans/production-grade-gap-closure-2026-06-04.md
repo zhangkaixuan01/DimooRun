@@ -1492,17 +1492,30 @@ Verification:
 
 Tasks:
 
-- [ ] Add worker shutdown/drain behavior.
-- [ ] Add multi-worker duplicate prevention tests.
-- [ ] Add crash recovery tests for expired lease and retry.
-- [ ] Add real Redis pub/sub cancel integration test.
-- [ ] Add worker metrics snapshot API.
+- [x] Add worker shutdown/drain behavior.
+- [x] Add multi-worker duplicate prevention tests.
+- [x] Add crash recovery tests for expired lease and retry.
+- [x] Add real Redis pub/sub cancel integration test.
+- [x] Add worker metrics snapshot API.
 - [ ] Commit as `feat(worker): harden durable multi-worker execution`.
 
 Acceptance:
 
 - Two workers cannot execute the same leased task.
 - A killed worker leaves recoverable state.
+
+Verification:
+
+- `uv run pytest -q tests/worker/test_worker_shutdown.py tests/worker/test_multi_worker_fencing.py tests/worker/test_worker_loop_durable_backend.py tests/worker/test_durable_worker_execution.py tests/scheduler/test_sqlalchemy_backend.py tests/e2e/test_runtime_compose_smoke.py`
+- `uv run pytest -q tests/scheduler/test_redis_backend.py -k cancel`
+- `uv run pytest -q tests/api/test_worker_capacity_console.py -k "worker_snapshots_persist_across_registry_instances"`
+- `uv run ruff check apps/server/dimoo_run/runtime/capacity.py apps/server/dimoo_run/scheduler/sqlalchemy_backend.py apps/server/dimoo_run/worker/loop.py apps/worker/dimoo_run_worker/main.py tests/scheduler/test_sqlalchemy_backend.py tests/worker/test_multi_worker_fencing.py tests/worker/test_worker_shutdown.py tests/e2e/test_runtime_compose_smoke.py`
+- `uv run mypy apps/server tests scripts`
+
+Notes:
+
+- Redis cancel proof now includes both scheduler-boundary publish/subscribe coverage in `tests/scheduler/test_redis_backend.py -k cancel` and worker-loop integration coverage in `tests/worker/test_worker_loop_durable_backend.py`, where a real `RedisTaskBackend.cancel()` publish is consumed by `RedisCancelSubscriber` and forwarded through `WorkerLoop` to the cancel handler.
+- Worker metrics snapshot coverage is satisfied by the existing persisted worker snapshot and capacity read-model path from Phase 0J, with the Phase 4 shutdown/drain changes now preserving those records during worker lifecycle transitions.
 
 ### Phase 5: Real Observability
 

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from dimoo_run.runtime.capacity import default_worker_registry
+from dimoo_run.runtime.capacity import WorkerRegistry, default_worker_registry
 
 
 @dataclass
@@ -33,6 +33,7 @@ class WorkerLoop:
         environment: str = "production",
         version: str = "dev",
         capacity: int = 1,
+        worker_registry: WorkerRegistry | None = None,
     ) -> None:
         self.worker_id = worker_id or f"worker_{uuid4().hex[:8]}"
         self.poll_interval_seconds = poll_interval_seconds
@@ -47,11 +48,21 @@ class WorkerLoop:
         self.environment = environment
         self.version = version
         self.capacity = capacity
+        self.worker_registry = worker_registry or default_worker_registry()
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="starting")
         self._stopped = False
+        self._shutdown_requested = False
         self._publish_heartbeat("starting")
 
     def run_once(self) -> WorkerHeartbeat:
+        lifecycle_status = self._lifecycle_status()
+        if lifecycle_status is not None:
+            if lifecycle_status == "stopped":
+                self.stop()
+                return self.heartbeat
+            self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status=lifecycle_status)
+            self._publish_heartbeat(lifecycle_status)
+            return self.heartbeat
         if self.cancel_subscriber is not None:
             import anyio
 
@@ -113,6 +124,29 @@ class WorkerLoop:
         self.heartbeat = WorkerHeartbeat(worker_id=self.worker_id, status="stopped")
         self._publish_heartbeat("stopped")
 
+    @property
+    def stopped(self) -> bool:
+        return self._stopped
+
+    def request_shutdown(self, *, graceful: bool = True) -> None:
+        if not graceful:
+            self.stop()
+            return
+        self._shutdown_requested = True
+        record = self.worker_registry.get(
+            self.worker_id,
+            tenant_id=self.tenant_id,
+            project_id=self.project_id,
+            environment=self.environment,
+        )
+        if record is not None and record.drain_status == "active":
+            self.worker_registry.drain(
+                self.worker_id,
+                tenant_id=self.tenant_id,
+                project_id=self.project_id,
+                environment=self.environment,
+            )
+
     def _handle_cancel_message(self, message: dict[str, Any]) -> None:
         if self.cancel_handler is None:
             return
@@ -132,7 +166,7 @@ class WorkerLoop:
         anyio.run(handler, message)
 
     def _publish_heartbeat(self, status: str) -> None:
-        default_worker_registry().heartbeat(
+        self.worker_registry.heartbeat(
             worker_id=self.worker_id,
             tenant_id=self.tenant_id,
             project_id=self.project_id,
@@ -142,3 +176,20 @@ class WorkerLoop:
             version=self.version,
             capacity=self.capacity,
         )
+
+    def _lifecycle_status(self) -> str | None:
+        if self._stopped:
+            return "stopped"
+        record = self.worker_registry.get(
+            self.worker_id,
+            tenant_id=self.tenant_id,
+            project_id=self.project_id,
+            environment=self.environment,
+        )
+        drain_status = record.drain_status if record is not None else "active"
+        if drain_status == "quarantined":
+            return "quarantined"
+        if drain_status == "draining" or self._shutdown_requested:
+            self._stopped = True
+            return "stopped"
+        return None

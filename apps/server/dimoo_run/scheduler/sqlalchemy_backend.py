@@ -7,9 +7,13 @@ from uuid import uuid4
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from dimoo_run.domain.models import Run, Task
+from dimoo_run.domain.models import Run, RunAttempt, Task
 from dimoo_run.persistence.repositories import EventRepository
-from dimoo_run.runtime.state_machine import assert_task_transition
+from dimoo_run.runtime.state_machine import (
+    assert_run_attempt_transition,
+    assert_run_transition,
+    assert_task_transition,
+)
 from dimoo_run.scheduler.in_memory import StaleFencingTokenError, TaskLeaseError
 from dimoo_run.scheduler.quota import QuotaExceededError, SQLAlchemyQuotaPolicy
 
@@ -201,7 +205,9 @@ class SQLAlchemyTaskBackend:
         )
         requeued = 0
         for task in self.session.scalars(statement):
+            latest_attempt = self._latest_attempt(task.id)
             if task.status == "running":
+                self._fail_attempt_for_reaper(latest_attempt, now)
                 if task.attempt + 1 >= task.max_attempts:
                     assert_task_transition(task.status, "dead_letter")
                     task.status = "dead_letter"
@@ -209,9 +215,34 @@ class SQLAlchemyTaskBackend:
                     task.dead_letter_reason = "lease_expired"
                     task.worker_id = None
                     task.leased_until = None
+                    run = self.session.get(Run, task.run_id)
+                    if run is not None and run.status != "failed":
+                        if run.status == "pending":
+                            assert_run_transition(run.status, "running")
+                            run.status = "running"
+                            run.started_at = run.started_at or now
+                        assert_run_transition(run.status, "failed")
+                        run.status = "failed"
+                        run.error = "lease_expired"
+                        run.finished_at = now
+                    self._append_reaper_event(
+                        task,
+                        "attempt.failed",
+                        {"task_id": task.id, "reason": "lease_expired"},
+                    )
                     self._append_reaper_event(
                         task,
                         "task.dead_letter",
+                        {"task_id": task.id, "reason": "lease_expired"},
+                    )
+                    self._append_reaper_event(
+                        task,
+                        "run.failed",
+                        {"task_id": task.id, "reason": "lease_expired"},
+                    )
+                    self._append_reaper_event(
+                        task,
+                        "stream.failed",
                         {"task_id": task.id, "reason": "lease_expired"},
                     )
                     requeued += 1
@@ -219,14 +250,19 @@ class SQLAlchemyTaskBackend:
                 assert_task_transition(task.status, "retrying")
                 task.status = "retrying"
                 task.attempt += 1
+                self._append_reaper_event(
+                    task,
+                    "attempt.failed",
+                    {"task_id": task.id, "reason": "lease_expired"},
+                )
             assert_task_transition(task.status, "queued")
             task.status = "queued"
             task.worker_id = None
             task.leased_until = None
             self._append_reaper_event(
                 task,
-                "task.lease_expired",
-                {"task_id": task.id, "status": "queued"},
+                "task.retrying" if latest_attempt is not None else "task.lease_expired",
+                {"task_id": task.id, "status": "queued", "reason": "lease_expired"},
             )
             requeued += 1
         self.session.flush()
@@ -341,6 +377,35 @@ class SQLAlchemyTaskBackend:
             payload=payload,
             visibility_level="internal",
         )
+
+    def _latest_attempt(self, task_id: int) -> RunAttempt | None:
+        return self.session.scalar(
+            select(RunAttempt)
+            .where(
+                RunAttempt.task_id == task_id,
+                RunAttempt.is_deleted.is_(False),
+            )
+            .order_by(RunAttempt.attempt_no.desc())
+        )
+
+    def _fail_attempt_for_reaper(
+        self,
+        attempt: RunAttempt | None,
+        now: datetime,
+    ) -> None:
+        if attempt is None or attempt.status != "running":
+            return
+        assert_run_attempt_transition(attempt.status, "failed")
+        attempt.status = "failed"
+        attempt.error = "lease_expired"
+        attempt.finished_at = now
+        if attempt.started_at is not None:
+            finished_at = now
+            if attempt.started_at.tzinfo is None and finished_at.tzinfo is not None:
+                finished_at = finished_at.replace(tzinfo=None)
+            elif attempt.started_at.tzinfo is not None and finished_at.tzinfo is None:
+                finished_at = finished_at.replace(tzinfo=attempt.started_at.tzinfo)
+            attempt.latency_ms = int((finished_at - attempt.started_at).total_seconds() * 1000)
 
 
 def _error_message(error: dict[str, Any]) -> str:

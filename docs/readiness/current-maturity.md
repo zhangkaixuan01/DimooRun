@@ -16,7 +16,7 @@ Authoritative status:
 
 - Adapter-first architecture around LangGraph, LangChain Agent, and DeepAgents.
 - Native runtime API and task/run concepts.
-- Durable runtime and worker hardening foundations.
+- Durable runtime and worker hardening foundations, including verified graceful worker shutdown, multi-worker lease fencing, expired-lease recovery, Redis cancel pub/sub coverage, and persisted worker snapshots.
 - Durable native idempotency now persists through `idempotency_records` in SQLAlchemy mode and replays completed task creation after runtime restart.
 - Governance, audit, service account, policy, tool/model/secret boundaries.
 - Production startup guards now fail closed on SQLite, in-memory runtime store, dev CORS origins, default object-store credentials, missing secret provider config, and dev API key mode.
@@ -28,6 +28,7 @@ Authoritative status:
 - Many Console pages remain partial product workflows rather than complete operator tools.
 - Browser evidence is broadening but does not yet cover every workflow acceptance path.
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete.
+- Phase 5 observability work is still needed for first-class metrics, traces, and standard monitoring exports beyond the current worker snapshot and runtime event evidence.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.
 - Cost, budget, scheduled/batch, catalog, and some gateway/runtime hardening
   workflows are not complete yet.

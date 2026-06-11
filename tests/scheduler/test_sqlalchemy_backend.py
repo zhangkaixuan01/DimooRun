@@ -425,9 +425,18 @@ async def test_sqlalchemy_backend_dead_letters_expired_running_task_after_attemp
     assert task is not None
     assert task.status == "dead_letter"
     assert task.dead_letter_reason == "lease_expired"
+    run = session.get(Run, 1)
+    assert run is not None
+    assert run.status == "failed"
+    assert run.error == "lease_expired"
     events = list(session.query(Event).filter(Event.run_id == 1))
-    assert [event.type for event in events] == ["task.dead_letter"]
-    assert events[0].payload_json == {"task_id": task_id, "reason": "lease_expired"}
+    assert [event.type for event in events] == [
+        "attempt.failed",
+        "task.dead_letter",
+        "run.failed",
+        "stream.failed",
+    ]
+    assert events[1].payload_json == {"task_id": task_id, "reason": "lease_expired"}
 
 
 @pytest.mark.asyncio

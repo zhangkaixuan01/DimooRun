@@ -1,4 +1,5 @@
 import argparse
+import signal
 import sys
 import time
 from pathlib import Path
@@ -61,10 +62,64 @@ def run_forever(
     adapters: dict[str, Any] | None = None,
     poll_interval_seconds: float = 1.0,
 ) -> None:
-    while True:
-        status = run_once(adapters=adapters)
-        print(f"DimooRun worker process ready ({status})", flush=True)
-        time.sleep(poll_interval_seconds)
+    from dimoo_run.core.config import Settings
+    from dimoo_run.persistence.database import create_session_factory
+    from dimoo_run.runtime.capacity import WorkerRegistry
+    from dimoo_run.worker.durable import execute_durable_once
+    from dimoo_run.worker.loop import WorkerLoop
+
+    settings = Settings.from_env()
+    if settings.runtime.native_runtime_store == "sqlalchemy":
+        session_factory = create_session_factory(settings.database.url)
+        session = session_factory()
+        worker_registry = WorkerRegistry(database_url=settings.database.url)
+
+        async def durable_execute_once(*, queue: str, lease_seconds: int) -> Any:
+            return await execute_durable_once(
+                session=session,
+                worker_id="worker_cli",
+                queue=queue,
+                lease_seconds=lease_seconds,
+                adapters=adapters or default_adapters(),
+            )
+
+        loop = WorkerLoop(
+            worker_id="worker_cli",
+            poll_interval_seconds=poll_interval_seconds,
+            execute_once=durable_execute_once,
+            worker_registry=worker_registry,
+        )
+    else:
+        session = None
+        loop = WorkerLoop(
+            worker_id="worker_cli",
+            poll_interval_seconds=poll_interval_seconds,
+        )
+
+    def request_shutdown(*_: object) -> None:
+        loop.request_shutdown(graceful=True)
+
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGINT, request_shutdown)
+    signal.signal(signal.SIGTERM, request_shutdown)
+    try:
+        while not loop.stopped:
+            heartbeat = loop.run_once()
+            print(f"DimooRun worker process ready ({heartbeat.status})", flush=True)
+            if not loop.stopped:
+                time.sleep(poll_interval_seconds)
+        if session is not None:
+            session.commit()
+    except Exception:
+        if session is not None:
+            session.rollback()
+        raise
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint)
+        signal.signal(signal.SIGTERM, previous_sigterm)
+        if session is not None:
+            session.close()
 
 
 def main(argv: list[str] | None = None) -> None:
