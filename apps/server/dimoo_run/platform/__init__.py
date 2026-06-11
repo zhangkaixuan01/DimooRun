@@ -1,3 +1,4 @@
+from dimoo_run.core.startup_checks import validate_production_settings
 from dimoo_run.platform.provider_status import build_provider_status_views
 from dimoo_run.platform.settings_snapshot import (
     build_dangerous_action_preview,
@@ -5,7 +6,6 @@ from dimoo_run.platform.settings_snapshot import (
     list_scoped_setting_views,
     write_scoped_setting,
 )
-from dimoo_run.core.startup_checks import validate_production_settings
 
 __all__ = [
     "build_dangerous_action_preview",
