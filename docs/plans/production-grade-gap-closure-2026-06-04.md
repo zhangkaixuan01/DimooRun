@@ -1432,15 +1432,20 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add `validate_production_settings(settings)` that rejects SQLite, memory runtime store, default object store credentials, dev CORS origins, missing secret provider config, and dev API key mode when `DIMOORUN_RUNTIME_MODE=production`.
-- [ ] Call startup validation from `create_app`.
-- [ ] Add tests for each rejected unsafe default.
-- [ ] Add documented environment variables for secure production startup.
+- [x] Add `validate_production_settings(settings)` that rejects SQLite, memory runtime store, default object store credentials, dev CORS origins, missing secret provider config, and dev API key mode when `DIMOORUN_RUNTIME_MODE=production`.
+- [x] Call startup validation from `create_app`.
+- [x] Add tests for each rejected unsafe default.
+- [x] Add documented environment variables for secure production startup.
 - [ ] Commit as `fix(config): fail closed on unsafe production settings`.
 
 Acceptance:
 
 - `DIMOORUN_RUNTIME_MODE=production` cannot boot with local defaults.
+
+Verification:
+
+- `uv run pytest -q tests/server/test_config.py tests/server/test_startup_checks.py tests/api/test_platform_settings_workflows.py tests/api/test_native_api.py`
+- `uv run ruff check apps/server/dimoo_run/core/config.py apps/server/dimoo_run/core/startup_checks.py apps/server/dimoo_run/platform/settings_snapshot.py apps/server/dimoo_run/server.py tests/server/test_config.py tests/server/test_startup_checks.py tests/api/test_platform_settings_workflows.py tests/api/test_native_api.py`
 
 ### Phase 3: Durable Idempotency and API Contracts
 

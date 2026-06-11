@@ -7,6 +7,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from dimoo_run.core.config import Settings
+from dimoo_run.core.startup_checks import validate_production_settings
 from dimoo_run.domain.models import (
     AuditLog,
     Deployment,
@@ -51,34 +52,6 @@ _DANGEROUS_ACTIONS: dict[str, dict[str, Any]] = {
         "rollback_hint": "Restore the previous object-store secret ref before retrying uploads.",
     },
 }
-
-
-def validate_production_settings(settings: Settings) -> list[str]:
-    warnings: list[str] = []
-    if settings.runtime.mode != "production":
-        return warnings
-    if settings.database.url.startswith("sqlite"):
-        warnings.append("Production mode cannot use SQLite.")
-    if settings.runtime.native_runtime_store == "memory":
-        warnings.append("Production mode cannot use the in-memory runtime store.")
-    if settings.object_store.backend in {"memory", "local"}:
-        warnings.append(
-            "Production mode requires object storage instead of memory/local artifacts."
-        )
-    if (
-        settings.object_store.access_key == "dimoorun"
-        or settings.object_store.secret_key == "dimoorun-dev-secret"
-    ):
-        warnings.append("Production mode cannot use default object store credentials.")
-    dev_origins = {"http://127.0.0.1:5173", "http://localhost:5173"}
-    if any(origin in dev_origins for origin in settings.console.cors_origins):
-        warnings.append("Production mode cannot keep local dev CORS origins enabled.")
-    if os.getenv("DIMOORUN_SECRET_PROVIDER", "memory") == "memory":
-        warnings.append("Production mode requires a configured secret provider.")
-    if os.getenv("DIMOORUN_DEV_API_KEY"):
-        warnings.append("Production mode cannot expose DIMOORUN_DEV_API_KEY.")
-    return warnings
-
 
 def build_platform_settings_snapshot(
     session: Session,

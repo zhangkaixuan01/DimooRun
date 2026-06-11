@@ -5,10 +5,12 @@ services:
       dockerfile: deploy/docker/server.Dockerfile
     env_file: .env
     environment:
+      DIMOORUN_RUNTIME_MODE: dev
       DATABASE_URL: postgresql+psycopg://dimoorun:dimoorun@postgres:5432/dimoorun
       REDIS_URL: redis://redis:6379/0
       OBJECT_STORE_ENDPOINT_URL: http://minio:9000
       DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
+      DIMOORUN_SECRET_PROVIDER: memory
     ports:
       - "8000:8000"
     depends_on:
@@ -30,10 +32,12 @@ services:
       dockerfile: deploy/docker/worker.Dockerfile
     env_file: .env
     environment:
+      DIMOORUN_RUNTIME_MODE: dev
       DATABASE_URL: postgresql+psycopg://dimoorun:dimoorun@postgres:5432/dimoorun
       REDIS_URL: redis://redis:6379/0
       OBJECT_STORE_ENDPOINT_URL: http://minio:9000
       DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
+      DIMOORUN_SECRET_PROVIDER: memory
     depends_on:
       server:
         condition: service_healthy
@@ -43,6 +47,8 @@ services:
       context: .
       dockerfile: deploy/docker/console.Dockerfile
     env_file: .env
+    environment:
+      DIMOORUN_RUNTIME_MODE: dev
     ports:
       - "5173:5173"
     depends_on:

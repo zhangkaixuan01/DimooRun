@@ -3,9 +3,11 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.deployments import reset_deployment_control
 from dimoo_run.api.native.runtime import reset_native_runtime
+from dimoo_run.core.startup_checks import StartupConfigurationError
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
 from dimoo_run.packages.validation import validation_token
 from dimoo_run.server import create_app
@@ -170,19 +172,10 @@ def test_dev_api_key_can_authenticate_in_dev_mode(monkeypatch) -> None:  # type:
 def test_dev_api_key_is_rejected_outside_dev_mode(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
     monkeypatch.setenv("DIMOORUN_DEV_API_KEY", "dev-local-key")
-    client = TestClient(create_app())
+    with pytest.raises(StartupConfigurationError) as exc_info:
+        create_app()
 
-    response = client.get(
-        "/v1/agents",
-        headers={
-            "Authorization": "Bearer dev-local-key",
-            "X-Request-Id": "req_dev_key",
-            "X-Tenant-Id": "1",
-            "X-Project-Id": "1",
-        },
-    )
-
-    assert response.status_code == 401
+    assert "Production mode cannot expose DIMOORUN_DEV_API_KEY." in str(exc_info.value)
 
 
 def test_native_agent_read_is_logical_and_version_read_owns_runtime_fields() -> None:

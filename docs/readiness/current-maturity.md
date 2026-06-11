@@ -18,6 +18,7 @@ Authoritative status:
 - Native runtime API and task/run concepts.
 - Durable runtime and worker hardening foundations.
 - Governance, audit, service account, policy, tool/model/secret boundaries.
+- Production startup guards now fail closed on SQLite, in-memory runtime store, dev CORS origins, default object-store credentials, missing secret provider config, and dev API key mode.
 - Console route and API coverage for many product areas.
 - Docker, Helm, OpenAPI, CLI, and SDK foundations.
 
@@ -26,7 +27,6 @@ Authoritative status:
 - Many Console pages remain partial product workflows rather than complete operator tools.
 - Browser evidence is broadening but does not yet cover every workflow acceptance path.
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete.
-- Production mode fail-closed checks and unsafe default rejection need stronger executable proof.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.
 - Cost, budget, scheduled/batch, catalog, and some gateway/runtime hardening
   workflows are not complete yet.

@@ -60,9 +60,10 @@ class Settings(BaseModel):
     @classmethod
     def from_env(cls) -> "Settings":
         _load_dotenv_defaults()
+        runtime_mode = os.getenv("DIMOORUN_RUNTIME_MODE", "dev")
         return cls(
             runtime=RuntimeConfig(
-                mode=os.getenv("DIMOORUN_RUNTIME_MODE", "dev"),  # type: ignore[arg-type]
+                mode=runtime_mode,  # type: ignore[arg-type]
                 environment=os.getenv("DIMOORUN_ENVIRONMENT", "local"),
                 native_runtime_store=os.getenv(
                     "DIMOORUN_NATIVE_RUNTIME_STORE",
@@ -77,7 +78,7 @@ class Settings(BaseModel):
             ),
             console=ConsoleConfig(
                 enabled=os.getenv("DIMOORUN_CONSOLE_ENABLED", "true").lower() != "false",
-                cors_origins=_console_cors_origins(),
+                cors_origins=_console_cors_origins(runtime_mode),
             ),
             object_store=ObjectStoreConfig(
                 backend=os.getenv("OBJECT_STORE_BACKEND", ObjectStoreConfig().backend),  # type: ignore[arg-type]
@@ -109,13 +110,14 @@ def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def _console_cors_origins() -> list[str]:
+def _console_cors_origins(runtime_mode: str) -> list[str]:
     configured = _split_csv(
         os.getenv("DIMOORUN_CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")
     )
-    for origin in ["http://127.0.0.1:5173", "http://localhost:5173"]:
-        if origin not in configured:
-            configured.append(origin)
+    if runtime_mode == "dev":
+        for origin in ["http://127.0.0.1:5173", "http://localhost:5173"]:
+            if origin not in configured:
+                configured.append(origin)
     return configured
 
 

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from dimoo_run.core.config import Settings
+from dimoo_run.core.startup_checks import StartupConfigurationError
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -55,11 +56,7 @@ def test_settings_loads_production_foundation_environment(
     assert settings.runtime.environment == "compose"
     assert settings.database.url == "postgresql+psycopg://example"
     assert settings.redis.url == "redis://redis:6379/0"
-    assert settings.console.cors_origins == [
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://127.0.0.1:5173",
-    ]
+    assert settings.console.cors_origins == ["http://localhost:5173", "http://localhost:8080"]
     assert settings.object_store.bucket == "artifacts"
     assert settings.observability.tracing is True
 
@@ -92,3 +89,25 @@ def test_cors_preflight_allows_loopback_console_origin(
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+
+
+def test_create_app_rejects_unsafe_production_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
+    monkeypatch.delenv("DIMOORUN_SECRET_PROVIDER", raising=False)
+    monkeypatch.delenv("DIMOORUN_DEV_API_KEY", raising=False)
+    monkeypatch.delenv("DIMOORUN_CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("OBJECT_STORE_BACKEND", raising=False)
+    monkeypatch.delenv("OBJECT_STORE_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("OBJECT_STORE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("DIMOORUN_NATIVE_RUNTIME_STORE", raising=False)
+
+    with pytest.raises(StartupConfigurationError) as exc_info:
+        create_app()
+
+    message = str(exc_info.value)
+    assert "Production mode cannot use SQLite." in message
+    assert "Production mode cannot use the in-memory runtime store." in message
+    assert "Production mode requires a configured secret provider." in message

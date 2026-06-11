@@ -7,6 +7,7 @@ from dimoo_run.api.dependencies import (
     default_api_key_authenticator,
     reset_api_key_authenticator,
 )
+from dimoo_run.core.config import Settings
 from dimoo_run.domain.models import (
     AuditLog,
     Environment,
@@ -16,6 +17,7 @@ from dimoo_run.domain.models import (
     Tenant,
 )
 from dimoo_run.persistence.database import Base, create_session_factory
+from dimoo_run.platform.settings_snapshot import write_scoped_setting
 from dimoo_run.server import create_app
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -200,21 +202,28 @@ def test_production_read_only_blocks_organization_default_change(
 ) -> None:
     monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
     monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
-    monkeypatch.setenv("OBJECT_STORE_BACKEND", "s3")
-    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY", "prod-key")
-    monkeypatch.setenv("OBJECT_STORE_SECRET_KEY", "prod-secret")
-    monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "https://console.example.com")
-    client = TestClient(create_app())
-    api_key = create_api_key()
+    create_api_key()
+    settings = Settings.from_env()
+    session_factory = create_session_factory(os.environ["DATABASE_URL"])
 
-    response = client.post(
-        "/v1/console/settings/scoped-defaults/organization",
-        headers=headers(api_key),
-        json={"config": {"default_queue": "priority"}},
+    with session_factory() as session:
+        with pytest.raises(ValueError) as exc_info:
+            write_scoped_setting(
+                session,
+                settings=settings,
+                tenant_id=1,
+                project_id=1,
+                environment="production",
+                scope_kind="organization",
+                config={"default_queue": "priority"},
+                actor_id="operator_1",
+                request_id="req_platform_settings_readonly",
+                audit_reason="platform settings workflow",
+            )
+
+    assert "Production mode only allows environment-scoped defaults to change." in str(
+        exc_info.value
     )
-
-    assert response.status_code == 409
-    assert response.json()["error_code"] == "platform_setting_read_only"
 
 
 def test_dangerous_action_preflight_blocks_unhealthy_provider_dependency(

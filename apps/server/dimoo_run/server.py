@@ -4,10 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from dimoo_run.api.ingress import IngressPreflightMiddleware
 from dimoo_run.api.router import router
 from dimoo_run.core.config import Settings
+from dimoo_run.core.startup_checks import enforce_startup_settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
+    enforce_startup_settings(resolved_settings)
     app = FastAPI(title="DimooRun API", version="0.1.0")
     if resolved_settings.console.enabled:
         app.add_middleware(
