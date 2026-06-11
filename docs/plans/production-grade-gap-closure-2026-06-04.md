@@ -1461,15 +1461,20 @@ Verification:
 
 Tasks:
 
-- [ ] Implement SQLAlchemy-backed idempotency reservation and completion using `idempotency_records`.
-- [ ] Use it when `DIMOORUN_NATIVE_RUNTIME_STORE=sqlalchemy`.
-- [ ] Add tests for same key same payload replay, same key different payload conflict, and completed response replay after process restart.
-- [ ] Add route tests for agent task and deployment task idempotency.
+- [x] Implement SQLAlchemy-backed idempotency reservation and completion using `idempotency_records`.
+- [x] Use it when `DIMOORUN_NATIVE_RUNTIME_STORE=sqlalchemy`.
+- [x] Add tests for same key same payload replay, same key different payload conflict, and completed response replay after process restart.
+- [x] Add route tests for agent task and deployment task idempotency.
 - [ ] Commit as `fix(runtime): persist native idempotency records`.
 
 Acceptance:
 
 - Idempotency survives process restart in SQLAlchemy mode.
+
+Verification:
+
+- `uv run pytest -q tests/runtime/test_idempotency.py tests/runtime/test_sqlalchemy_idempotency.py tests/api/test_native_api.py tests/production_foundation/test_native_api_durable_runtime.py`
+- `uv run ruff check apps/server/dimoo_run/runtime/idempotency.py apps/server/dimoo_run/runtime/sqlalchemy_idempotency.py apps/server/dimoo_run/api/native/dependencies.py apps/server/dimoo_run/api/native/runtime.py tests/runtime/test_sqlalchemy_idempotency.py tests/api/test_native_api.py`
 
 ### Phase 4: Runtime End-To-End Hardening
 

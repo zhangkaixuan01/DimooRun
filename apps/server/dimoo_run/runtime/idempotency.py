@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,20 @@ class IdempotencyRecord:
     request_hash: str
     status: str = "pending"
     response: dict[str, Any] | None = None
+
+
+class IdempotencyBackend(Protocol):
+    def reserve(
+        self,
+        *,
+        tenant_id: int,
+        project_id: int | None,
+        endpoint: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> IdempotencyReservation: ...
+
+    def complete(self, record_id: int, response: dict[str, Any]) -> None: ...
 
 
 class IdempotencyStore:

@@ -19,7 +19,8 @@ from dimoo_run.persistence.repositories import (
     RunRepository,
     TaskRepository,
 )
-from dimoo_run.runtime.idempotency import IdempotencyStore
+from dimoo_run.runtime.idempotency import IdempotencyBackend, IdempotencyStore
+from dimoo_run.runtime.sqlalchemy_idempotency import SQLAlchemyIdempotencyStore
 from dimoo_run.runtime.state_machine import assert_run_transition, assert_task_transition
 from dimoo_run.streaming.replay_buffer import ReplayBuffer
 
@@ -443,9 +444,13 @@ class NativeRuntimeStore:
 
 
 class SQLAlchemyNativeRuntimeStore:
-    def __init__(self, session: Session, idempotency_store: IdempotencyStore | None = None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        idempotency_store: IdempotencyBackend | None = None,
+    ) -> None:
         self.session = session
-        self.idempotency = idempotency_store or IdempotencyStore()
+        self.idempotency = idempotency_store or SQLAlchemyIdempotencyStore(session)
 
     @property
     def agents(self) -> dict[int, NativeAgent]:

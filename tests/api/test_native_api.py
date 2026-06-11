@@ -51,6 +51,7 @@ NATIVE_PATHS = [
 def setup_function() -> None:
     os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
     os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.gettempdir()}/dimoorun-native-{uuid4().hex}.db"
+    os.environ["DIMOORUN_NATIVE_RUNTIME_STORE"] = "memory"
     reset_api_key_authenticator()
     reset_deployment_control()
     reset_native_runtime()
@@ -636,6 +637,87 @@ def test_native_agent_task_creation_is_idempotent() -> None:
     assert first.status_code == 202
     assert second.status_code == 202
     assert second.json()["run_id"] == first.json()["run_id"]
+    assert second.json()["replayed"] is True
+    assert conflict.status_code == 409
+    assert conflict.json()["error_code"] == "idempotency_key_conflict"
+
+
+def test_native_deployment_task_creation_is_idempotent() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key(scopes={"agent:read", "agent:write", "agent:deploy", "agent:invoke"})
+    agent_id, version_id = create_agent_with_version(client, key)
+    deployment = client.post(
+        "/v1/deployments",
+        headers=auth_headers(key),
+        json={
+            "agent_id": agent_id,
+            "agent_version_id": version_id,
+            "environment": "production",
+            "desired_status": "active",
+            "replicas": 1,
+        },
+    ).json()
+
+    first = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key, idempotency_key="deployment_idem_1"),
+        json={"input": {"message": "hello from deployment"}},
+    )
+    second = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key, idempotency_key="deployment_idem_1"),
+        json={"input": {"message": "hello from deployment"}},
+    )
+    conflict = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key, idempotency_key="deployment_idem_1"),
+        json={"input": {"message": "different deployment payload"}},
+    )
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json()["run_id"] == first.json()["run_id"]
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert second.json()["replayed"] is True
+    assert conflict.status_code == 409
+    assert conflict.json()["error_code"] == "idempotency_key_conflict"
+
+
+def test_sqlalchemy_native_agent_task_idempotency_survives_runtime_restart(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'native-idempotency.db'}"
+    os.environ["DATABASE_URL"] = database_url
+    os.environ["DIMOORUN_NATIVE_RUNTIME_STORE"] = "sqlalchemy"
+    reset_api_key_authenticator()
+    reset_native_runtime()
+    first_client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, _ = create_agent_with_version(first_client, key)
+
+    first = first_client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="sql_idem_1"),
+        json={"input": {"message": "hello durable"}},
+    )
+
+    reset_native_runtime()
+    second_client = TestClient(create_app())
+    second = second_client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="sql_idem_1"),
+        json={"input": {"message": "hello durable"}},
+    )
+    conflict = second_client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key, idempotency_key="sql_idem_1"),
+        json={"input": {"message": "hello durable but changed"}},
+    )
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json()["run_id"] == first.json()["run_id"]
+    assert second.json()["task_id"] == first.json()["task_id"]
     assert second.json()["replayed"] is True
     assert conflict.status_code == 409
     assert conflict.json()["error_code"] == "idempotency_key_conflict"

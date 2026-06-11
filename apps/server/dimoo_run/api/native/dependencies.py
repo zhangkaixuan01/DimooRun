@@ -10,9 +10,6 @@ from dimoo_run.api.native.runtime import (
 )
 from dimoo_run.core.config import Settings
 from dimoo_run.persistence.database import create_session_factory
-from dimoo_run.runtime.idempotency import IdempotencyStore
-
-_idempotency_store = IdempotencyStore()
 
 
 @lru_cache(maxsize=4)
@@ -35,7 +32,6 @@ def get_native_runtime() -> Generator[
     try:
         runtime = SQLAlchemyNativeRuntimeStore(
             session,
-            idempotency_store=_idempotency_store,
         )
         yield runtime
         session.commit()

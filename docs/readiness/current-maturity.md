@@ -17,6 +17,7 @@ Authoritative status:
 - Adapter-first architecture around LangGraph, LangChain Agent, and DeepAgents.
 - Native runtime API and task/run concepts.
 - Durable runtime and worker hardening foundations.
+- Durable native idempotency now persists through `idempotency_records` in SQLAlchemy mode and replays completed task creation after runtime restart.
 - Governance, audit, service account, policy, tool/model/secret boundaries.
 - Production startup guards now fail closed on SQLite, in-memory runtime store, dev CORS origins, default object-store credentials, missing secret provider config, and dev API key mode.
 - Console route and API coverage for many product areas.
