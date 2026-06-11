@@ -1,10 +1,10 @@
 # Phase 0K Evidence Checklist
 
 Phase 0K covers the Identity, Role, Permission, Session, and Machine Identity
-workflow. As of 2026-06-10, the backend workflow and Console identity pages are
-locally proven with targeted browser evidence. This phase should still stay
-`partial` until hosted CI publishes the dedicated browser artifact and the
-default Playwright-managed Chromium path is proven externally.
+workflow. As of 2026-06-11, the backend workflow and Console identity pages are
+locally proven with targeted browser evidence, and hosted CI has now published
+the dedicated browser artifact for the default Playwright-managed Chromium
+path.
 
 ## What Is Already Proven
 
@@ -31,14 +31,13 @@ These checks prove:
 - service-account detail with dependent deployment/published-surface visibility,
   key rotation, forced expiry, and scope drift display.
 
-## Remaining External Evidence
+## Hosted CI Proof
 
-1. Hosted CI artifact proving the default Playwright-managed Chromium cache path
-   for the dedicated 0K workflow:
-   `npm run test:e2e:0k`
-2. Hosted browser evidence that the identity workflow stays green for role diff,
-   self-lockout blocking, session revoke, machine-key rotation, and detail-page
-   drilldown.
+- Successful hosted CI run `27347574486` on `main` from 2026-06-11 published
+  `console-playwright-0k-report`.
+- The artifact was produced by the dedicated workflow path using the default
+  Playwright-managed Chromium cache:
+  `npm run test:e2e:0k`
 
 ## Latest Local Result
 
@@ -52,13 +51,14 @@ Observed outcome:
 - Console contract tests, unit tests, and E2E build passed locally.
 - The targeted Playwright identity workflow spec passed locally with the
   configured Chrome path.
-- CI now has a dedicated `npm run test:e2e:0k` workflow path and
-  `console-playwright-0k-report` artifact wiring.
-- Local re-runs through `npm run test:e2e:0k` are not yet re-proven on this
-  Windows machine because repeated Playwright runs left locked `.last-run.json`
-  files under reused `test-results*` directories. That does not weaken the
-  direct targeted browser proof above, but it means the local CI-style wrapper
-  evidence is still weaker than 0I/0J.
+- CI now has a dedicated `npm run test:e2e:0k` workflow path and the latest
+  successful hosted run has published `console-playwright-0k-report`, proving
+  the clean-environment wrapper path.
+- Local re-runs through `npm run test:e2e:0k` on this Windows machine remain
+  less convenient because repeated Playwright runs can leave locked
+  `.last-run.json` files under reused `test-results*` directories, but that is
+  no longer a phase-closure blocker now that hosted CI has proven the clean
+  path.
 
 ## Local Operator Notes
 
@@ -68,13 +68,14 @@ Observed outcome:
 - Example value:
   `DIMOORUN_PLAYWRIGHT_CHROME=C:\Users\Administrator\AppData\Local\Temp\dimoorun-playwright-chrome\chrome-win64\chrome.exe`
 
-## Acceptance For Closing 0K
+## Closure Verdict
 
-0K can move beyond `partial` only when all of the following are true:
+0K is now considered closed for this phase because all of the following are
+true:
 
 1. The bounded 0K backend identity workflow suites stay green.
 2. The targeted identity-governance browser spec stays green.
-3. Hosted CI publishes the dedicated 0K Playwright artifact using the default
+3. Hosted CI has published the dedicated 0K Playwright artifact using the default
    Playwright-managed Chromium cache path.
 4. The dedicated `npm run test:e2e:0k` path is proven in a clean environment
    without stale Playwright output locks.

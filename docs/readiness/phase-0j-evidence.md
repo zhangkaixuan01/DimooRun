@@ -1,10 +1,9 @@
 # Phase 0J Evidence Checklist
 
 Phase 0J covers the Worker, Agent Instance, and Capacity Operations workflow.
-As of 2026-06-10, the backend and Console workflow are locally proven, including
-the dedicated `npm run test:e2e:0j` wrapper. This phase should stay
-conservative in readiness reporting until hosted CI publishes the default
-Playwright artifact path for the 0J workflow.
+As of 2026-06-11, the backend and Console workflow are locally proven,
+including the dedicated `npm run test:e2e:0j` wrapper, and hosted CI has also
+published the dedicated default-Playwright artifact for the 0J workflow.
 
 ## What Is Already Proven
 
@@ -35,15 +34,14 @@ These checks prove:
 - environment-safe capacity aggregation and worker detail that no longer count
   or display tasks from another environment that reused the same `worker_id`.
 
-## Remaining External Evidence
+## Hosted CI Proof
 
-1. Hosted CI artifact proving the default Playwright-managed Chromium cache path
-   for the dedicated 0J workflow. The workflow path is:
-   `npx playwright install --with-deps chromium`
-   `npm run test:e2e:0j`
-2. Hosted browser evidence that the worker capacity workflow stays green for
-   capacity recommendation, blocked drain, successful drain, worker drilldown,
-   and agent-instance-to-worker navigation.
+- Successful hosted CI run `27275225184` on `main` from 2026-06-10 published
+  `console-playwright-0j-report`.
+- The artifact was produced by the dedicated workflow path using the default
+  Playwright-managed Chromium cache:
+  `npx playwright install --with-deps chromium`
+  `npm run test:e2e:0j`
 
 ## Latest Local Result
 
@@ -70,9 +68,10 @@ Observed outcome:
 - Example value:
   `DIMOORUN_PLAYWRIGHT_CHROME=C:\Users\Administrator\AppData\Local\Temp\dimoorun-playwright-chrome\chrome-win64\chrome.exe`
 
-## Acceptance For Closing 0J
+## Closure Verdict
 
-0J can be treated as locally complete when all of the following stay true:
+0J is now considered closed for this phase because all of the following stay
+true:
 
 1. The bounded 0J backend worker/capacity suites stay green.
 2. The targeted runtime capacity browser spec stays green.

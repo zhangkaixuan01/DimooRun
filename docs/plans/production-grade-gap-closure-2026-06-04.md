@@ -1294,8 +1294,10 @@ Current status on 2026-06-11:
 - Dedicated CI wiring exists for `npm run test:e2e:0l` with
   `PLAYWRIGHT_HTML_REPORT=playwright-report-0l` and
   `console-playwright-0l-report`.
-- Phase 0L still stays `partial` until hosted CI proves the default
-  Playwright-managed Chromium path and publishes the dedicated 0L artifact.
+- Successful hosted CI run `27347574486` on 2026-06-11 now proves the default
+  Playwright-managed Chromium path and publishes the dedicated
+  `console-playwright-0l-report` artifact, so the readiness blocker for this
+  phase is closed.
 
 Acceptance:
 

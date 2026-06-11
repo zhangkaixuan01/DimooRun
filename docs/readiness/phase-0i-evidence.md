@@ -1,10 +1,9 @@
 # Phase 0I Evidence Checklist
 
 Phase 0I covers the Compatibility Migration and Runtime Explorer workflow.
-The backend and Console implementation are in place. As of 2026-06-10, local
-backend, Console unit/build, and targeted browser evidence exist, but the phase
-should stay `partial` until hosted CI/browser artifacts prove the default
-Playwright path and broader compatibility runtime coverage.
+The backend and Console implementation are in place. As of 2026-06-11, local
+backend, Console unit/build, targeted browser evidence, and hosted CI artifact
+proof all exist for the dedicated 0I workflow.
 
 ## What Is Already Proven
 
@@ -24,20 +23,19 @@ Playwright path and broader compatibility runtime coverage.
 These checks prove the Console compatibility explorer API contract, migration
 report logic, golden compatibility divergence capture, request builder, stream
 status probing, `Last-Event-ID` replay handling, refresh-backed reconnect
-state persistence, and unsupported capability explanations. They do not yet
-prove hosted CI/browser artifacts or a real third-party client migration
-against an externally hosted runtime.
+state persistence, unsupported capability explanations, and the dedicated
+hosted CI/browser artifact path.
 
-## Remaining External Evidence
+## Hosted CI Proof
 
-1. Hosted CI artifact proving the default Playwright-managed Chromium cache
-   path for the compatibility explorer workflow. The workflow path is now
-   defined as:
-   `npx playwright install --with-deps chromium`
-   `npm run test:e2e:0i`
-2. Hosted browser evidence that the compatibility explorer flow stays green for
-   assistant create/list, thread create, run create, stream replay, cancel,
-   join, migration report, and unsupported capability explanations.
+- Successful hosted CI run `27225197478` on `main` from 2026-06-09 published
+  `console-playwright-0i-report`.
+- Successful hosted CI run `27275225184` on `main` from 2026-06-10 also
+  published `console-playwright-0i-report`.
+- Those artifacts were produced by the dedicated workflow path using the
+  default Playwright-managed Chromium cache:
+  `npx playwright install --with-deps chromium`
+  `npm run test:e2e:0i`
 
 ## Latest Local Result
 
@@ -55,7 +53,8 @@ Observed outcome:
   actions.
 - The CI-style `npm run test:e2e:0i` wrapper also completed locally on
   2026-06-10 and produced `apps/console/playwright-report-0i/index.html`,
-  proving the dedicated 0I report path is wired correctly before a hosted run.
+  proving the dedicated 0I report path is wired correctly before the hosted
+  runs above.
 
 ## Local Operator Notes
 
@@ -65,9 +64,10 @@ Observed outcome:
 - Example value:
   `DIMOORUN_PLAYWRIGHT_CHROME=C:\Users\Administrator\AppData\Local\Temp\dimoorun-playwright-chrome\chrome-win64\chrome.exe`
 
-## Acceptance For Closing 0I
+## Closure Verdict
 
-0I can move beyond `partial` only when all of the following are true:
+0I is now considered closed for this phase because all of the following are
+true:
 
 1. The bounded 0I backend compatibility suites stay green.
 2. The targeted compatibility explorer browser spec stays green.
@@ -75,5 +75,5 @@ Observed outcome:
    stream replay status, migration report details, golden compatibility
    records, reconnect state after reload, and unsupported capability
    explanations in browser proof.
-4. A hosted CI run publishes browser evidence using the default
+4. Hosted CI runs have published browser evidence using the default
    Playwright-managed Chromium cache path.

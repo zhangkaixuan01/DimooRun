@@ -28,10 +28,8 @@ Authoritative status:
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete.
 - Production mode fail-closed checks and unsafe default rejection need stronger executable proof.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.
-- Cost, budget, settings, scheduled/batch, catalog, and gateway workflows are
-  not complete, and compatibility, worker-capacity, identity-governance, plus
-  platform-settings hosted browser proof still need external CI evidence before
-  they can move beyond partial.
+- Cost, budget, scheduled/batch, catalog, and some gateway/runtime hardening
+  workflows are not complete yet.
 
 ## Claim Policy
 
