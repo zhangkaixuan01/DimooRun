@@ -1534,17 +1534,32 @@ Notes:
 
 Tasks:
 
-- [ ] Add runtime metrics endpoints for machine-readable operational facts: queue depth, running tasks, worker heartbeat age, dead letters, retries, p95/p99 latency, and active incidents.
-- [ ] Add Prometheus metrics endpoint.
-- [ ] Add trace correlation fields in structured logs and runtime events.
-- [ ] Wire Dashboard to the Console aggregate API from Phase -1C, not to raw database fields or ad hoc frontend derivation.
-- [ ] Ensure Prometheus/OTel metrics and Console read models share source semantics but remain separate API contracts.
-- [ ] Add tests for redaction and event query filters.
-- [ ] Commit as `feat(observability): expose runtime metrics and traces`.
+- [x] Add runtime metrics endpoints for machine-readable operational facts: queue depth, running tasks, worker heartbeat age, dead letters, retries, p95/p99 latency, and active incidents.
+- [x] Add Prometheus metrics endpoint.
+- [x] Add trace correlation fields in structured logs and runtime events.
+- [x] Wire Dashboard to the Console aggregate API from Phase -1C, not to raw database fields or ad hoc frontend derivation.
+- [x] Ensure Prometheus/OTel metrics and Console read models share source semantics but remain separate API contracts.
+- [x] Add tests for redaction and event query filters.
+- [x] Commit as `feat(observability): expose runtime metrics and traces`.
 
 Acceptance:
 
 - Operators can answer queue depth, active workers, failed runs, p95 latency, and dead letters from backend APIs.
+
+Verification:
+
+- `uv run pytest -q tests/api/test_metrics_api.py tests/api/test_console_aggregate_api.py tests/runtime/test_worker_executor.py tests/worker/test_durable_worker_execution.py tests/worker/test_worker_loop_durable_backend.py`
+- `uv run pytest -q tests/api/test_native_api.py tests/api/test_worker_capacity_console.py`
+- `uv run ruff check apps/server/dimoo_run/api/native/metrics.py apps/server/dimoo_run/observability/otel.py apps/server/dimoo_run/api/console/service.py apps/server/dimoo_run/api/console/schemas.py apps/server/dimoo_run/worker/executor.py apps/server/dimoo_run/api/router.py tests/api/test_metrics_api.py tests/runtime/test_worker_executor.py`
+- `uv run mypy apps/server tests`
+- `npm run test`
+- `npm run build:e2e`
+
+Notes:
+
+- `apps/server/dimoo_run/api/native/metrics.py` is now the shared runtime metrics snapshot source for both `/v1/runtime/metrics/summary` and the Console runtime overview aggregation path, which keeps Prometheus-style metrics and Console read models semantically aligned without collapsing them into one API contract.
+- `apps/server/dimoo_run/observability/otel.py` centralizes trace/request correlation field attachment, runtime event redaction, and Prometheus text rendering, while `apps/server/dimoo_run/worker/executor.py` now emits those correlation fields in both structured logs and replay-buffer runtime events.
+- The Dashboard now reads backend-provided runtime summary and trend points instead of deriving trend slices ad hoc from recent failures on the frontend.
 
 ### Phase 6: Frontend Browser Workflow Expansion
 

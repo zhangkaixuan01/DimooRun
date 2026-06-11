@@ -96,12 +96,19 @@ class ConsolePendingAction(BaseModel):
     audit_required: bool = False
 
 
+class ConsoleRuntimeTrendPoint(BaseModel):
+    label: str
+    runs: int
+    success_rate: float
+
+
 class ConsoleRuntimeOverview(BaseModel):
     summary: ConsoleDashboardSummary
     deployment_health: list[ConsoleDeploymentHealth]
     worker_health: list[ConsoleWorkerHealth]
     recent_failures: list[ConsoleRecentFailure]
     pending_actions: list[ConsolePendingAction]
+    trend_points: list[ConsoleRuntimeTrendPoint] = Field(default_factory=list)
 
 
 class ConsoleAgentInstance(BaseModel):

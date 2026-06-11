@@ -180,6 +180,10 @@ test("uses live frontend data instead of fake runtime values", () => {
     assert.match(chart, /defineProps/);
     assert.match(chart, /trendPoints/);
     assert.match(dashboard, /trendPoints/);
+    assert.match(client, /requestConsolePath<ConsoleRuntimeOverviewResponse>\("\/v1\/console\/runtime-overview"\)/);
+    assert.match(client, /requestConsolePath<Record<string, unknown>>\("\/v1\/runtime\/metrics\/summary"\)/);
+    assert.match(client, /overview\.trend_points/);
+    assert.doesNotMatch(client, /recent_failures\.slice\(-12\)/);
     assert.doesNotMatch(dashboard, /v-if="mode === 'demo'"/);
 });
 

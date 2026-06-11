@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -6,10 +7,13 @@ from dimoo_run.adapters.base.contract import AgentAdapter, CapabilityNotSupporte
 from dimoo_run.adapters.base.utils import maybe_await
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentEvent, AgentResult
+from dimoo_run.observability.otel import attach_trace_fields, trace_context_from_runtime
 from dimoo_run.runtime.run_manager import RuntimeRunStore
 from dimoo_run.scheduler.backend import RuntimeTaskBackend
 from dimoo_run.scheduler.in_memory import StaleFencingTokenError
 from dimoo_run.streaming.replay_buffer import ReplayBuffer
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,7 @@ class WorkerExecutor:
         self._active_task_id: int | None = None
         self._active_worker_id: str | None = None
         self._active_fencing_token: int | None = None
+        self._active_context: RuntimeContext | None = None
 
     async def execute_once(
         self,
@@ -76,6 +81,7 @@ class WorkerExecutor:
             worker_id=self.worker_id,
         )
         self._append(run_id, attempt.attempt_id, AgentEvent(type="attempt.started", payload={}))
+        context: RuntimeContext | None = None
 
         try:
             run = self.run_store.get_run(run_id)
@@ -96,6 +102,43 @@ class WorkerExecutor:
                 thread_id=run.thread_id,
                 framework=getattr(adapter, "framework", spec.adapter),
                 adapter=spec.adapter,
+            )
+            trace = trace_context_from_runtime(context, worker_id=self.worker_id)
+            context = RuntimeContext(
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                run_id=context.run_id,
+                task_id=context.task_id,
+                agent_id=context.agent_id,
+                agent_version_id=context.agent_version_id,
+                deployment_id=context.deployment_id,
+                user_id=context.user_id,
+                service_account_id=context.service_account_id,
+                thread_id=context.thread_id,
+                session_id=context.session_id,
+                request_id=trace.request_id,
+                attempt_id=attempt.attempt_id,
+                trace_id=trace.trace_id,
+                correlation_id=trace.correlation_id,
+                idempotency_key=context.idempotency_key,
+                environment=context.environment,
+                framework=context.framework,
+                adapter=context.adapter,
+                agent_version=context.agent_version,
+                deadline_at=context.deadline_at,
+                permissions=list(context.permissions),
+                secrets=dict(context.secrets),
+                config=dict(context.config),
+                metadata={"worker_id": self.worker_id},
+            )
+            self._active_context = context
+            logger.info(
+                "worker.execute_once.started",
+                extra=trace.as_log_fields(
+                    run_id=run_id,
+                    task_id=task_id,
+                    attempt_id=attempt.attempt_id,
+                ),
             )
             agent = await adapter.load(spec.package_uri, spec.manifest, runtime_config)
             timeout_seconds = runtime_config.get("timeout_seconds") or runtime_config.get("timeout")
@@ -140,6 +183,18 @@ class WorkerExecutor:
                     AgentEvent(type="task.retrying", payload=error),
                 )
             await self.task_backend.fail(task_id, self.worker_id, fencing_token, error)
+            if context is not None:
+                logger.warning(
+                    "worker.execute_once.timeout",
+                    extra=trace_context_from_runtime(
+                        context,
+                        worker_id=self.worker_id,
+                    ).as_log_fields(
+                        run_id=run_id,
+                        task_id=task_id,
+                        attempt_id=attempt.attempt_id,
+                    ),
+                )
             self._clear_active_lease()
             return WorkerExecutionResult(
                 task_id=task_id,
@@ -176,6 +231,18 @@ class WorkerExecutor:
                     AgentEvent(type="task.retrying", payload=error),
                 )
             await self.task_backend.fail(task_id, self.worker_id, fencing_token, error)
+            if context is not None:
+                logger.exception(
+                    "worker.execute_once.failed",
+                    extra=trace_context_from_runtime(
+                        context,
+                        worker_id=self.worker_id,
+                    ).as_log_fields(
+                        run_id=run_id,
+                        task_id=task_id,
+                        attempt_id=attempt.attempt_id,
+                    ),
+                )
             self._clear_active_lease()
             return WorkerExecutionResult(
                 task_id=task_id,
@@ -198,6 +265,18 @@ class WorkerExecutor:
             AgentEvent(type="stream.completed", payload={}),
         )
         await self.task_backend.complete(task_id, self.worker_id, fencing_token)
+        if context is not None:
+            logger.info(
+                "worker.execute_once.completed",
+                extra=trace_context_from_runtime(
+                    context,
+                    worker_id=self.worker_id,
+                ).as_log_fields(
+                    run_id=run_id,
+                    task_id=task_id,
+                    attempt_id=attempt.attempt_id,
+                ),
+            )
         self._clear_active_lease()
         return WorkerExecutionResult(
             task_id=task_id,
@@ -208,7 +287,27 @@ class WorkerExecutor:
 
     def _append(self, run_id: int, attempt_id: int, event: AgentEvent) -> AgentEvent:
         self._assert_active_fencing()
-        return self.replay_buffer.append(run_id, attempt_id, event)
+        trace_context = self._active_context
+        payload = event.payload
+        if trace_context is not None:
+            payload = attach_trace_fields(
+                payload,
+                trace_context_from_runtime(trace_context, worker_id=self.worker_id),
+            )
+        return self.replay_buffer.append(
+            run_id,
+            attempt_id,
+            AgentEvent(
+                type=event.type,
+                payload=payload,
+                run_id=event.run_id,
+                attempt_id=event.attempt_id,
+                sequence=event.sequence,
+                event_id=event.event_id,
+                framework=event.framework,
+                visibility_level=event.visibility_level,
+            ),
+        )
 
     def _assert_active_fencing(self) -> None:
         if self._active_task_id is None or self._active_worker_id is None:
@@ -225,6 +324,7 @@ class WorkerExecutor:
         self._active_task_id = None
         self._active_worker_id = None
         self._active_fencing_token = None
+        self._active_context = None
 
     async def cancel_run(self, run_id: int, *, task_id: int | None = None) -> str:
         run = self.run_store.get_run(run_id)
@@ -247,13 +347,18 @@ class WorkerExecutor:
             status = "adapter_cancelled"
         except CapabilityNotSupportedError:
             status = "best_effort"
+        trace = trace_context_from_runtime(context, worker_id=self.worker_id)
         self.replay_buffer.append(
             run_id,
             None,
             AgentEvent(
                 type="run.cancel_requested",
-                payload={"status": status, "task_id": task_id},
+                payload=attach_trace_fields({"status": status, "task_id": task_id}, trace),
             ),
+        )
+        logger.info(
+            "worker.cancel_run.requested",
+            extra=trace.as_log_fields(run_id=run_id, task_id=task_id, attempt_id=None),
         )
         return status
 

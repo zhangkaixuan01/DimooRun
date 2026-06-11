@@ -7,6 +7,7 @@ import type {
   ConsoleRuntimeOverview,
   ConsoleWriteOptions,
   DatasetCapture,
+  DashboardSummary,
   Deployment,
   DeploymentPromotionPreview,
   ExperimentRunResult,
@@ -38,6 +39,7 @@ import type {
   RuntimeQueuePressure,
   RuntimeWorker,
   RuntimeWorkerDetail,
+  RuntimeMetricsSnapshot,
   SecretRotationResult,
   SecretValidationResult,
   Task,
@@ -46,7 +48,6 @@ import type {
 } from "./types";
 import {
   type ConsoleDashboardSummaryRead,
-  type ConsoleRuntimeOverviewRead,
   createDimooRunClient,
   DimooRunApiError,
   type ConsoleLoginResponse,
@@ -85,18 +86,31 @@ export type ConsoleApiError = {
   details: Record<string, unknown> | null;
 };
 
-export type DashboardSummary = {
-  runCountToday: number;
-  successRate: number;
-  p95LatencyMs: number;
-  p99LatencyMs: number;
-  queueBacklog: number;
-  workerReady: number;
-  workerTotal: number;
-  monthlyCostUsd: number;
-  pendingApprovals: number;
-  runningRuns: number;
-  activeIncidents: number;
+type ConsoleRuntimeOverviewResponse = {
+  summary: ConsoleDashboardSummaryRead;
+  recent_failures: Array<{
+    run_id: ResourceId;
+    deployment_id: ResourceId | null;
+    agent_id: ResourceId;
+    agent_version_id: ResourceId;
+    status: string;
+    error_summary: string;
+    created_at: string;
+  }>;
+  pending_actions: Array<{
+    resource_type: string;
+    resource_id: ResourceId;
+    action: string;
+    label: string;
+    disabled_reason: string | null;
+    required_permissions: string[];
+    audit_required: boolean;
+  }>;
+  trend_points: Array<{
+    label: string;
+    runs: number;
+    success_rate: number;
+  }>;
 };
 
 export type AdminResource = Record<string, unknown> & {
@@ -492,7 +506,7 @@ function mapConsoleDashboardSummary(summary: ConsoleDashboardSummaryRead): Dashb
   };
 }
 
-function mapConsoleRuntimeOverview(overview: ConsoleRuntimeOverviewRead): ConsoleRuntimeOverview {
+function mapConsoleRuntimeOverview(overview: ConsoleRuntimeOverviewResponse): ConsoleRuntimeOverview {
   return {
     summary: mapConsoleDashboardSummary(overview.summary),
     recentFailures: overview.recent_failures.map((failure) => ({
@@ -513,10 +527,59 @@ function mapConsoleRuntimeOverview(overview: ConsoleRuntimeOverviewRead): Consol
       requiredPermissions: action.required_permissions,
       auditRequired: action.audit_required,
     })),
-    trendPoints: overview.recent_failures.slice(-12).map((failure) => ({
-      label: failure.created_at.slice(11, 16) || String(failure.run_id),
-      runs: 1,
-      successRate: 0,
+    trendPoints: overview.trend_points.map((point) => ({
+      label: point.label,
+      runs: point.runs,
+      successRate: point.success_rate,
+    })),
+  };
+}
+
+function mapRuntimeMetricsSnapshot(snapshot: Record<string, unknown>): RuntimeMetricsSnapshot {
+  const summary = isRecord(snapshot.summary) ? snapshot.summary : {};
+  const queues = Array.isArray(snapshot.queues) ? snapshot.queues : [];
+  const workers = Array.isArray(snapshot.workers) ? snapshot.workers : [];
+  const activeIncidents = Array.isArray(snapshot.active_incidents) ? snapshot.active_incidents : [];
+  const trendPoints = Array.isArray(snapshot.trend_points) ? snapshot.trend_points : [];
+  return {
+    summary: mapConsoleDashboardSummary(summary as ConsoleDashboardSummaryRead),
+    queues: queues.map((item) => ({
+      queue: String((item as Record<string, unknown>).queue || "default"),
+      queueBacklog: Number((item as Record<string, unknown>).queue_backlog || 0),
+      runningTasks: Number((item as Record<string, unknown>).running_tasks || 0),
+      leasedTasks: Number((item as Record<string, unknown>).leased_tasks || 0),
+      retryingTasks: Number((item as Record<string, unknown>).retrying_tasks || 0),
+      deadLetters: Number((item as Record<string, unknown>).dead_letters || 0),
+      oldestTaskAgeSeconds:
+        typeof (item as Record<string, unknown>).oldest_task_age_seconds === "number"
+          ? Number((item as Record<string, unknown>).oldest_task_age_seconds)
+          : null,
+    })),
+    workers: workers.map((item) => ({
+      workerId: String((item as Record<string, unknown>).worker_id || ""),
+      heartbeatAgeSeconds:
+        typeof (item as Record<string, unknown>).heartbeat_age_seconds === "number"
+          ? Number((item as Record<string, unknown>).heartbeat_age_seconds)
+          : null,
+      readiness: String((item as Record<string, unknown>).readiness || "unknown"),
+      liveness: String((item as Record<string, unknown>).liveness || "unknown"),
+      activeAttempts: Number((item as Record<string, unknown>).active_attempts || 0),
+      retryingTasks: Number((item as Record<string, unknown>).retrying_tasks || 0),
+      deadLetterTasks: Number((item as Record<string, unknown>).dead_letter_tasks || 0),
+    })),
+    activeIncidents: activeIncidents.map((failure) => ({
+      runId: Number((failure as Record<string, unknown>).run_id || 0),
+      deploymentId: null,
+      agentId: 0,
+      agentVersionId: 0,
+      status: String((failure as Record<string, unknown>).status || "failed"),
+      errorSummary: String((failure as Record<string, unknown>).error_summary || "Run failed."),
+      createdAt: String((failure as Record<string, unknown>).created_at || ""),
+    })),
+    trendPoints: trendPoints.map((point) => ({
+      label: String((point as Record<string, unknown>).label || ""),
+      runs: Number((point as Record<string, unknown>).runs || 0),
+      successRate: Number((point as Record<string, unknown>).success_rate || 0),
     })),
   };
 }
@@ -1060,7 +1123,14 @@ export const liveConsoleClient = {
     return mapConsoleDashboardSummary(await nativeClient().getConsoleDashboardSummary());
   },
   async getRuntimeOverview(): Promise<ConsoleRuntimeOverview> {
-    return mapConsoleRuntimeOverview(await nativeClient().getConsoleRuntimeOverview());
+    return mapConsoleRuntimeOverview(
+      await requestConsolePath<ConsoleRuntimeOverviewResponse>("/v1/console/runtime-overview"),
+    );
+  },
+  async getRuntimeMetricsSummary(): Promise<RuntimeMetricsSnapshot> {
+    return mapRuntimeMetricsSnapshot(
+      await requestConsolePath<Record<string, unknown>>("/v1/runtime/metrics/summary"),
+    );
   },
   async listRuntimeWorkers(): Promise<CursorPage<RuntimeWorker>> {
     const payload = await requestConsolePath<{

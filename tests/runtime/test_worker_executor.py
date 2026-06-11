@@ -519,10 +519,12 @@ async def test_worker_executor_calls_adapter_cancel_when_supported() -> None:
 
     assert status == "adapter_cancelled"
     assert adapter.cancelled_run_id == run_id
-    assert executor.replay_buffer.replay(run_id)[0].payload == {
-        "status": "adapter_cancelled",
-        "task_id": task_id,
-    }
+    payload = executor.replay_buffer.replay(run_id)[0].payload
+    assert payload["status"] == "adapter_cancelled"
+    assert payload["task_id"] == task_id
+    assert payload["request_id"] == f"req_run_{run_id}"
+    assert payload["trace_id"] == f"trace_run_{run_id}"
+    assert payload["worker_id"] == "worker_1"
 
 
 @pytest.mark.asyncio

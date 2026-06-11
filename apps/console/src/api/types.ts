@@ -291,22 +291,52 @@ export type ConsoleRecentFailure = {
   createdAt: string;
 };
 
+export type DashboardSummary = {
+  runCountToday: number;
+  successRate: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  queueBacklog: number;
+  workerReady: number;
+  workerTotal: number;
+  monthlyCostUsd: number;
+  pendingApprovals: number;
+  runningRuns: number;
+  activeIncidents: number;
+};
+
 export type ConsoleRuntimeOverview = {
-  summary: {
-    runCountToday: number;
-    successRate: number;
-    p95LatencyMs: number;
-    p99LatencyMs: number;
-    queueBacklog: number;
-    workerReady: number;
-    workerTotal: number;
-    monthlyCostUsd: number;
-    pendingApprovals: number;
-    runningRuns: number;
-    activeIncidents: number;
-  };
+  summary: DashboardSummary;
   recentFailures: ConsoleRecentFailure[];
   pendingActions: ConsolePendingAction[];
+  trendPoints: Array<{
+    label: string;
+    runs: number;
+    successRate: number;
+  }>;
+};
+
+export type RuntimeMetricsSnapshot = {
+  summary: DashboardSummary;
+  queues: Array<{
+    queue: string;
+    queueBacklog: number;
+    runningTasks: number;
+    leasedTasks: number;
+    retryingTasks: number;
+    deadLetters: number;
+    oldestTaskAgeSeconds: number | null;
+  }>;
+  workers: Array<{
+    workerId: string;
+    heartbeatAgeSeconds: number | null;
+    readiness: string;
+    liveness: string;
+    activeAttempts: number;
+    retryingTasks: number;
+    deadLetterTasks: number;
+  }>;
+  activeIncidents: ConsoleRecentFailure[];
   trendPoints: Array<{
     label: string;
     runs: number;

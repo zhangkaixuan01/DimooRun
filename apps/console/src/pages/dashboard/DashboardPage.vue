@@ -85,8 +85,8 @@ import ResourceLink from "../../components/ResourceLink.vue";
 import RuntimeTrendChart from "../../components/RuntimeTrendChart.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import TimeRangePicker from "../../components/TimeRangePicker.vue";
-import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError, type DashboardSummary } from "../../api/client";
-import type { ConsolePendingAction, ConsoleRecentFailure } from "../../api/types";
+import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
+import type { ConsolePendingAction, ConsoleRecentFailure, DashboardSummary } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import { useI18n } from "../../i18n/useI18n";
 
@@ -117,11 +117,17 @@ async function loadDashboard() {
   loading.value = true;
   error.value = null;
   try {
-    const overview = await consoleClient.getRuntimeOverview();
-    summary.value = overview.summary;
+    const [overview, metrics] = await Promise.all([
+      consoleClient.getRuntimeOverview(),
+      consoleClient.getRuntimeMetricsSummary(),
+    ]);
+    summary.value = {
+      ...overview.summary,
+      ...metrics.summary,
+    };
+    trendPoints.value = metrics.trendPoints;
     failedRuns.value = overview.recentFailures;
     pendingActions.value = overview.pendingActions;
-    trendPoints.value = overview.trendPoints;
   } catch (caught) {
     error.value = toConsoleApiError(caught);
   } finally {

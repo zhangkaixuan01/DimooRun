@@ -1,5 +1,3 @@
-from collections.abc import Iterable
-
 from dimoo_run.api.console.schemas import (
     ConsoleActionAvailability,
     ConsoleActionSummary,
@@ -8,8 +6,10 @@ from dimoo_run.api.console.schemas import (
     ConsolePendingAction,
     ConsoleRecentFailure,
     ConsoleRuntimeOverview,
+    ConsoleRuntimeTrendPoint,
     ConsoleWorkerHealth,
-    )
+)
+from dimoo_run.api.native.metrics import collect_runtime_metrics_snapshot
 from dimoo_run.api.native.runtime import NativeRun, NativeRuntimeStore, SQLAlchemyNativeRuntimeStore
 from dimoo_run.deployments.service import DeploymentRecord, DeploymentRuntimeControlService
 from dimoo_run.domain.enums import RunStatus, TaskStatus
@@ -25,46 +25,26 @@ def dashboard_summary(
     project_id: int,
     environment: str,
 ) -> ConsoleDashboardSummary:
-    scoped_deployments = _scoped_deployments(
-        deployments,
-        tenant_id=tenant_id,
-        project_id=project_id,
-        environment=environment,
-    )
-    scoped_runs = _scoped_runs(
-        runtime,
-        tenant_id=tenant_id,
-        project_id=project_id,
-        deployment_ids={deployment.id for deployment in scoped_deployments},
-    )
-    completed_runs = [
-        run for run in scoped_runs if run.status in {RunStatus.succeeded, RunStatus.failed}
-    ]
-    succeeded_runs = [run for run in scoped_runs if run.status == RunStatus.succeeded]
-    latencies = sorted(
-        int((run.finished_at - run.started_at).total_seconds() * 1000)
-        for run in scoped_runs
-        if run.started_at is not None and run.finished_at is not None
-    )
-    deployment_health = deployment_health_summary(
+    snapshot = collect_runtime_metrics_snapshot(
         runtime=runtime,
         deployments=deployments,
         tenant_id=tenant_id,
         project_id=project_id,
         environment=environment,
     )
+    summary = snapshot.summary
     return ConsoleDashboardSummary(
-        run_count_today=len(scoped_runs),
-        success_rate=(len(succeeded_runs) / len(completed_runs)) if completed_runs else 0,
-        p95_latency_ms=_percentile(latencies, 0.95),
-        p99_latency_ms=_percentile(latencies, 0.99),
-        queue_backlog=sum(item.queue_backlog for item in deployment_health),
-        worker_ready=sum(1 for item in deployment_health if item.runtime_status == "ready"),
-        worker_total=len(deployment_health),
-        monthly_cost_usd=0,
-        pending_approvals=0,
-        running_runs=sum(1 for run in scoped_runs if run.status == RunStatus.running),
-        active_incidents=0,
+        run_count_today=summary.run_count_today,
+        success_rate=summary.success_rate,
+        p95_latency_ms=summary.p95_latency_ms,
+        p99_latency_ms=summary.p99_latency_ms,
+        queue_backlog=summary.queue_backlog,
+        worker_ready=summary.worker_ready,
+        worker_total=summary.worker_total,
+        monthly_cost_usd=summary.monthly_cost_usd,
+        pending_approvals=summary.pending_approvals,
+        running_runs=summary.running_tasks,
+        active_incidents=summary.active_incidents,
     )
 
 
@@ -77,6 +57,13 @@ def runtime_overview(
     project_id: int,
     environment: str,
 ) -> ConsoleRuntimeOverview:
+    snapshot = collect_runtime_metrics_snapshot(
+        runtime=runtime,
+        deployments=deployments,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        environment=environment,
+    )
     return ConsoleRuntimeOverview(
         summary=dashboard_summary(
             runtime=runtime,
@@ -114,6 +101,14 @@ def runtime_overview(
             project_id=project_id,
             environment=environment,
         ),
+        trend_points=[
+            ConsoleRuntimeTrendPoint(
+                label=item.label,
+                runs=item.runs,
+                success_rate=item.success_rate,
+            )
+            for item in snapshot.trend_points
+        ],
     )
 
 
@@ -148,7 +143,11 @@ def deployment_health_summary(
                     1
                     for task in deployment_tasks
                     if task.status
-                    in {TaskStatus.queued, TaskStatus.retrying, TaskStatus.dead_letter}
+                    in {
+                        TaskStatus.queued,
+                        TaskStatus.retrying,
+                        TaskStatus.dead_letter,
+                    }
                 ),
                 running_runs=sum(1 for run in deployment_runs if run.status == RunStatus.running),
                 last_runtime_error=deployment.last_runtime_error,
@@ -364,11 +363,3 @@ def _error_summary(run: NativeRun) -> str:
         return "Run failed."
     message = run.error.get("message")
     return str(message) if message else "Run failed."
-
-
-def _percentile(values: Iterable[int], percentile: float) -> int:
-    sorted_values = sorted(values)
-    if not sorted_values:
-        return 0
-    index = min(len(sorted_values) - 1, round((len(sorted_values) - 1) * percentile))
-    return sorted_values[index]

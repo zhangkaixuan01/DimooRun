@@ -23,11 +23,13 @@ from dimoo_run.api.console import published as console_published_router
 from dimoo_run.api.console import router as console_router
 from dimoo_run.api.console import settings as console_settings_router
 from dimoo_run.api.console import workers as console_workers_router
+from dimoo_run.api.native import metrics as native_metrics_router
 from dimoo_run.api.native import router as native_router
 from dimoo_run.core.health import HealthResponse, get_health
 
 router = APIRouter()
 router.include_router(auth_router.router)
+router.include_router(native_metrics_router.router)
 router.include_router(native_router)
 router.include_router(live_ingress_router.router)
 router.include_router(console_router)
