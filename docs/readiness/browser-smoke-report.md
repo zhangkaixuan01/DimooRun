@@ -41,11 +41,14 @@ npm run test:e2e
 
 Status: `local-pass-with-supplied-chrome`
 
-Date checked: 2026-06-07
+Date checked: 2026-06-12
 
 `npm run check:e2e-browser` passes with `DIMOORUN_PLAYWRIGHT_CHROME` loaded from the ignored local `apps/console/.env.e2e.local` file.
 
-`npm run test:e2e` passes locally using the supplied Chrome executable. The suite builds the e2e bundle and runs 34 Playwright tests.
+`npm run test:e2e` and the full direct Playwright browser suite both pass locally
+using the supplied Chrome executable. The current suite builds the e2e bundle,
+runs 58 Playwright tests, and now includes dedicated Phase 6 runtime workflow,
+accessibility, and responsive screenshot evidence.
 
 This mocked suite does not by itself prove hosted CI or the default
 Playwright-managed browser cache. Real live-backend and ingress evidence is
@@ -80,21 +83,24 @@ Successful E2E build evidence:
 
 ```text
 vite v7.3.3 building client environment for e2e...
-768 modules transformed.
-✓ built in 4.42s
+798 modules transformed.
+✓ built in 4.86s
 ```
 
 Playwright result:
 
 ```text
-Running 34 tests using 8 workers
-34 passed (21.1s)
+Running 58 tests using 8 workers
+58 passed (32.3s)
 ```
 
 Covered workflow groups in this local mocked run:
 
 - Console smoke and authenticated shell.
-- Critical axe checks for dashboard, login, dense table, drawer flow, and high-risk confirmation.
+- Critical axe checks for dashboard, login, dense table, drawer flow, deployment task workflow, run detail diagnostics, high-risk confirmation, and a mobile viewport drawer.
+- Dedicated Phase 6 runtime workflow proof for login, agent registration, AgentVersion creation, Deployment creation, Deployment task submission, Run detail inspection, replay comparison, and destructive confirmation.
+- Offline, loading, empty, and normalized API error state coverage on core runtime surfaces.
+- Desktop and mobile workflow screenshots attached through Playwright report artifacts.
 - Deployment promotion, pause/resume, policy denial, and stale conflict.
 - Package validation and readiness blockers.
 - Policy approval and human-task decisions.
@@ -138,6 +144,7 @@ Working directory: `apps/console`.
 ```bash
 npx playwright install chromium
 npm run test:e2e
+npx playwright test tests/e2e/console-runtime.spec.ts tests/e2e/accessibility.spec.ts tests/e2e/responsive-snapshots.spec.ts --project=chrome --output test-results-phase6-final
 ```
 
 Then add hosted browser proof for the workflows that still depend on local-only

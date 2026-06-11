@@ -769,6 +769,38 @@ test("defines a dedicated compatibility browser workflow for hosted proof", () =
     assert.match(workflow, /console-playwright-0i-report/);
 });
 
+test("defines a dedicated phase-6 browser workflow proof path", () => {
+    const readme = read("README.md");
+    const workflow = read("../../.github/workflows/ci.yml");
+    const runtimeSpec = read("tests/e2e/console-runtime.spec.ts");
+    const accessibilitySpec = read("tests/e2e/accessibility.spec.ts");
+    const responsiveSpec = read("tests/e2e/responsive-snapshots.spec.ts");
+    const fixture = read("tests/fixtures/api.ts");
+
+    assert.match(workflow, /tests\/e2e\/console-runtime\.spec\.ts/);
+    assert.match(workflow, /tests\/e2e\/accessibility\.spec\.ts/);
+    assert.match(workflow, /tests\/e2e\/responsive-snapshots\.spec\.ts/);
+    assert.match(workflow, /--output test-results-6-proof/);
+    assert.match(workflow, /PLAYWRIGHT_HTML_REPORT: playwright-report-6/);
+    assert.match(workflow, /console-playwright-6-report/);
+
+    assert.match(readme, /Phase 6 Browser Proof/);
+    assert.match(readme, /npx playwright test tests\/e2e\/console-runtime\.spec\.ts/);
+    assert.match(readme, /empty\s*\/\s*loading\s*\/\s*error\s*\/\s*offline states/i);
+
+    assert.match(runtimeSpec, /forceOfflineMode/);
+    assert.match(runtimeSpec, /Register Agent/);
+    assert.match(runtimeSpec, /Create Deployment/);
+    assert.match(runtimeSpec, /Compare replay/);
+    assert.match(responsiveSpec, /dashboard-desktop\.png/);
+    assert.match(responsiveSpec, /deployment-task-mobile\.png/);
+    assert.match(accessibilitySpec, /mobile agent drawer/i);
+    assert.match(accessibilitySpec, /run detail diagnostics page/i);
+    assert.match(fixture, /dimoorun\.console\.apiBaseUrlOverride/);
+    assert.match(fixture, /\/v1\/auth\/login/);
+    assert.match(fixture, /\/v1\/runtime\/metrics\/summary/);
+});
+
 test("defines a dedicated runtime capacity browser workflow", () => {
     const packageJson = read("package.json");
     const workflow = read("../../.github/workflows/ci.yml");

@@ -241,12 +241,19 @@ export type DangerousActionResult = {
 
 const TOKEN_KEY = "dimoorun.console.token";
 const OPERATOR_KEY = "dimoorun.console.operator";
+const API_BASE_OVERRIDE_KEY = "dimoorun.console.apiBaseUrlOverride";
 
 function page<T>(items: T[]): CursorPage<T> {
   return { items, nextCursor: null };
 }
 
 export function apiBaseUrl(): string | null {
+  if (typeof window !== "undefined") {
+    const override = window.sessionStorage.getItem(API_BASE_OVERRIDE_KEY);
+    if (override !== null) {
+      return override.trim() || null;
+    }
+  }
   return import.meta.env.VITE_DIMOORUN_API_BASE_URL || null;
 }
 

@@ -17,6 +17,12 @@ Then run:
 npm run test:e2e
 ```
 
+For the focused Phase 6 browser workflow proof, run:
+
+```powershell
+npx playwright test tests/e2e/console-runtime.spec.ts tests/e2e/accessibility.spec.ts tests/e2e/responsive-snapshots.spec.ts --project=chrome --output test-results-phase6-final
+```
+
 If the Playwright download is blocked by an offline or restricted network, use a
 local Chrome/Chromium executable instead. Copy the checked-in example file and
 fill in your machine-specific path:
@@ -36,6 +42,24 @@ DIMOORUN_PLAYWRIGHT_CHROME=C:\Users\Administrator\AppData\Local\Temp\dimoorun-pl
 
 The executable can live anywhere on the machine. The important part is that
 `DIMOORUN_PLAYWRIGHT_CHROME` points directly to `chrome-win64\chrome.exe`.
+
+## Phase 6 Browser Proof
+
+Phase `6` is the first dedicated browser workflow expansion layer on top of the
+shared smoke suite. From `apps/console`, run:
+
+```powershell
+npx playwright test tests/e2e/console-runtime.spec.ts tests/e2e/accessibility.spec.ts tests/e2e/responsive-snapshots.spec.ts --project=chrome --output test-results-phase6-final
+```
+
+This focused Phase 6 browser command executes the dedicated runtime workflow
+spec, accessibility spec, and responsive screenshot spec together. The command proves
+login, agent registration, AgentVersion creation, Deployment creation,
+Deployment task submission, Run detail inspection, replay comparison, empty /
+loading / error / offline states, key-page axe coverage, and mobile/desktop
+workflow screenshots in one focused report artifact. It reuses the current e2e
+build output, so run `npm run build:e2e` first if you have not already built
+the Console in e2e mode.
 
 ## Phase 0L Browser Proof
 

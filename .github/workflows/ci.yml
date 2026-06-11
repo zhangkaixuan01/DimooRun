@@ -79,6 +79,11 @@ jobs:
       - name: Run Console browser tests
         run: npm run test:e2e
 
+      - name: Run Console Phase 6 browser workflow
+        run: npx playwright test tests/e2e/console-runtime.spec.ts tests/e2e/accessibility.spec.ts tests/e2e/responsive-snapshots.spec.ts --project=chrome --output test-results-6-proof
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-6
+
       - name: Run Console Phase 0H browser workflow
         run: npm run test:e2e:0h
         env:
@@ -110,6 +115,14 @@ jobs:
         with:
           name: console-playwright-report
           path: apps/console/playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload Phase 6 Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-6-report
+          path: apps/console/playwright-report-6
           if-no-files-found: ignore
 
       - name: Upload Phase 0H Playwright report

@@ -1567,7 +1567,7 @@ Notes:
 
 **Files:**
 
-- Modify: `apps/console/package.json`
+- Modify: `apps/console/README.md`
 - Existing: `apps/console/playwright.config.ts`
 - Existing: `apps/console/tests/e2e/console-smoke.spec.ts`
 - Existing: `apps/console/tests/fixtures/api.ts`
@@ -1582,16 +1582,30 @@ Tasks:
 - [x] Add `npm run test:e2e` and `npm run test:e2e:headed`.
 - [x] Add smoke coverage for login redirect, seeded dashboard shell rendering, and critical login-page accessibility.
 - [x] Add deterministic API fixture baseline in Phase -1A.
-- [ ] Test login, agent create, version create, deployment create, deployment task submit, run detail inspect, replay, and destructive confirmation.
-- [ ] Test offline, loading, empty, and API error states.
-- [ ] Add axe accessibility checks for key pages.
-- [ ] Add mobile and desktop screenshots for key workflows.
-- [ ] Commit as `test(console): add browser workflow coverage`.
+- [x] Test login, agent create, version create, deployment create, deployment task submit, run detail inspect, replay, and destructive confirmation.
+- [x] Test offline, loading, empty, and API error states.
+- [x] Add axe accessibility checks for key pages.
+- [x] Add mobile and desktop screenshots for key workflows.
+- [x] Commit as `test(console): add browser workflow coverage`.
 
 Acceptance:
 
 - Contract tests no longer stand alone as the only frontend proof.
 - Browser tests fail if core workflows are visually or interactively broken.
+
+Verification:
+
+- `npm run test`
+- `npm run test:unit`
+- `npm run build:e2e`
+- `npx playwright test --project=chrome --output test-results-phase6-final`
+
+Notes:
+
+- `apps/console/tests/e2e/console-runtime.spec.ts` now provides a dedicated browser proof for login, Agent registration, AgentVersion creation, Deployment creation, Deployment task submission, Run detail inspection, replay comparison, destructive confirmation, and offline/loading/empty/error state handling.
+- `apps/console/tests/e2e/accessibility.spec.ts` now covers dashboard, dense table, drawer flow, high-risk confirmation, deployment task workflow, run detail diagnostics, and a mobile viewport drawer with axe critical checks.
+- `apps/console/tests/e2e/responsive-snapshots.spec.ts` now captures desktop and mobile workflow screenshots as Playwright report attachments, so responsive layout evidence is produced by the same browser proof run instead of being described only in docs.
+- `.github/workflows/ci.yml` now includes a dedicated Phase 6 browser workflow step and `console-playwright-6-report` artifact wiring; hosted CI proof still remains a separate readiness concern until a current successful run is recorded.
 
 ### Phase 7: Console Component Hardening
 

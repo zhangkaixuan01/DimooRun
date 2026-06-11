@@ -195,12 +195,22 @@ export function makeDashboardApi(options: { empty?: boolean } = {}): DashboardAp
   };
 }
 
+export async function seedEnglishLocale(page: Page): Promise<void> {
+  await page.addInitScript(() => localStorage.setItem("dimoorun.console.locale", "en-US"));
+}
+
 export async function seedConsoleSession(page: Page): Promise<void> {
   await page.addInitScript((sessionOperator) => {
     localStorage.setItem("dimoorun.console.token", "sess_e2e_session");
     localStorage.setItem("dimoorun.console.operator", JSON.stringify(sessionOperator));
     localStorage.setItem("dimoorun.console.scope", JSON.stringify(sessionOperator.allowed_scopes[0]));
   }, e2eOperator);
+}
+
+export async function forceOfflineMode(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    sessionStorage.setItem("dimoorun.console.apiBaseUrlOverride", "");
+  });
 }
 
 export async function installConsoleApiMocks(
@@ -485,6 +495,68 @@ export async function installConsoleApiMocks(
     }
     if (path === options.errorPath) {
       return fulfillError(route);
+    }
+    if (path === "/v1/auth/login" && route.request().method() === "POST") {
+      return fulfillAuthLogin(route);
+    }
+    if (path === "/v1/auth/me" && route.request().method() === "GET") {
+      return fulfillJson(route, { operator: e2eOperator, request_id: "e2e-request" });
+    }
+    if (path === "/v1/auth/logout" && route.request().method() === "POST") {
+      return fulfillJson(route, { ok: true });
+    }
+    if (path === "/v1/runtime/metrics/summary" && route.request().method() === "GET") {
+      return fulfillJson(route, runtimeMetricsSummary(api, runtimeWorkers, api.incidents.items));
+    }
+    if (path === "/v1/agents" && route.request().method() === "POST") {
+      return fulfillJson(route, createAgentResponse(route, api));
+    }
+    const agentMutationMatch = path.match(/^\/v1\/agents\/(\d+)$/);
+    if (agentMutationMatch && route.request().method() === "PATCH") {
+      return fulfillJson(route, updateAgentResponse(route, api, Number(agentMutationMatch[1])));
+    }
+    if (agentMutationMatch && route.request().method() === "DELETE") {
+      return fulfillJson(route, archiveAgentResponse(api, Number(agentMutationMatch[1])));
+    }
+    const agentVersionCreateMatch = path.match(/^\/v1\/agents\/(\d+)\/versions$/);
+    if (agentVersionCreateMatch && route.request().method() === "POST") {
+      return fulfillJson(route, createAgentVersionResponse(route, api, Number(agentVersionCreateMatch[1])));
+    }
+    const agentVersionMutationMatch = path.match(/^\/v1\/agents\/(\d+)\/versions\/([^/]+)$/);
+    if (agentVersionMutationMatch && route.request().method() === "PATCH") {
+      return fulfillJson(
+        route,
+        updateAgentVersionResponse(
+          route,
+          api,
+          Number(agentVersionMutationMatch[1]),
+          decodeURIComponent(agentVersionMutationMatch[2]),
+        ),
+      );
+    }
+    if (agentVersionMutationMatch && route.request().method() === "DELETE") {
+      return fulfillJson(
+        route,
+        archiveAgentVersionResponse(
+          api,
+          Number(agentVersionMutationMatch[1]),
+          decodeURIComponent(agentVersionMutationMatch[2]),
+        ),
+      );
+    }
+    if (path === "/v1/deployments" && route.request().method() === "POST") {
+      return fulfillJson(route, createDeploymentResponse(route, api));
+    }
+    const deploymentMutationMatch = path.match(/^\/v1\/deployments\/(\d+)$/);
+    if (deploymentMutationMatch && route.request().method() === "PATCH") {
+      return fulfillJson(route, updateDeploymentResponse(route, api, Number(deploymentMutationMatch[1])));
+    }
+    if (deploymentMutationMatch && route.request().method() === "DELETE") {
+      return fulfillJson(route, archiveDeploymentResponse(api, Number(deploymentMutationMatch[1])));
+    }
+    const deploymentTaskMatch = path.match(/^\/v1\/deployments\/(\d+)\/tasks$/);
+    if (deploymentTaskMatch && route.request().method() === "POST") {
+      return fulfillJson(route, createDeploymentTaskResponse(route, api, Number(deploymentTaskMatch[1])));
     }
     if (path === "/v1/console/identity/role-matrix" && route.request().method() === "GET") {
       return fulfillJson(route, {
@@ -2077,6 +2149,245 @@ function compatibilityMigrationReportResponse(route: Route): unknown {
   };
 }
 
+function fulfillAuthLogin(route: Route) {
+  const body = parseRequestBody(route);
+  const email = String(body.email || "");
+  const password = String(body.password || "");
+  if (!email || !password) {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "auth_invalid_credentials",
+          message: "Email and password are required.",
+          request_id: "e2e-error-request",
+          details: { field: !email ? "email" : "password" },
+        },
+      },
+    });
+  }
+  return fulfillJson(route, {
+    access_token: "sess_e2e_session",
+    token_type: "bearer",
+    operator: e2eOperator,
+  });
+}
+
+function runtimeMetricsSummary(
+  api: DashboardApiFixture,
+  workers: RuntimeWorkerFixture[],
+  incidents: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  return {
+    summary: dashboardSummary(api.deployments, api.runs, api.humanTasks.items, incidents),
+    queues: [
+      {
+        queue: "default",
+        queue_backlog: api.deployments.reduce((total, item) => total + item.replicas, 0),
+        running_tasks: api.runs.filter((item) => item.status === "pending").length,
+        leased_tasks: 0,
+        retrying_tasks: 1,
+        dead_letters: api.runs.filter((item) => item.status === "failed").length,
+        oldest_task_age_seconds: 48,
+      },
+    ],
+    workers: workers.map((worker) => ({
+      worker_id: worker.worker_id,
+      heartbeat_age_seconds: worker.heartbeat_age_seconds,
+      readiness: worker.readiness,
+      liveness: worker.liveness,
+      active_attempts: worker.active_attempts,
+      retrying_tasks: worker.retrying_tasks,
+      dead_letter_tasks: worker.dead_letter_tasks,
+    })),
+    active_incidents: api.runs
+      .filter((item) => item.status === "failed")
+      .map((item) => ({
+        run_id: item.id,
+        status: item.status,
+        error_summary: String(item.error?.message || "provider outage"),
+        created_at: item.created_at,
+      })),
+    trend_points: [
+      { label: "06-10 09:00", runs: 1, success_rate: 1 },
+      { label: "06-10 10:00", runs: 1, success_rate: 0 },
+      { label: "06-10 11:00", runs: 1, success_rate: 0.5 },
+    ],
+  };
+}
+
+function createAgentResponse(route: Route, api: DashboardApiFixture): NativeAgentRead {
+  const body = parseRequestBody(route);
+  const agent: NativeAgentRead = {
+    id: nextNumericId(api.agents),
+    name: String(body.name || `agent-${api.agents.length + 1}`),
+    description: typeof body.description === "string" ? body.description : null,
+    status: "active",
+    created_at: createdAt,
+  };
+  api.agents.unshift(agent);
+  return agent;
+}
+
+function updateAgentResponse(
+  route: Route,
+  api: DashboardApiFixture,
+  agentId: number,
+): NativeAgentRead {
+  const body = parseRequestBody(route);
+  const agent = api.agents.find((item) => item.id === agentId) ?? api.agents[0];
+  agent.name = String(body.name || agent.name);
+  agent.description = typeof body.description === "string" ? body.description : agent.description;
+  if (typeof body.status === "string") {
+    agent.status = body.status;
+  }
+  return agent;
+}
+
+function archiveAgentResponse(api: DashboardApiFixture, agentId: number): NativeAgentRead {
+  const index = api.agents.findIndex((item) => item.id === agentId);
+  const [agent] = index >= 0 ? api.agents.splice(index, 1) : [api.agents[0]];
+  return agent;
+}
+
+function createAgentVersionResponse(
+  route: Route,
+  api: DashboardApiFixture,
+  agentId: number,
+): NativeAgentVersionRead {
+  const body = parseRequestBody(route);
+  const version: NativeAgentVersionRead = {
+    id: nextNumericId(api.versions),
+    agent_id: agentId,
+    version: String(body.version || `0.0.${api.versions.length + 1}`),
+    package_uri: String(body.package_uri || "oci://registry.local/generated-agent:latest"),
+    framework: String(body.framework || "langgraph"),
+    adapter: String(body.adapter || "langgraph"),
+    entrypoint: String(body.entrypoint || "agent:create_agent"),
+    capabilities: asRecord(body.capabilities) ?? { invoke: true, stream: true },
+    manifest: asRecord(body.manifest) ?? { runtime: { entrypoint: String(body.entrypoint || "agent:create_agent") } },
+    status: String(body.status || "ready"),
+  };
+  api.versions.unshift(version);
+  return version;
+}
+
+function updateAgentVersionResponse(
+  route: Route,
+  api: DashboardApiFixture,
+  agentId: number,
+  versionValue: string,
+): NativeAgentVersionRead {
+  const body = parseRequestBody(route);
+  const version = api.versions.find((item) => item.agent_id === agentId && item.version === versionValue) ?? api.versions[0];
+  version.version = String(body.version || version.version);
+  version.package_uri = String(body.package_uri || version.package_uri);
+  version.framework = String(body.framework || version.framework);
+  version.adapter = String(body.adapter || version.adapter);
+  version.entrypoint = String(body.entrypoint || version.entrypoint);
+  version.capabilities = asRecord(body.capabilities) ?? version.capabilities;
+  version.manifest = asRecord(body.manifest) ?? version.manifest;
+  version.status = String(body.status || version.status);
+  return version;
+}
+
+function archiveAgentVersionResponse(
+  api: DashboardApiFixture,
+  agentId: number,
+  versionValue: string,
+): NativeAgentVersionRead {
+  const index = api.versions.findIndex((item) => item.agent_id === agentId && item.version === versionValue);
+  const [version] = index >= 0 ? api.versions.splice(index, 1) : [api.versions[0]];
+  return version;
+}
+
+function createDeploymentResponse(route: Route, api: DashboardApiFixture): NativeDeploymentRead {
+  const body = parseRequestBody(route);
+  const deployment: NativeDeploymentRead = {
+    id: nextNumericId(api.deployments),
+    tenant_id: 1,
+    project_id: 1,
+    agent_id: Number(body.agent_id || 1),
+    agent_version_id: Number(body.agent_version_id || 11),
+    environment: String(body.environment || "production"),
+    desired_status: String(body.desired_status || "draft") as NativeDeploymentRead["desired_status"],
+    runtime_status: "not_loaded",
+    replicas: Number(body.replicas || 1),
+    config: asRecord(body.config) ?? {},
+    last_runtime_error: null,
+  };
+  api.deployments.unshift(deployment);
+  return deployment;
+}
+
+function updateDeploymentResponse(
+  route: Route,
+  api: DashboardApiFixture,
+  deploymentId: number,
+): NativeDeploymentRead {
+  const body = parseRequestBody(route);
+  const deployment = api.deployments.find((item) => item.id === deploymentId) ?? api.deployments[0];
+  deployment.agent_version_id = Number(body.agent_version_id || deployment.agent_version_id);
+  deployment.environment = String(body.environment || deployment.environment);
+  deployment.replicas = Number(body.replicas || deployment.replicas);
+  deployment.config = asRecord(body.config) ?? deployment.config;
+  return deployment;
+}
+
+function archiveDeploymentResponse(
+  api: DashboardApiFixture,
+  deploymentId: number,
+): NativeDeploymentRead {
+  const index = api.deployments.findIndex((item) => item.id === deploymentId);
+  const [deployment] = index >= 0 ? api.deployments.splice(index, 1) : [api.deployments[0]];
+  return deployment;
+}
+
+function createDeploymentTaskResponse(
+  route: Route,
+  api: DashboardApiFixture,
+  deploymentId: number,
+): Record<string, unknown> {
+  const body = parseRequestBody(route);
+  const deployment = api.deployments.find((item) => item.id === deploymentId) ?? api.deployments[0];
+  const runId = nextNumericId(api.runs);
+  const taskId = runId + 4000;
+  api.runs.unshift({
+    id: runId,
+    tenant_id: 1,
+    project_id: 1,
+    agent_id: deployment.agent_id,
+    agent_version_id: deployment.agent_version_id,
+    deployment_id: deployment.id,
+    status: "pending",
+    thread_id: typeof body.thread_id === "string" ? body.thread_id : `thread-${runId}`,
+    input: asRecord(body.input) ?? {},
+    output: null,
+    error: null,
+    created_at: createdAt,
+    started_at: null,
+    finished_at: null,
+    latency_ms: null,
+  });
+  return {
+    run_id: runId,
+    task_id: taskId,
+    status: "accepted",
+    replayed: false,
+  };
+}
+
+function nextNumericId(items: Array<{ id: number }>): number {
+  return items.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
 function responseForPath(path: string, api: DashboardApiFixture): unknown {
   if (path === "/v1/console/dashboard-summary") return api.runtimeOverview.summary;
   if (path === "/v1/console/runtime-overview") return api.runtimeOverview;
@@ -2090,7 +2401,10 @@ function responseForPath(path: string, api: DashboardApiFixture): unknown {
   if (path === "/v1/runs") return api.runs;
   if (path === "/v1/human-tasks") return api.humanTasks;
   if (path === "/v1/incidents") return api.incidents;
-  if (path.match(/^\/v1\/agents\/\d+\/versions$/)) return api.versions;
+  const versionsMatch = path.match(/^\/v1\/agents\/(\d+)\/versions$/);
+  if (versionsMatch) {
+    return api.versions.filter((item) => item.agent_id === Number(versionsMatch[1]));
+  }
   if (path === "/v1/identity/tenants") return makeAdminCollection([{ id: 1, name: "Local Tenant" }]);
   if (path === "/v1/identity/projects") return makeAdminCollection([{ id: 1, name: "DimooRun" }]);
   if (path === "/v1/identity/permissions") {
@@ -2677,6 +2991,11 @@ function runtimeOverview(
       required_permissions: ["agent:deploy"],
       audit_required: true,
     })),
+    trend_points: [
+      { label: "06-10 09:00", runs: 1, success_rate: 1 },
+      { label: "06-10 10:00", runs: 1, success_rate: 0 },
+      { label: "06-10 11:00", runs: 1, success_rate: 0.5 },
+    ],
   };
 }
 
