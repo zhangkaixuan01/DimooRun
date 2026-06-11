@@ -4,6 +4,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session, sessionmaker
 
 from dimoo_run.api.admin.router import (
     _append_identity_audit,
@@ -38,7 +39,7 @@ router = APIRouter(
 IdentityPayload = Annotated[dict[str, Any] | None, Body()]
 
 
-def _session_factory():
+def _session_factory() -> sessionmaker[Session]:
     from dimoo_run.core.config import Settings
 
     return create_session_factory(Settings.from_env().database.url)
@@ -281,7 +282,9 @@ def revoke_operator_session(
         session_model.revoke_reason = "admin_revoked"
         session_model.updated_at = _now()
         session.commit()
-        default_console_identity_service()._cache.delete(session_model.token_hash)  # type: ignore[attr-defined]
+        cache = getattr(default_console_identity_service(), "_cache", None)
+        if cache is not None:
+            cache.delete(session_model.token_hash)
     _append_identity_audit(
         actor,
         action="identity.session.revoke",
@@ -492,7 +495,8 @@ def _permission_parts(code: str) -> tuple[str, str]:
     if code == "*":
         return "*", "*"
     if ":" in code:
-        return code.rsplit(":", 1)
+        left, right = code.rsplit(":", 1)
+        return left, right
     return code, "use"
 
 

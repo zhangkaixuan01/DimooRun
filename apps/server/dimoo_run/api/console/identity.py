@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
 
 from dimoo_run.api.admin.router import _serialize_api_key
 from dimoo_run.api.console.common import (
@@ -35,7 +36,7 @@ from dimoo_run.persistence.database import create_session_factory
 router = APIRouter(prefix="/v1/console/identity", tags=["console-identity"])
 
 
-def _session_factory():
+def _session_factory() -> sessionmaker[Session]:
     from dimoo_run.core.config import Settings
 
     return create_session_factory(Settings.from_env().database.url)
@@ -88,7 +89,7 @@ def get_role_matrix(
                     "permissions": permissions,
                 }
             )
-        permissions = [
+        permission_items = [
             {
                 "id": permission.id,
                 "code": permission.code,
@@ -103,7 +104,7 @@ def get_role_matrix(
                 .order_by(ConsolePermission.code)
             )
         ]
-    return {"items": roles, "permissions": permissions, "request_id": x_request_id}
+    return {"items": roles, "permissions": permission_items, "request_id": x_request_id}
 
 
 @router.get("/operators/{operator_id}", response_model=None)
