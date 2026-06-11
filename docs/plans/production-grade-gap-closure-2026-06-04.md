@@ -1266,17 +1266,36 @@ Acceptance:
 - Create: `apps/console/src/pages/settings/ProviderStatusPage.vue`
 - Create: `apps/console/src/pages/settings/DangerZonePage.vue`
 - Test: `tests/api/test_platform_settings_workflows.py`
-- Test: `apps/console/tests/e2e/platform-settings.spec.ts`
+- Test: shared browser proof in `apps/console/tests/e2e/runtime-capacity.spec.ts`
+- Verify: `apps/console/scripts/verify-phase-0l-proof.mjs`
 
 Tasks:
 
-- [ ] Add settings snapshot API for runtime mode, database mode, queue backend, object store, secret provider, model gateway provider, artifact retention, trace retention, CORS, and production safety status.
-- [ ] Add provider status API for Postgres, Redis, MinIO/S3, secret provider, model gateway, webhook transport, notification transport, and observability exporter.
-- [ ] Add scoped configuration update workflow for organization defaults, project defaults, environment defaults, and runtime read-only production settings.
-- [ ] Add dangerous configuration workflow with preflight check, typed confirmation, affected-resource preview, rollback notes, and audit reason.
-- [ ] Add Console pages that separate personal preferences from platform settings, provider health, and danger zone.
-- [ ] Add browser tests for readonly production settings, provider outage display, environment default change, dangerous action blocked by failed preflight, and successful audited change.
+- [x] Add settings snapshot API for runtime mode, database mode, queue backend, object store, secret provider, model gateway provider, artifact retention, trace retention, CORS, and production safety status.
+- [x] Add provider status API for Postgres, Redis, MinIO/S3, secret provider, model gateway, webhook transport, notification transport, and observability exporter.
+- [x] Add scoped configuration update workflow for organization defaults, project defaults, environment defaults, and runtime read-only production settings.
+- [x] Add dangerous configuration workflow with preflight check, typed confirmation, affected-resource preview, rollback notes, and audit reason.
+- [x] Add Console pages that separate personal preferences from platform settings, provider health, and danger zone.
+- [x] Add browser tests for readonly production settings, provider outage display, environment default change, dangerous action blocked by failed preflight, and successful audited change.
 - [ ] Commit as `feat(settings): add platform configuration workflow`.
+
+Current status on 2026-06-11:
+
+- Backend workflow coverage is locally proven through
+  `uv run pytest -q tests/api/test_platform_settings_workflows.py tests/production_foundation/test_ci_workflow.py`
+  and `uv run mypy apps/server tests scripts`.
+- Console contract/unit/build proof is locally green through `npm run test`,
+  `npm run test:unit`, and `npm run build:e2e`.
+- Shared browser proof is locally green through `npm run test:e2e:0j`, which
+  now executes the 0L readonly-settings, provider-outage, blocked-preflight,
+  and successful dangerous-apply cases in the same runner as 0J.
+- Dedicated phase verification now passes through `npm run test:e2e:0l`, which
+  validates the shared runner proof marker and emits the 0L phase report.
+- Dedicated CI wiring exists for `npm run test:e2e:0l` with
+  `PLAYWRIGHT_HTML_REPORT=playwright-report-0l` and
+  `console-playwright-0l-report`.
+- Phase 0L still stays `partial` until hosted CI proves the default
+  Playwright-managed Chromium path and publishes the dedicated 0L artifact.
 
 Acceptance:
 

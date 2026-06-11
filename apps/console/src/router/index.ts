@@ -34,6 +34,9 @@ import WorkersPage from "../pages/runtime/WorkersPage.vue";
 import RunDetailPage from "../pages/runs/RunDetailPage.vue";
 import RunTriagePage from "../pages/runs/RunTriagePage.vue";
 import RunsPage from "../pages/runs/RunsPage.vue";
+import DangerZonePage from "../pages/settings/DangerZonePage.vue";
+import PlatformSettingsPage from "../pages/settings/PlatformSettingsPage.vue";
+import ProviderStatusPage from "../pages/settings/ProviderStatusPage.vue";
 import SettingsPage from "../pages/settings/SettingsPage.vue";
 import TasksPage from "../pages/tasks/TasksPage.vue";
 import { useAuthStore } from "../stores/auth";
@@ -211,6 +214,21 @@ export const routes: RouteRecordRaw[] = [
     path: "/ops/incidents",
     name: "incidents",
     component: IncidentTriagePage,
+  },
+  {
+    path: "/settings/platform",
+    name: "platform-settings",
+    component: PlatformSettingsPage,
+  },
+  {
+    path: "/settings/providers",
+    name: "provider-status",
+    component: ProviderStatusPage,
+  },
+  {
+    path: "/settings/danger-zone",
+    name: "danger-zone",
+    component: DangerZonePage,
   },
   {
     path: "/settings/semantic-store",

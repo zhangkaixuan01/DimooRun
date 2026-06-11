@@ -169,11 +169,11 @@ Each workflow must be evaluated by user outcome, visible system state, validatio
 | Check | Acceptance criteria |
 |---|---|
 | Task completion | User can inspect environment/provider/runtime settings, run preflight, make safe changes, and perform dangerous changes only with confirmation and audit reason. |
-| Visible system status | Shows environment, provider health, runtime mode, unsafe defaults, last change, pending restart/rollout, and affected resources. |
+| Visible system status | Shows environment, provider health, runtime mode, unsafe defaults, organization/project/environment boundaries, last change, pending restart/rollout, and affected resources. |
 | Field validation | Blocks production-unsafe defaults, missing secret provider, permissive CORS, dev API key mode, and missing audit reason. |
 | Empty state | Missing provider/settings state explains setup and production requirements. |
 | Loading state | Preflight shows progress and disables final submit until complete. |
-| Error state | Failed preflight blocks dangerous action and lists exact failed checks. |
+| Error state | Failed preflight blocks dangerous action and lists exact failed checks without clearing the last actionable preview context. |
 | Keyboard flow | Danger confirmations require deliberate keyboard-accessible confirmation. |
 | Responsive behavior | Danger context appears before destructive controls on all viewport widths. |
 

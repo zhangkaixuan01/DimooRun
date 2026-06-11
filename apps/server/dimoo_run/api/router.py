@@ -21,6 +21,7 @@ from dimoo_run.api.console import compatibility as console_compatibility_router
 from dimoo_run.api.console import identity as console_identity_router
 from dimoo_run.api.console import published as console_published_router
 from dimoo_run.api.console import router as console_router
+from dimoo_run.api.console import settings as console_settings_router
 from dimoo_run.api.console import workers as console_workers_router
 from dimoo_run.api.native import router as native_router
 from dimoo_run.core.health import HealthResponse, get_health
@@ -35,6 +36,7 @@ router.include_router(console_agent_instances_router.router)
 router.include_router(console_compatibility_router.router)
 router.include_router(console_identity_router.router)
 router.include_router(console_published_router.router)
+router.include_router(console_settings_router.router)
 router.include_router(policy_router.router)
 router.include_router(published_surface_router.router)
 router.include_router(ingress_route_router.router)

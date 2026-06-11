@@ -53,7 +53,7 @@ Status values:
 | Identity | partial | partial | partial | partial | partial | partial | partial | Operators, scopes, roles, permissions, service accounts, and keys exist, but effective permission explorer, dependency graph, rotation workflow, and self-lockout coverage are incomplete. |
 | Cost | missing | missing | missing | missing | missing | missing | missing | Usage attribution, budgets, anomaly drilldown, and cost/quality overlays are not yet implemented as product workflows. |
 | Budget | missing | missing | missing | missing | missing | missing | missing | Budget rules, threshold preview, and blocked budget actions are not first-class. |
-| Settings | partial | partial | partial | partial | partial | partial | partial | Personal preferences exist; runtime/provider/environment settings, preflight, production danger zone, and audited dangerous changes are incomplete. |
+| Settings | partial | partial | partial | partial | partial | partial | partial | Personal preferences plus dedicated Platform Settings, Provider Status, and Danger Zone pages now exist. Runtime/provider/environment settings, scoped defaults, preflight, production danger zone, and audited dangerous changes are implemented locally, including affected-resource preview and environment-boundary visibility, but hosted CI/default browser proof for the dedicated `0L` artifact is still pending. |
 
 ## Workflow Acceptance Mapping
 

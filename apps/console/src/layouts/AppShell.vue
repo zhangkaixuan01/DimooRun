@@ -191,6 +191,9 @@ const navGroups = computed(() => [
   {
     label: t("platform"),
     items: [
+      { label: "Platform Settings", to: "/settings/platform", icon: "P" },
+      { label: "Provider Status", to: "/settings/providers", icon: "V" },
+      { label: "Danger Zone", to: "/settings/danger-zone", icon: "!" },
       { label: t("semanticStoreProviders"), to: "/settings/semantic-store", icon: "E" },
       { label: t("observabilityExporters"), to: "/settings/observability-exporters", icon: "O" },
       { label: t("sandboxPolicies"), to: "/settings/sandbox-policies", icon: "X" },

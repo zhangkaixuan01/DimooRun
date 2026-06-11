@@ -5,6 +5,7 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+const phase0LVerifier = await import("../scripts/verify-phase-0l-proof.mjs");
 
 function read(path) {
   return readFileSync(join(root, path), "utf8");
@@ -793,4 +794,86 @@ test("defines a dedicated runtime capacity browser workflow", () => {
       "workerActionMatch",
       "runtimeCapacitySummaryResponse",
     ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
+});
+
+test("documents the shared phase-0l browser proof flow", () => {
+    const packageJson = read("package.json");
+    const readme = read("README.md");
+    const workflow = read("../../.github/workflows/ci.yml");
+    const sharedRunner = read("scripts/run-phase-e2e.mjs");
+
+    assert.match(packageJson, /"test:e2e:0l": "node scripts\/verify-phase-0l-proof\.mjs"/);
+    assert.match(readme, /Phase 0L Browser Proof/);
+    assert.match(readme, /npm run test:e2e:0j/);
+    assert.match(readme, /npm run test:e2e:0l/);
+    assert.match(readme, /\.phase-e2e-proof\.json/);
+    assert.match(workflow, /npm run test:e2e:0j/);
+    assert.match(workflow, /npm run test:e2e:0l/);
+    assert.ok(workflow.indexOf("npm run test:e2e:0j") < workflow.indexOf("npm run test:e2e:0l"));
+    assert.match(sharedRunner, /rmSync\(phaseProofPath, \{ force: true \}\)/);
+});
+
+test("renders platform settings boundaries and danger impact preview", () => {
+    const settingsPage = read("src/pages/settings/PlatformSettingsPage.vue");
+    const dangerPage = read("src/pages/settings/DangerZonePage.vue");
+
+    assert.match(settingsPage, /snapshot\.scope_defaults/);
+    assert.match(settingsPage, /Organization defaults/);
+    assert.match(settingsPage, /Project defaults/);
+    assert.match(settingsPage, /Environment defaults/);
+    assert.match(settingsPage, /read-only/);
+
+    assert.match(dangerPage, /preview\.affected_resources/);
+    assert.match(dangerPage, /Affected resources/);
+    assert.match(dangerPage, /Confirmation phrase:/);
+    assert.match(dangerPage, /result\.request_id/);
+    assert.match(dangerPage, /freeze_writes/);
+});
+
+test("verifies phase-0l proof files before emitting a derived report", () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "dimoorun-phase0l-proof-"));
+    const reportDir = join(tempRoot, "playwright-report-0l");
+
+    try {
+        const missingProof = phase0LVerifier.runPhase0LVerifier({
+            rootDir: tempRoot,
+            reportName: reportDir,
+        });
+        assert.equal(missingProof.ok, false);
+        assert.match(missingProof.message, /Missing shared phase proof/);
+
+        writeFileSync(
+            join(tempRoot, ".phase-e2e-proof.json"),
+            JSON.stringify({ spec_path: "tests/e2e/runtime-capacity.spec.ts", phases: ["0j"] }),
+            "utf8",
+        );
+        const wrongProof = phase0LVerifier.runPhase0LVerifier({
+            rootDir: tempRoot,
+            reportName: reportDir,
+        });
+        assert.equal(wrongProof.ok, false);
+        assert.match(wrongProof.message, /does not include phase 0L coverage/);
+
+        writeFileSync(
+            join(tempRoot, ".phase-e2e-proof.json"),
+            JSON.stringify({
+                spec_path: "tests/e2e/runtime-capacity.spec.ts",
+                phases: ["0j", "0l"],
+                generated_at: "2026-06-11T00:00:00.000Z",
+            }),
+            "utf8",
+        );
+        const validProof = phase0LVerifier.runPhase0LVerifier({
+            rootDir: tempRoot,
+            reportName: reportDir,
+        });
+        assert.equal(validProof.ok, true, validProof.message);
+        assert.match(validProof.message, /Phase 0L proof accepted from tests\/e2e\/runtime-capacity\.spec\.ts/);
+        assert.equal(existsSync(join(reportDir, "index.html")), true);
+        const reportHtml = readFileSync(join(reportDir, "index.html"), "utf8");
+        assert.match(reportHtml, /Phase 0L Browser Proof/);
+        assert.match(reportHtml, /runtime-capacity\.spec\.ts/);
+    } finally {
+        rmSync(tempRoot, { force: true, recursive: true });
+    }
 });

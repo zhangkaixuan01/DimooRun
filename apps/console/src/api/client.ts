@@ -173,6 +173,57 @@ export type MachineApiKeyCreate = {
   plain_key: string;
   request_id: string | null;
 };
+export type PlatformScopedSetting = {
+  id: ResourceId;
+  tenant_id: number;
+  project_id: number | null;
+  environment: string | null;
+  scope_kind: "organization" | "project" | "environment";
+  setting_key: string;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  updated_at: string | null;
+};
+export type PlatformSettingsSnapshot = {
+  runtime_mode: string;
+  runtime_environment: string;
+  database_mode: string;
+  queue_backend: string;
+  object_store: Record<string, unknown>;
+  secret_provider: Record<string, unknown>;
+  model_gateway_provider: Record<string, unknown>;
+  artifact_retention: Record<string, unknown>;
+  trace_retention: Record<string, unknown>;
+  cors: Record<string, unknown>;
+  runtime_write_protected: boolean;
+  production_safety: { status: string; warnings: string[] };
+  scope_defaults: PlatformScopedSetting[];
+  danger_state: Record<string, unknown>;
+};
+export type ProviderStatus = {
+  provider: string;
+  status: string;
+  summary: string;
+  reason: string;
+};
+export type DangerousActionPreview = {
+  action: string;
+  scope_kind: string;
+  risk_level: string;
+  available: boolean;
+  blocked_reasons: string[];
+  confirmation_phrase: string;
+  affected_resources: Array<{ label: string; count: number }>;
+  rollback_notes: string;
+  audit_required: boolean;
+};
+export type DangerousActionResult = {
+  action: string;
+  status: string;
+  scope_setting?: PlatformScopedSetting;
+  rollback_notes: string;
+  request_id: string | null;
+};
 
 const TOKEN_KEY = "dimoorun.console.token";
 const OPERATOR_KEY = "dimoorun.console.operator";
@@ -1639,6 +1690,66 @@ export const liveConsoleClient = {
       `/v1/identity/workflows/service-accounts/${serviceAccountId}/api-keys/${keyId}/force-expire`,
       {
         method: "POST",
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async getPlatformSettingsSnapshot(): Promise<PlatformSettingsSnapshot> {
+    const response = await requestConsolePath<{ item: PlatformSettingsSnapshot; request_id: string | null }>(
+      "/v1/console/settings/platform",
+    );
+    return response.item;
+  },
+  async listProviderStatuses(): Promise<ProviderStatus[]> {
+    const response = await requestConsolePath<{ items: ProviderStatus[]; request_id: string | null }>(
+      "/v1/console/settings/providers",
+    );
+    return response.items;
+  },
+  async listScopedPlatformSettings(): Promise<PlatformScopedSetting[]> {
+    const response = await requestConsolePath<{ items: PlatformScopedSetting[]; request_id: string | null }>(
+      "/v1/console/settings/scoped-defaults",
+    );
+    return response.items;
+  },
+  async updateScopedPlatformSettings(
+    scopeKind: PlatformScopedSetting["scope_kind"],
+    config: Record<string, unknown>,
+    auditReason: string,
+  ): Promise<PlatformScopedSetting> {
+    const response = await requestConsolePath<{ item: PlatformScopedSetting; request_id: string | null }>(
+      `/v1/console/settings/scoped-defaults/${scopeKind}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ config }),
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async preflightDangerousPlatformAction(action: string): Promise<DangerousActionPreview> {
+    const response = await requestConsolePath<{ item: DangerousActionPreview; request_id: string | null }>(
+      "/v1/console/settings/danger/preflight",
+      {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      },
+    );
+    return response.item;
+  },
+  async runDangerousPlatformAction(
+    action: string,
+    payload: { confirmation: string; rollback_notes: string },
+    auditReason: string,
+  ): Promise<DangerousActionResult> {
+    const response = await requestConsolePath<{ item: DangerousActionResult; request_id: string | null }>(
+      `/v1/console/settings/danger/actions/${action}`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
       },
       undefined,
       { auditReason },

@@ -29,9 +29,9 @@ Authoritative status:
 - Production mode fail-closed checks and unsafe default rejection need stronger executable proof.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.
 - Cost, budget, settings, scheduled/batch, catalog, and gateway workflows are
-  not complete, and compatibility, worker-capacity, plus identity-governance
-  hosted browser proof still need external CI evidence before they can move
-  beyond partial.
+  not complete, and compatibility, worker-capacity, identity-governance, plus
+  platform-settings hosted browser proof still need external CI evidence before
+  they can move beyond partial.
 
 ## Claim Policy
 

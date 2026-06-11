@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 const chromeEnvName = "DIMOORUN_PLAYWRIGHT_CHROME";
 const localEnvFile = ".env.e2e.local";
+const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR || "test-results";
 
 function readLocalEnv(name: string): string | undefined {
   const envPath = join(process.cwd(), localEnvFile);
@@ -29,6 +30,7 @@ const localChromeExecutable = process.env[chromeEnvName] || readLocalEnv(chromeE
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  outputDir,
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
@@ -37,7 +39,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:4173",
     trace: "on-first-retry",
   },
-  webServer: {
+  webServer: process.env.DIMOORUN_E2E_SERVER_READY ? undefined : {
     command: "node scripts/serve-dist.mjs --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,

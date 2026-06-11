@@ -482,6 +482,30 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_environments_project_id'), 'environments', ['project_id'], unique=False)
     op.create_index(op.f('ix_environments_tenant_id'), 'environments', ['tenant_id'], unique=False)
+    op.create_table('platform_control_settings',
+    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
+    sa.Column('tenant_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('project_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=True),
+    sa.Column('environment', sa.String(length=128), nullable=True),
+    sa.Column('scope_kind', sa.String(length=64), nullable=False),
+    sa.Column('setting_key', sa.String(length=128), nullable=False),
+    sa.Column('config_json', sa.JSON(), nullable=False),
+    sa.Column('metadata_json', sa.JSON(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_by', sa.String(length=64), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_by', sa.String(length=64), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_by', sa.String(length=64), nullable=True),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('tenant_id', 'project_id', 'environment', 'scope_kind', 'setting_key', name='uq_platform_control_setting_scope_key')
+    )
+    op.create_index('ix_platform_control_settings_environment', 'platform_control_settings', ['environment'], unique=False)
+    op.create_index(op.f('ix_platform_control_settings_project_id'), 'platform_control_settings', ['project_id'], unique=False)
+    op.create_index(op.f('ix_platform_control_settings_tenant_id'), 'platform_control_settings', ['tenant_id'], unique=False)
     op.create_table('execution_profiles',
     sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -2060,6 +2084,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_execution_profiles_tenant_id'), table_name='execution_profiles')
     op.drop_index(op.f('ix_execution_profiles_project_id'), table_name='execution_profiles')
     op.drop_table('execution_profiles')
+    op.drop_index(op.f('ix_platform_control_settings_tenant_id'), table_name='platform_control_settings')
+    op.drop_index(op.f('ix_platform_control_settings_project_id'), table_name='platform_control_settings')
+    op.drop_index('ix_platform_control_settings_environment', table_name='platform_control_settings')
+    op.drop_table('platform_control_settings')
     op.drop_index(op.f('ix_environments_tenant_id'), table_name='environments')
     op.drop_index(op.f('ix_environments_project_id'), table_name='environments')
     op.drop_table('environments')

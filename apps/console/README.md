@@ -37,6 +37,22 @@ DIMOORUN_PLAYWRIGHT_CHROME=C:\Users\Administrator\AppData\Local\Temp\dimoorun-pl
 The executable can live anywhere on the machine. The important part is that
 `DIMOORUN_PLAYWRIGHT_CHROME` points directly to `chrome-win64\chrome.exe`.
 
+## Phase 0L Browser Proof
+
+Phase `0L` currently reuses the shared runtime-capacity browser runner instead
+of launching a separate Playwright worker path on this Windows machine. From
+`apps/console`, run:
+
+```powershell
+npm run test:e2e:0j
+npm run test:e2e:0l
+```
+
+`test:e2e:0j` executes the shared browser suite, including the four 0L settings
+workflow assertions, and writes `.phase-e2e-proof.json`. `test:e2e:0l` verifies
+that proof marker and emits the dedicated `playwright-report-0l` artifact
+without re-running the flaky standalone worker fork path.
+
 ## Live 0H Smoke
 
 The live Published Surface / Ingress smoke uses the real local backend and is

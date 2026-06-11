@@ -72,6 +72,36 @@ class Environment(IdMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
+class PlatformControlSetting(IdMixin, TimestampMixin, Base):
+    __tablename__ = "platform_control_settings"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "project_id",
+            "environment",
+            "scope_kind",
+            "setting_key",
+            name="uq_platform_control_setting_scope_key",
+        ),
+        Index(
+            "ix_platform_control_settings_environment",
+            "environment",
+        ),
+    )
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id"),
+        nullable=True,
+        index=True,
+    )
+    environment: Mapped[str | None] = mapped_column(String(128))
+    scope_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    setting_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 

@@ -402,6 +402,79 @@ export async function installConsoleApiMocks(
       ],
     },
   ];
+  const platformScopedSettings: Array<Record<string, unknown>> = [
+    {
+      id: 801,
+      tenant_id: 1,
+      project_id: null,
+      environment: null,
+      scope_kind: "organization",
+      setting_key: "defaults",
+      config: {
+        default_runtime_mode: "governed",
+        default_queue: "default",
+        default_artifact_retention_days: 30,
+      },
+      metadata: { seeded: true },
+      updated_at: createdAt,
+    },
+    {
+      id: 802,
+      tenant_id: 1,
+      project_id: 1,
+      environment: null,
+      scope_kind: "project",
+      setting_key: "defaults",
+      config: {
+        default_model_gateway: "default",
+        default_secret_provider: "external",
+        change_review_policy: "two_person",
+      },
+      metadata: { seeded: true },
+      updated_at: createdAt,
+    },
+    {
+      id: 803,
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+      scope_kind: "environment",
+      setting_key: "defaults",
+      config: {
+        default_deployment_strategy: "rolling",
+        freeze_writes: false,
+        default_route_visibility: "internal",
+      },
+      metadata: { seeded: true },
+      updated_at: createdAt,
+    },
+  ];
+  const providerStatuses: Array<Record<string, unknown>> = [
+    { provider: "postgres", status: "degraded", summary: "sqlite:///tmp/dimoorun.db", reason: "SQLite is suitable for local development only." },
+    { provider: "redis", status: "healthy", summary: "redis://localhost:6379/0", reason: "Queue backend uses Redis." },
+    { provider: "object_store", status: "degraded", summary: "local:dimoorun-artifacts", reason: "Artifacts are still stored locally." },
+    { provider: "secret_provider", status: "offline", summary: "memory", reason: "0 scoped secret reference(s) registered." },
+    { provider: "model_gateway", status: "healthy", summary: "newapi", reason: "1 active model gateway record(s)." },
+    { provider: "webhook_transport", status: "degraded", summary: "webhook subscriptions", reason: "0 subscription(s) configured." },
+    { provider: "notification_transport", status: "degraded", summary: "notification channels", reason: "0 channel(s) configured." },
+    { provider: "observability_exporter", status: "healthy", summary: "otlp", reason: "1 exporter record(s) configured." },
+  ];
+  const platformSnapshot = {
+    runtime_mode: "production",
+    runtime_environment: "local",
+    database_mode: "postgresql",
+    queue_backend: "redis",
+    object_store: { backend: "s3", endpoint_url: "https://s3.example.test", bucket: "dimoorun-artifacts" },
+    secret_provider: { provider: "vault", default_scope: "external" },
+    model_gateway_provider: { provider: "newapi", default_gateway: "default" },
+    artifact_retention: { days: 30, backend: "s3" },
+    trace_retention: { days: 14, exporters: ["otlp"] },
+    cors: { origins: ["https://console.example.com"], allow_credentials: true },
+    runtime_write_protected: true,
+    production_safety: { status: "safe", warnings: [] },
+    scope_defaults: platformScopedSettings,
+    danger_state: { freeze_writes: false, updated_at: createdAt },
+  };
   let nextCompatibilityRunId = 3101;
   let nextCompatibilityTaskId = 4101;
   await page.route("**/mock-api/**", async (route) => {
@@ -419,6 +492,34 @@ export async function installConsoleApiMocks(
         permissions: identityPermissions,
         request_id: "e2e-request",
       });
+    }
+    if (path === "/v1/console/settings/platform" && route.request().method() === "GET") {
+      return fulfillJson(route, { item: platformSnapshot, request_id: "e2e-request" });
+    }
+    if (path === "/v1/console/settings/providers" && route.request().method() === "GET") {
+      return fulfillJson(route, {
+        items: providerStatuses,
+        count: providerStatuses.length,
+        request_id: "e2e-request",
+      });
+    }
+    if (path === "/v1/console/settings/scoped-defaults" && route.request().method() === "GET") {
+      return fulfillJson(route, {
+        items: platformScopedSettings,
+        count: platformScopedSettings.length,
+        request_id: "e2e-request",
+      });
+    }
+    const scopedSettingsMatch = path.match(/^\/v1\/console\/settings\/scoped-defaults\/(organization|project|environment)$/);
+    if (scopedSettingsMatch && route.request().method() === "POST") {
+      return fulfillPlatformScopedSettings(route, platformScopedSettings, platformSnapshot, scopedSettingsMatch[1]);
+    }
+    if (path === "/v1/console/settings/danger/preflight" && route.request().method() === "POST") {
+      return fulfillPlatformDangerPreflight(route, providerStatuses, platformScopedSettings);
+    }
+    const dangerActionMatch = path.match(/^\/v1\/console\/settings\/danger\/actions\/([^/]+)$/);
+    if (dangerActionMatch && route.request().method() === "POST") {
+      return fulfillPlatformDangerAction(route, dangerActionMatch[1], platformScopedSettings, platformSnapshot);
     }
     const rolePreviewMatch = path.match(/^\/v1\/identity\/workflows\/roles\/(\d+)\/(preview|apply)$/);
     if (rolePreviewMatch && route.request().method() === "POST") {
@@ -2878,6 +2979,131 @@ function runtimeCapacitySummaryResponse(workers: RuntimeWorkerFixture[]): Record
     },
     request_id: "e2e-request",
   };
+}
+
+function fulfillPlatformScopedSettings(
+  route: Route,
+  scopedSettings: Array<Record<string, unknown>>,
+  snapshot: Record<string, unknown>,
+  scopeKind: string,
+) {
+  const body = parseRequestBody(route);
+  const config = body.config && typeof body.config === "object" ? body.config as Record<string, unknown> : {};
+  const target = scopedSettings.find((item) => item.scope_kind === scopeKind);
+  if (!target) return fulfillError(route);
+  target.config = { ...(target.config as Record<string, unknown>), ...config };
+  target.updated_at = createdAt;
+  snapshot.scope_defaults = scopedSettings;
+  if (scopeKind === "environment") {
+    snapshot.danger_state = {
+      ...(snapshot.danger_state as Record<string, unknown>),
+      freeze_writes: Boolean((target.config as Record<string, unknown>).freeze_writes),
+      updated_at: createdAt,
+    };
+  }
+  return fulfillJson(route, { item: target, request_id: "e2e-request" });
+}
+
+function fulfillPlatformDangerPreflight(
+  route: Route,
+  providerStatuses: Array<Record<string, unknown>>,
+  scopedSettings: Array<Record<string, unknown>>,
+) {
+  const body = parseRequestBody(route);
+  const action = String(body.action || "");
+  if (action === "rotate_object_store_credentials") {
+    return fulfillJson(route, {
+      item: {
+        action,
+        scope_kind: "organization",
+        risk_level: "critical",
+        available: false,
+        blocked_reasons: ["object_store is not healthy enough for this action."],
+        confirmation_phrase: "rotate object store credentials",
+        affected_resources: [
+          { label: "Deployments", count: 2 },
+          { label: "Published surfaces", count: 1 },
+          { label: "Workers", count: 2 },
+        ],
+        rollback_notes: "Restore the previous object-store secret ref before retrying uploads.",
+        audit_required: true,
+      },
+      request_id: "e2e-request",
+    });
+  }
+  const environmentDefaults = scopedSettings.find((item) => item.scope_kind === "environment");
+  return fulfillJson(route, {
+    item: {
+      action,
+      scope_kind: "environment",
+      risk_level: "critical",
+      available: true,
+      blocked_reasons: [],
+      confirmation_phrase: "freeze local writes",
+      affected_resources: [
+        { label: "Deployments", count: 2 },
+        { label: "Published surfaces", count: 1 },
+        { label: "Workers", count: 2 },
+      ],
+      rollback_notes: "Disable the freeze after maintenance and redeploy blocked changes.",
+      audit_required: true,
+      current_freeze_state: environmentDefaults?.config,
+      providers: providerStatuses,
+    },
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillPlatformDangerAction(
+  route: Route,
+  action: string,
+  scopedSettings: Array<Record<string, unknown>>,
+  snapshot: Record<string, unknown>,
+) {
+  const body = parseRequestBody(route);
+  if (action === "rotate_object_store_credentials") {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        error_code: "dangerous_action_preflight_failed",
+        message: "object_store is not healthy enough for this action.",
+        request_id: "e2e-error-request",
+        details: { action },
+      },
+    });
+  }
+  if (String(body.confirmation || "") !== "freeze local writes") {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      json: {
+        error_code: "dangerous_action_confirmation_required",
+        message: "Confirmation phrase does not match.",
+        request_id: "e2e-error-request",
+        details: { action },
+      },
+    });
+  }
+  const environmentDefaults = scopedSettings.find((item) => item.scope_kind === "environment");
+  if (!environmentDefaults) return fulfillError(route);
+  environmentDefaults.config = {
+    ...(environmentDefaults.config as Record<string, unknown>),
+    freeze_writes: true,
+  };
+  environmentDefaults.updated_at = createdAt;
+  snapshot.danger_state = { freeze_writes: true, updated_at: createdAt };
+  snapshot.scope_defaults = scopedSettings;
+  return fulfillJson(route, {
+    item: {
+      action,
+      status: "applied",
+      scope_setting: environmentDefaults,
+      rollback_notes: String(body.rollback_notes || ""),
+      request_id: "e2e-request",
+    },
+    request_id: "e2e-request",
+  });
 }
 
 function fulfillJson(route: Route, json: unknown) {
