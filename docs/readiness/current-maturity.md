@@ -19,6 +19,7 @@ Authoritative status:
 - Durable runtime and worker hardening foundations, including verified graceful worker shutdown, multi-worker lease fencing, expired-lease recovery, Redis cancel pub/sub coverage, and persisted worker snapshots.
 - Runtime observability now exposes queue depth, running tasks, worker heartbeat age, dead letters, retries, runtime latency percentiles, active incidents, Prometheus scrape output, and trace/request correlation fields through shared backend semantics.
 - Durable native idempotency now persists through `idempotency_records` in SQLAlchemy mode and replays completed task creation after runtime restart.
+- Production-path package execution now enforces validated `ready` agent versions at worker runtime, rejects unsafe local/file package URIs outside `dev`, and resolves execution profile, sandbox, model gateway, tool gateway, container pool, and secret-ref bindings into runtime config before adapter load.
 - Governance, audit, service account, policy, tool/model/secret boundaries.
 - Production startup guards now fail closed on SQLite, in-memory runtime store, dev CORS origins, default object-store credentials, missing secret provider config, and dev API key mode.
 - Console route and API coverage for many product areas, now backed by a 58-test local browser suite that covers workflow interactions, critical accessibility checks, and responsive screenshot evidence.
@@ -31,6 +32,7 @@ Authoritative status:
 - Hosted/default-browser proof is still incomplete even though the local browser suite now covers 58 workflow, accessibility, and responsive tests plus a focused 9-test Phase 7 accessibility verifier.
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete.
 - Hosted Prometheus/OTel exporter proof and live monitoring-stack verification are not complete yet, even though the Phase 5 observability API and Console surfaces are now implemented and locally verified.
+- OCI package retrieval and live production package execution proof are not complete yet, even though the runtime now blocks unsafe package paths and validates runtime bindings before worker execution.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.
 - Cost, budget, scheduled/batch, catalog, and some gateway/runtime hardening
   workflows are not complete yet.

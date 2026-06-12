@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,8 @@ class AgentRuntimeSpec:
     package_uri: str
     manifest: dict[str, Any]
     runtime_config: dict[str, Any]
+    secrets: dict[str, str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,7 @@ class WorkerExecutor:
         replay_buffer: ReplayBuffer,
         adapters: dict[str, AgentAdapter],
         agent_specs: dict[int, AgentRuntimeSpec],
+        runtime_spec_resolver: Callable[[Any], AgentRuntimeSpec] | None = None,
     ) -> None:
         self.worker_id = worker_id
         self.task_backend = task_backend
@@ -49,6 +53,7 @@ class WorkerExecutor:
         self.replay_buffer = replay_buffer
         self.adapters = adapters
         self.agent_specs = agent_specs
+        self.runtime_spec_resolver = runtime_spec_resolver
         self._active_task_id: int | None = None
         self._active_worker_id: str | None = None
         self._active_fencing_token: int | None = None
@@ -85,7 +90,7 @@ class WorkerExecutor:
 
         try:
             run = self.run_store.get_run(run_id)
-            spec = self._agent_spec(run.agent_version_id)
+            spec = self._agent_spec_for_run(run)
             adapter = self._adapter(spec.adapter)
             runtime_config = {
                 **spec.runtime_config,
@@ -127,9 +132,12 @@ class WorkerExecutor:
                 agent_version=context.agent_version,
                 deadline_at=context.deadline_at,
                 permissions=list(context.permissions),
-                secrets=dict(context.secrets),
-                config=dict(context.config),
-                metadata={"worker_id": self.worker_id},
+                secrets=dict(spec.secrets or {}),
+                config=dict(runtime_config),
+                metadata={
+                    "worker_id": self.worker_id,
+                    **dict(spec.metadata or {}),
+                },
             )
             self._active_context = context
             logger.info(
@@ -328,7 +336,7 @@ class WorkerExecutor:
 
     async def cancel_run(self, run_id: int, *, task_id: int | None = None) -> str:
         run = self.run_store.get_run(run_id)
-        spec = self.agent_specs[run.agent_version_id]
+        spec = self._agent_spec_for_run(run)
         adapter = self.adapters[spec.adapter]
         context = RuntimeContext(
             tenant_id=run.tenant_id,
@@ -367,6 +375,11 @@ class WorkerExecutor:
         if spec is None:
             raise RuntimeError("worker_agent_version_not_found")
         return spec
+
+    def _agent_spec_for_run(self, run: Any) -> AgentRuntimeSpec:
+        if self.runtime_spec_resolver is not None:
+            return self.runtime_spec_resolver(run)
+        return self._agent_spec(run.agent_version_id)
 
     def _adapter(self, adapter_name: str) -> AgentAdapter:
         adapter = self.adapters.get(adapter_name)

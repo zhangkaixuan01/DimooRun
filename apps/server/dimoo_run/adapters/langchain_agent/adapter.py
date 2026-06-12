@@ -96,4 +96,11 @@ class LangChainAgentAdapter:
         )
 
     def _config(self, context: RuntimeContext) -> dict[str, Any]:
-        return runtime_config(configurable={}, metadata=context_metadata(context))
+        configurable = context.config.get("configurable")
+        config = runtime_config(
+            configurable=dict(configurable) if isinstance(configurable, dict) else {},
+            metadata=context_metadata(context),
+        )
+        config["runtime"] = dict(context.config)
+        config["secrets"] = dict(context.secrets)
+        return config

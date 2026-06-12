@@ -4,6 +4,7 @@ import pytest
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentEvent, AgentResult
 from dimoo_run.domain.models import Agent, AgentVersion, Event, Run, RunAttempt, Task
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.persistence.database import Base
 from dimoo_run.worker.durable import execute_durable_once
 from sqlalchemy import create_engine
@@ -44,6 +45,33 @@ def make_session() -> Session:
     return Session(engine)
 
 
+def ready_manifest(
+    package_uri: str,
+    *,
+    framework: str = "fake",
+    adapter: str = "fake",
+) -> dict[str, Any]:
+    manifest = {
+        "name": "support-v1",
+        "runtime": {
+            "framework": framework,
+            "adapter": adapter,
+            "entrypoint": "agent:create",
+        },
+        "capabilities": {"invoke": True},
+    }
+    return {
+        **manifest,
+        "validation_token": validation_token(
+            package_uri=package_uri,
+            framework=framework,
+            adapter=adapter,
+            entrypoint="agent:create",
+            manifest=manifest,
+        ),
+    }
+
+
 @pytest.mark.asyncio
 async def test_execute_durable_once_runs_queued_task_and_persists_runtime_state() -> None:
     session = make_session()
@@ -57,7 +85,7 @@ async def test_execute_durable_once_runs_queued_task_and_persists_runtime_state(
         framework="fake",
         adapter="fake",
         entrypoint="agent:create",
-        manifest_json={"name": "support-v1"},
+        manifest_json=ready_manifest("memory://support"),
         capabilities_json={},
         status="ready",
     )
@@ -115,7 +143,11 @@ async def test_execute_durable_once_records_missing_adapter_as_terminal_failure(
         framework="missing",
         adapter="missing",
         entrypoint="agent:create",
-        manifest_json={"name": "support-v1"},
+        manifest_json=ready_manifest(
+            "memory://support",
+            framework="missing",
+            adapter="missing",
+        ),
         capabilities_json={},
         status="ready",
     )

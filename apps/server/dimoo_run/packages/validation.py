@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -9,6 +10,7 @@ SUPPORTED_RUNTIME_PAIRS = {
     "deepagents": "deepagents",
 }
 SUPPORTED_CAPABILITIES = {"invoke", "stream", "streaming"}
+WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"^[A-Za-z]:[/\\]")
 
 
 @dataclass(frozen=True)
@@ -44,7 +46,7 @@ def validate_package(request: PackageValidationRequest) -> PackageValidationResu
     errors: list[PackageValidationError] = []
     warnings: list[str] = []
 
-    if not _package_uri_allowed(request.package_uri):
+    if not package_uri_allowed_for_validation(request.package_uri):
         errors.append(
             PackageValidationError(
                 field="package_uri",
@@ -248,14 +250,26 @@ def _dependency_warnings(manifest: dict[str, Any]) -> list[str]:
     return warnings
 
 
-def _package_uri_allowed(package_uri: str) -> bool:
+def package_uri_allowed_for_validation(package_uri: str) -> bool:
     if package_uri.startswith("oci://"):
         return True
     if package_uri.startswith("file://"):
         path = package_uri.removeprefix("file://")
         return bool(path) and ".." not in path.replace("\\", "/").split("/")
     path_parts = package_uri.replace("\\", "/").split("/")
-    return package_uri.startswith(("./", "/")) and ".." not in path_parts
+    return (
+        package_uri.startswith(("./", "/"))
+        or package_uri.startswith(".\\")
+        or bool(WINDOWS_ABSOLUTE_PATH_RE.match(package_uri))
+    ) and ".." not in path_parts
+
+
+def package_uri_allowed_in_runtime(package_uri: str, *, runtime_mode: str) -> bool:
+    if runtime_mode == "dev":
+        return package_uri.startswith("memory://") or package_uri_allowed_for_validation(
+            package_uri
+        )
+    return package_uri.startswith("oci://")
 
 
 def _manifest_without_validation_token(manifest: dict[str, Any]) -> dict[str, Any]:

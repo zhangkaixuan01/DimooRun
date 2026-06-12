@@ -106,8 +106,18 @@ class DeepAgentsAdapter:
             configurable={
                 "thread_id": context.thread_id,
                 "run_id": context.run_id,
+                **_configurable_runtime(context.config),
             },
             metadata=context_metadata(context),
         )
         config["runtime_context"] = context.to_metadata()
+        config["runtime"] = dict(context.config)
+        config["secrets"] = dict(context.secrets)
         return config
+
+
+def _configurable_runtime(config: dict[str, Any]) -> dict[str, Any]:
+    configurable = config.get("configurable")
+    if isinstance(configurable, dict):
+        return {str(key): value for key, value in configurable.items()}
+    return {}

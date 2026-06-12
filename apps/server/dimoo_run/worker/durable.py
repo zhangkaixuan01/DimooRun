@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from dimoo_run.adapters.base.contract import AgentAdapter
 from dimoo_run.core.events import AgentEvent
 from dimoo_run.domain.models import AgentVersion
+from dimoo_run.packages.registry import AgentRuntimeRegistry
 from dimoo_run.persistence.repositories import EventRepository
 from dimoo_run.runtime.sqlalchemy_run_store import SQLAlchemyRunStore
 from dimoo_run.scheduler.sqlalchemy_backend import SQLAlchemyTaskBackend
@@ -42,6 +44,13 @@ class SQLAlchemyReplayBuffer(ReplayBuffer):
         return appended
 
 
+class RuntimeSpecRunRecord(Protocol):
+    agent_version_id: int
+    deployment_id: int | None
+    tenant_id: int
+    project_id: int | None
+
+
 class DurableWorkerExecutorFactory:
     def __init__(
         self,
@@ -53,6 +62,7 @@ class DurableWorkerExecutorFactory:
         self.session = session
         self.worker_id = worker_id
         self.adapters = dict(adapters)
+        self.registry = AgentRuntimeRegistry(session=session)
 
     def build(self) -> WorkerExecutor:
         versions = self.session.scalars(
@@ -74,6 +84,15 @@ class DurableWorkerExecutorFactory:
             replay_buffer=SQLAlchemyReplayBuffer(self.session),
             adapters=self.adapters,
             agent_specs=specs,
+            runtime_spec_resolver=self._resolve_runtime_spec,
+        )
+
+    def _resolve_runtime_spec(self, run: RuntimeSpecRunRecord) -> AgentRuntimeSpec:
+        return self.registry.resolve_for_run(
+            agent_version_id=run.agent_version_id,
+            deployment_id=run.deployment_id,
+            tenant_id=run.tenant_id,
+            project_id=run.project_id,
         )
 
 

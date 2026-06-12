@@ -1659,16 +1659,34 @@ Verification note on 2026-06-12:
 
 Tasks:
 
-- [ ] Add real LangChain Agent and DeepAgents examples.
-- [ ] Add package validation before AgentVersion can become `ready`.
-- [ ] Reject unsafe local package URIs in production mode.
-- [ ] Resolve secrets, model gateway, tool gateway, sandbox policy, and execution profile into worker runtime config.
-- [ ] Add real framework smoke tests for each supported adapter.
-- [ ] Commit as `feat(runtime): validate production agent packages`.
+- [x] Add real LangChain Agent and DeepAgents examples.
+- [x] Add package validation before AgentVersion can become `ready`.
+- [x] Reject unsafe local package URIs in production mode.
+- [x] Resolve secrets, model gateway, tool gateway, sandbox policy, and execution profile into worker runtime config.
+- [x] Add real framework smoke tests for each supported adapter.
+- [x] Commit as `feat(runtime): validate production agent packages`.
 
 Acceptance:
 
 - A production AgentVersion cannot run without passing manifest, dependency, secret, and runtime compatibility checks.
+
+Implemented evidence:
+
+- `apps/server/dimoo_run/packages/registry.py` now resolves `AgentVersion` + `Deployment`
+  into a runtime-safe `AgentRuntimeSpec`, enforces `ready` status plus validation token,
+  rejects non-OCI package URIs outside `dev`, and materializes execution profile, model
+  gateway, tool gateway, sandbox policy, container pool policy, and secret bindings.
+- `apps/server/dimoo_run/worker/durable.py` now resolves runtime specs per run instead of
+  using an empty shared `runtime_config={}`, and `apps/server/dimoo_run/worker/executor.py`
+  now passes resolved runtime config, secret refs, and runtime metadata into execution
+  context and adapter load paths.
+- `examples/langchain-agent/support-agent` and `examples/deepagents/support-agent` now
+  provide runnable deterministic package examples for real adapter smoke coverage.
+- Local proof now includes `uv run pytest -q tests/runtime/test_worker_executor.py
+  tests/adapters/test_langchain_agent_adapter.py tests/adapters/test_deepagents_adapter.py
+  tests/worker/test_durable_worker_execution.py tests/packages/test_package_validation.py
+  tests/adapters/test_real_framework_smoke.py`, plus targeted `uv run mypy` and `uv run
+  ruff check` over the Phase 8 files.
 
 ### Phase 9: Governance Integration
 
