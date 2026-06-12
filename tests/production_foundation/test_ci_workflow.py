@@ -52,6 +52,7 @@ def test_integration_workflow_runs_live_compose_and_kind_smoke() -> None:
     assert workflow_on is not None
     assert "workflow_dispatch" in workflow_on
     assert {"compose-runtime", "kind-smoke"} <= set(workflow["jobs"])
+    assert "cp .env.example .env" in workflow_text
     assert "docker compose down --remove-orphans --volumes" in workflow_text
     assert "uv run python scripts/compose_runtime_smoke.py" in workflow_text
     assert "helm version" in workflow_text

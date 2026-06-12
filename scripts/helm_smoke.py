@@ -47,6 +47,7 @@ REQUIRED_TEMPLATE_SNIPPETS = [
 HELM_RELEASE = "dimoorun-smoke"
 HELM_NAMESPACE = "dimoorun-smoke"
 HELM_TIMEOUT = "10m"
+LIVE_SMOKE_HELM_SET_ARGS = ["--set", "serviceMonitor.enabled=false"]
 
 
 @dataclass(frozen=True)
@@ -165,6 +166,7 @@ def _cluster_smoke_commands(
                 HELM_NAMESPACE,
                 "-f",
                 str(values_path),
+                *LIVE_SMOKE_HELM_SET_ARGS,
             ],
             120,
         ),
@@ -184,6 +186,7 @@ def _cluster_smoke_commands(
                 HELM_TIMEOUT,
                 "-f",
                 str(values_path),
+                *LIVE_SMOKE_HELM_SET_ARGS,
             ],
             900,
         ),

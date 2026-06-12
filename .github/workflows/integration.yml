@@ -26,12 +26,18 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --all-extras --dev
 
+      - name: Prepare Compose environment
+        run: cp .env.example .env
+
       - name: Start Compose runtime smoke
         run: uv run python scripts/compose_runtime_smoke.py
 
       - name: Tear down Compose volumes
         if: always()
-        run: docker compose down --remove-orphans --volumes
+        run: |
+          if [ -f .env ]; then
+            docker compose down --remove-orphans --volumes
+          fi
 
   kind-smoke:
     name: Helm Kind Smoke

@@ -96,6 +96,8 @@ def test_live_cluster_smoke_builds_expected_kind_command_plan() -> None:
             HELM_NAMESPACE,
             "-f",
             str(CHART_DIR / "values.yaml"),
+            "--set",
+            "serviceMonitor.enabled=false",
         ],
         [
             "helm",
@@ -111,6 +113,8 @@ def test_live_cluster_smoke_builds_expected_kind_command_plan() -> None:
             "10m",
             "-f",
             str(CHART_DIR / "values.yaml"),
+            "--set",
+            "serviceMonitor.enabled=false",
         ],
         [
             "kubectl",
