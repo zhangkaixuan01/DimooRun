@@ -520,7 +520,7 @@ export async function installConsoleApiMocks(
     }
     const agentVersionCreateMatch = path.match(/^\/v1\/agents\/(\d+)\/versions$/);
     if (agentVersionCreateMatch && route.request().method() === "POST") {
-      return fulfillJson(route, createAgentVersionResponse(route, api, Number(agentVersionCreateMatch[1])));
+      return fulfillAgentVersionCreate(route, api, Number(agentVersionCreateMatch[1]));
     }
     const agentVersionMutationMatch = path.match(/^\/v1\/agents\/(\d+)\/versions\/([^/]+)$/);
     if (agentVersionMutationMatch && route.request().method() === "PATCH") {
@@ -2273,6 +2273,33 @@ function createAgentVersionResponse(
   return version;
 }
 
+function fulfillAgentVersionCreate(
+  route: Route,
+  api: DashboardApiFixture,
+  agentId: number,
+) {
+  const body = parseRequestBody(route);
+  if (String(body.status || "draft") === "ready" && !hasMockValidationToken(body)) {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "package_validation_required",
+          message: "Agent version must have a valid package validation token before it can become ready.",
+          request_id: "e2e-error-request",
+          details: {
+            package_uri: String(body.package_uri || ""),
+            status: "ready",
+            required_action: "POST /v1/packages/validate",
+          },
+        },
+      },
+    });
+  }
+  return fulfillJson(route, createAgentVersionResponse(route, api, agentId));
+}
+
 function updateAgentVersionResponse(
   route: Route,
   api: DashboardApiFixture,
@@ -2895,6 +2922,19 @@ function packageValidationResponse(body: Record<string, unknown>): unknown {
     capabilities: { invoke: true },
     next_action: "create_ready_agent_version",
   };
+}
+
+function hasMockValidationToken(body: Record<string, unknown>): boolean {
+  const manifest = asRecord(body.manifest);
+  const runtime = manifest ? asRecord(manifest.runtime) : null;
+  return Boolean(
+    manifest
+    && manifest.validation_token === "pkgval_e2e"
+    && runtime
+    && runtime.framework === body.framework
+    && runtime.adapter === body.adapter
+    && runtime.entrypoint === body.entrypoint,
+  );
 }
 
 function dependencyWarnings(manifest: Record<string, unknown>): string[] {

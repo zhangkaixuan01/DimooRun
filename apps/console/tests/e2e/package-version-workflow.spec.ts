@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { installConsoleApiMocks, seedConsoleSession } from "../fixtures/api";
+import { installConsoleApiMocks, seedConsoleSession, seedEnglishLocale } from "../fixtures/api";
 
-test("validates a package and shows ready version next action", async ({ page }) => {
+test("validates a package and creates a ready version from the validated result", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -30,9 +31,19 @@ test("validates a package and shows ready version next action", async ({ page })
   await expect(page.locator("dd", { hasText: /^pkgval_e2e$/ })).toBeVisible();
   await expect(page.locator("dd", { hasText: /^create_ready_agent_version$/ })).toBeVisible();
   await expect(page.getByText("Dependency custom-toolkit does not declare a version.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Create ready version" }).click();
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(page.getByText("Ready version source")).toBeVisible();
+  await page.locator("form.nested-form input[placeholder='0.1.0']").fill("1.0.0");
+  await page.getByRole("button", { name: "Create ready AgentVersion" }).click();
+
+  const versionRow = page.locator("tr").filter({ hasText: "1.0.0" }).first();
+  await expect(versionRow).toContainText("ready");
 });
 
 test("explains invalid package manifest and readiness gate", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -56,6 +67,7 @@ test("explains invalid package manifest and readiness gate", async ({ page }) =>
 });
 
 test("shows missing secret and unsupported capability validation results", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 

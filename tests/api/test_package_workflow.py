@@ -252,3 +252,79 @@ def test_agent_version_ready_status_requires_validation_token() -> None:
     )
     assert blocked_update.status_code == 409
     assert blocked_update.json()["error_code"] == "package_validation_required"
+
+
+def test_validated_ready_version_can_deploy_and_accept_a_task() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id = create_agent(client, key)
+
+    validation = client.post(
+        "/v1/packages/validate",
+        headers=auth_headers(key),
+        json={
+            "package_uri": "oci://registry.local/support-agent:2.0.0",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+            "manifest": valid_manifest(),
+            "required_secret_refs": ["vault://openai"],
+        },
+    )
+    assert validation.status_code == 200
+    token = validation.json()["validation_token"]
+
+    version = client.post(
+        f"/v1/agents/{agent_id}/versions",
+        headers=auth_headers(key),
+        json={
+            "version": "2.0.0",
+            "package_uri": "oci://registry.local/support-agent:2.0.0",
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:create_agent",
+            "capabilities": {"invoke": True, "stream": True},
+            "manifest": {**valid_manifest(), "validation_token": token},
+            "status": "ready",
+        },
+    )
+    assert version.status_code == 201
+    version_body = version.json()
+    assert version_body["status"] == "ready"
+
+    deployment = client.post(
+        "/v1/deployments",
+        headers=auth_headers(key),
+        json={
+            "agent_id": agent_id,
+            "agent_version_id": version_body["id"],
+            "environment": "production",
+            "desired_status": "active",
+            "replicas": 1,
+            "config": {},
+        },
+    )
+    assert deployment.status_code == 201
+    deployment_body = deployment.json()
+    assert deployment_body["agent_version_id"] == version_body["id"]
+    assert deployment_body["desired_status"] == "active"
+
+    task = client.post(
+        f"/v1/deployments/{deployment_body['id']}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "hello from validated package"}},
+    )
+    assert task.status_code == 202
+    task_body = task.json()
+    assert task_body["status"] == "queued"
+
+    run = client.get(f"/v1/runs/{task_body['run_id']}", headers=auth_headers(key))
+    assert run.status_code == 200
+    run_body = run.json()
+    assert run_body["agent_id"] == agent_id
+    assert run_body["agent_version_id"] == version_body["id"]
+    assert run_body["deployment_id"] == deployment_body["id"]
+
+    queued_task = client.get(f"/v1/tasks/{task_body['task_id']}", headers=auth_headers(key))
+    assert queued_task.status_code == 200
+    assert queued_task.json()["run_id"] == task_body["run_id"]

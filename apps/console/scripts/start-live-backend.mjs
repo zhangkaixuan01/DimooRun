@@ -31,6 +31,7 @@ const env = {
   DATABASE_URL: databaseUrl,
   REDIS_URL: process.env.REDIS_URL || "memory://console-live-e2e",
   DIMOORUN_RUNTIME_MODE: "dev",
+  DIMOORUN_NATIVE_RUNTIME_STORE: process.env.DIMOORUN_NATIVE_RUNTIME_STORE || "sqlalchemy",
   DIMOORUN_BOOTSTRAP_ADMIN_EMAIL:
     process.env.DIMOORUN_BOOTSTRAP_ADMIN_EMAIL || "admin@local.dimoorun",
   DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD:

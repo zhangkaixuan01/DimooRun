@@ -146,6 +146,23 @@
 
             <form v-if="showVersionForm" class="nested-form" @submit.prevent="createVersion">
               <p class="form-help wide">{{ t("agentVersionFormHelp") }}</p>
+              <div v-if="readyVersionSource" class="validated-ready-banner wide">
+                <p class="section-kicker">{{ t("readyVersionSource") }}</p>
+                <p class="validated-ready-copy">{{ t("readyVersionSourceCopy") }}</p>
+                <dl class="validated-ready-meta">
+                  <div>
+                    <dt>{{ t("validationToken") }}</dt>
+                    <dd class="mono">{{ readyVersionSource.validationToken }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t("nextAction") }}</dt>
+                    <dd>{{ readyVersionSource.nextAction }}</dd>
+                  </div>
+                </dl>
+                <p v-if="readyVersionSource.warnings.length > 0" class="validated-ready-warning">
+                  {{ t("packageWarningsRetained") }} {{ readyVersionSource.warnings.join(" ") }}
+                </p>
+              </div>
               <div class="form-grid">
                 <label>
                   <span class="label-row">
@@ -159,14 +176,26 @@
                     <span>{{ t("packageUri") }}</span>
                     <button class="field-help-button" type="button" :title="t('packageUriFieldHelp')" :aria-label="t('packageUriFieldHelp')">?</button>
                   </span>
-                  <input v-model="versionForm.package_uri" class="input" :placeholder="t('packageUriPlaceholder')" required />
+                  <input
+                    v-model="versionForm.package_uri"
+                    class="input"
+                    :placeholder="t('packageUriPlaceholder')"
+                    :disabled="Boolean(readyVersionSource)"
+                    required
+                  />
                 </label>
                 <label>
                   <span class="label-row">
                     <span>{{ t("framework") }}</span>
                     <button class="field-help-button" type="button" :title="t('frameworkFieldHelp')" :aria-label="t('frameworkFieldHelp')">?</button>
                   </span>
-                  <select v-model="versionForm.framework" class="input" required @change="syncCreateRuntimeAdapter">
+                  <select
+                    v-model="versionForm.framework"
+                    class="input"
+                    :disabled="Boolean(readyVersionSource)"
+                    required
+                    @change="syncCreateRuntimeAdapter"
+                  >
                     <option v-for="runtime in supportedAgentRuntimes" :key="runtime.adapter" :value="runtime.framework">
                       {{ runtime.label }}
                     </option>
@@ -177,7 +206,13 @@
                     <span>{{ t("adapter") }}</span>
                     <button class="field-help-button" type="button" :title="t('adapterFieldHelp')" :aria-label="t('adapterFieldHelp')">?</button>
                   </span>
-                  <select v-model="versionForm.adapter" class="input" required @change="syncCreateRuntimeFramework">
+                  <select
+                    v-model="versionForm.adapter"
+                    class="input"
+                    :disabled="Boolean(readyVersionSource)"
+                    required
+                    @change="syncCreateRuntimeFramework"
+                  >
                     <option v-for="runtime in supportedAgentRuntimes" :key="runtime.adapter" :value="runtime.adapter">
                       {{ runtime.adapter }}
                     </option>
@@ -188,7 +223,13 @@
                     <span>{{ t("entrypoint") }}</span>
                     <button class="field-help-button" type="button" :title="t('entrypointFieldHelp')" :aria-label="t('entrypointFieldHelp')">?</button>
                   </span>
-                  <input v-model="versionForm.entrypoint" class="input" :placeholder="t('entrypointPlaceholder')" required />
+                  <input
+                    v-model="versionForm.entrypoint"
+                    class="input"
+                    :placeholder="t('entrypointPlaceholder')"
+                    :disabled="Boolean(readyVersionSource)"
+                    required
+                  />
                 </label>
               </div>
               <div class="nested-form-actions">
@@ -196,7 +237,7 @@
                   {{ t("cancel") }}
                 </button>
                 <button class="button primary" type="submit" :disabled="creatingVersion || !canCreateVersion">
-                  {{ creatingVersion ? t("creating") : t("createAgentVersion") }}
+                  {{ creatingVersion ? t("creating") : readyVersionSource ? t("createReadyAgentVersion") : t("createAgentVersion") }}
                 </button>
               </div>
             </form>
@@ -406,6 +447,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
 import type { Agent, AgentVersion } from "../../api/types";
@@ -417,8 +459,15 @@ import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { formatDateTime } from "../../utils/dateTime";
+import {
+  clearReadyVersionDraft,
+  readReadyVersionDraft,
+  type ReadyVersionDraft,
+} from "../../workflows/packageValidationDraft";
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 const mode = apiMode();
 const loading = ref(false);
 const creating = ref(false);
@@ -441,6 +490,8 @@ const archiveAgentTarget = ref<Agent | null>(null);
 const editVersionTarget = ref<AgentVersion | null>(null);
 const archiveVersionTarget = ref<AgentVersion | null>(null);
 const versions = ref<AgentVersion[]>([]);
+const readyVersionSource = ref<ReadyVersionDraft | null>(readReadyVersionDraft());
+const readyVersionSourceHandled = ref(false);
 const activeDetailTab = ref<"versions" | "deployment">("versions");
 const supportedAgentRuntimes = [
   { label: "LangGraph", framework: "langgraph", adapter: "langgraph" },
@@ -528,6 +579,8 @@ async function loadAgents() {
     agents.value = (await consoleClient.listAgents()).items;
     if (!selectedAgent.value && agents.value[0]) {
       await selectAgent(agents.value[0]);
+    } else if (readyVersionSource.value && agents.value.length === 0) {
+      openCreateAgentDrawer();
     }
   } catch (caught) {
     error.value = toConsoleApiError(caught);
@@ -568,6 +621,7 @@ async function createAgent() {
     showCreateAgent.value = false;
     agentForm.name = "";
     agentForm.description = "";
+    maybeOpenReadyVersionWorkflow();
   } catch (caught) {
     error.value = toConsoleApiError(caught);
   } finally {
@@ -683,6 +737,7 @@ async function selectAgent(agent: Agent) {
   error.value = null;
   try {
     versions.value = (await consoleClient.listAgentVersions(agent.id)).items;
+    maybeOpenReadyVersionWorkflow();
   } catch (caught) {
     error.value = toConsoleApiError(caught);
   }
@@ -690,6 +745,10 @@ async function selectAgent(agent: Agent) {
 
 function resetVersionForm() {
   versionForm.version = "";
+  if (readyVersionSource.value) {
+    applyReadyVersionSource();
+    return;
+  }
   versionForm.package_uri = "";
   versionForm.framework = supportedAgentRuntimes[0].framework;
   versionForm.adapter = supportedAgentRuntimes[0].adapter;
@@ -698,14 +757,20 @@ function resetVersionForm() {
 
 function openVersionForm() {
   activeDetailTab.value = "versions";
-  if (!versionForm.framework || !versionForm.adapter) {
+  if (readyVersionSource.value) {
+    applyReadyVersionSource();
+  } else if (!versionForm.framework || !versionForm.adapter) {
     syncCreateRuntimeAdapter();
   }
   showVersionForm.value = true;
 }
 
 function toggleVersionForm() {
-  showVersionForm.value = !showVersionForm.value;
+  if (showVersionForm.value) {
+    showVersionForm.value = false;
+    return;
+  }
+  openVersionForm();
 }
 
 function closeVersionForm() {
@@ -751,10 +816,30 @@ async function createVersion() {
   creatingVersion.value = true;
   error.value = null;
   try {
+    const payload = readyVersionSource.value
+      ? {
+        ...versionForm,
+        capabilities: readyVersionSource.value.capabilities,
+        manifest: {
+          ...readyVersionSource.value.manifest,
+          validation_token: readyVersionSource.value.validationToken,
+        },
+        status: "ready",
+      }
+      : {
+        ...versionForm,
+        capabilities: { invoke: true, stream: true },
+        manifest: {
+          runtime: {
+            framework: versionForm.framework,
+            adapter: versionForm.adapter,
+            entrypoint: versionForm.entrypoint,
+          },
+        },
+        status: "draft",
+      };
     const version = await consoleClient.createAgentVersion(selectedAgent.value.id, {
-      ...versionForm,
-      capabilities: { invoke: true, stream: true },
-      manifest: { runtime: { entrypoint: versionForm.entrypoint } },
+      ...payload,
     });
     versions.value = [version, ...versions.value.filter((item) => item.id !== version.id)];
     agents.value = agents.value.map((agent) => agent.id === selectedAgent.value?.id
@@ -764,6 +849,14 @@ async function createVersion() {
       selectedAgent.value = { ...selectedAgent.value, versionCount: versions.value.length };
     }
     showVersionForm.value = false;
+    if (readyVersionSource.value) {
+      clearReadyVersionDraft();
+      readyVersionSource.value = null;
+      readyVersionSourceHandled.value = true;
+      if (route.query.workflow) {
+        void router.replace({ path: route.path, query: {} });
+      }
+    }
     resetVersionForm();
   } catch (caught) {
     error.value = toConsoleApiError(caught);
@@ -896,6 +989,30 @@ async function runConfirmedArchiveVersion() {
   } finally {
     pendingVersion.value = null;
   }
+}
+
+function maybeOpenReadyVersionWorkflow() {
+  if (!readyVersionSource.value || readyVersionSourceHandled.value || !selectedAgent.value) return;
+  if (route.query.workflow !== "package-validation") return;
+  openVersionForm();
+  readyVersionSourceHandled.value = true;
+}
+
+function applyReadyVersionSource() {
+  if (!readyVersionSource.value) return;
+  versionForm.package_uri = readyVersionSource.value.packageUri;
+  versionForm.framework = readyVersionSource.value.framework;
+  versionForm.adapter = readyVersionSource.value.adapter;
+  versionForm.entrypoint = readyVersionSource.value.entrypoint;
+  if (!versionForm.version.trim()) {
+    versionForm.version = extractVersionHint(readyVersionSource.value.packageUri);
+  }
+}
+
+function extractVersionHint(packageUri: string): string {
+  const match = packageUri.match(/:([^/:]+)$/);
+  if (!match) return "";
+  return match[1] === "latest" ? "" : match[1];
 }
 
 onMounted(loadAgents);
@@ -1044,6 +1161,26 @@ onMounted(loadAgents);
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.validated-ready-banner {
+  display: grid;
+  gap: 10px;
+  border: 1px solid color-mix(in oklab, var(--color-success) 40%, var(--color-border));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--color-success) 10%, var(--color-surface));
+  padding: 12px;
+}
+
+.validated-ready-copy,
+.validated-ready-warning {
+  margin: 0;
+}
+
+.validated-ready-meta {
+  display: grid;
+  gap: 10px;
+  margin: 0;
 }
 
 .form-grid {

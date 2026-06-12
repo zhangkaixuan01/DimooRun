@@ -930,7 +930,7 @@ Tasks:
 - [x] Add AgentVersion readiness gate: only validated versions can become `ready`.
 - [x] Build Package Registration page with manifest preview, missing secret refs, dependency warnings, capability result, validation errors, and next action.
 - [x] Add browser tests for valid package, invalid manifest, missing secret, unsupported capability, and readiness gate.
-- [ ] Commit as `feat(product): add package validation workflow`.
+- [x] Commit as `feat(product): add package validation workflow`.
 
 Acceptance:
 

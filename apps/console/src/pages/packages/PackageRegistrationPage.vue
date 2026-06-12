@@ -102,6 +102,14 @@
               <h3>Capabilities</h3>
               <pre>{{ formatJson(result.capabilities) }}</pre>
             </div>
+            <button
+              v-if="result.ready && result.validationToken"
+              class="button primary"
+              type="button"
+              @click="continueToReadyVersion"
+            >
+              Create ready version
+            </button>
           </template>
         </div>
       </section>
@@ -111,6 +119,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 
 import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
 import { createMutationAction } from "../../api/mutations";
@@ -119,8 +128,10 @@ import ApiState from "../../components/ApiState.vue";
 import JsonSchemaEditor from "../../components/JsonSchemaEditor.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { isJsonParseFailure, parseJsonObject, type JsonParseFailure } from "../../forms/jsonForm";
+import { clearReadyVersionDraft, writeReadyVersionDraft } from "../../workflows/packageValidationDraft";
 
 const mode = apiMode();
+const router = useRouter();
 const error = ref<ConsoleApiError | null>(null);
 const manifestError = ref<JsonParseFailure | null>(null);
 const result = ref<PackageValidationResult | null>(null);
@@ -165,13 +176,39 @@ async function validatePackage() {
   error.value = null;
   try {
     result.value = await validationMutation.run(undefined, { auditReason: "validate package from console" });
+    if (!result.value.ready || !result.value.validationToken) {
+      clearReadyVersionDraft();
+    }
   } catch (caught) {
+    clearReadyVersionDraft();
     error.value = toConsoleApiError(caught);
   }
 }
 
 function formatJson(value: Record<string, unknown>): string {
   return JSON.stringify(value, null, 2);
+}
+
+async function continueToReadyVersion() {
+  if (!result.value?.ready || !result.value.validationToken) return;
+  const manifest = parseJsonObject(form.manifestJson);
+  if (isJsonParseFailure(manifest)) {
+    manifestError.value = manifest;
+    return;
+  }
+  manifestError.value = null;
+  writeReadyVersionDraft({
+    packageUri: form.packageUri.trim(),
+    framework: form.framework.trim(),
+    adapter: form.adapter.trim(),
+    entrypoint: form.entrypoint.trim(),
+    manifest,
+    capabilities: result.value.capabilities,
+    validationToken: result.value.validationToken,
+    nextAction: result.value.nextAction,
+    warnings: [...result.value.warnings],
+  });
+  await router.push({ path: "/agents", query: { workflow: "package-validation" } });
 }
 </script>
 
