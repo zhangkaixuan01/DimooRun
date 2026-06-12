@@ -25,7 +25,7 @@ Authoritative status:
 - Deployment assets now include startup-ordered Compose migration flow, backup/restore runtime smoke, and Helm production guards for migration hooks, NetworkPolicy, PodDisruptionBudget, ServiceMonitor, and resource defaults, with a dedicated hosted integration workflow contract.
 - Console route and API coverage for many product areas, now backed by a 58-test local browser suite that covers workflow interactions, critical accessibility checks, and responsive screenshot evidence.
 - Shared Console control-plane primitives now centralize drawers, dense tables, skeleton loading states, and runtime chart accessibility semantics across the largest operator pages.
-- Docker, Helm, OpenAPI, CLI, and SDK foundations.
+- Docker, Helm, OpenAPI, SDK, CLI, and release-contract foundations now cover package validation, publish, deployment task submission, run replay/watch, and reproducible release checks.
 
 ## Known Gaps
 
@@ -34,7 +34,7 @@ Authoritative status:
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete, even though the runtime and Helm smoke scripts plus `integration.yml` contract are now in place.
 - Hosted Prometheus/OTel exporter proof and live monitoring-stack verification are not complete yet, even though the Phase 5 observability API and Console surfaces are now implemented and locally verified.
 - OCI package retrieval and live production package execution proof are not complete yet, even though the runtime now blocks unsafe package paths, validates runtime bindings before worker execution, and injects enforced governance services into the durable worker path.
-- SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.
+- Hosted package publishing proof, release attestation evidence, trust/security docs, examples, and screenshots are incomplete.
 - Cost, budget, scheduled/batch, catalog, and some gateway/runtime hardening
   workflows are not complete yet.
 

@@ -1,8 +1,11 @@
+import json
 from pathlib import Path
 from typing import Any
 
-from dimoo_run.cli.main import run_cli
+import dimoo_run.cli.main as cli_main
 from dimoo_run.config.project import load_project_config, validate_project_workspace
+
+run_cli = cli_main.run_cli
 
 
 def test_init_creates_workspace_config_and_validate_accepts_it(tmp_path: Path) -> None:
@@ -132,3 +135,213 @@ def test_cli_migrate_aegra_generates_source_specific_report(tmp_path: Path) -> N
 
     assert exit_code == 0
     assert "source type: aegra" in (output / "migration_report.md").read_text(encoding="utf-8")
+
+
+class FakeNativeAPIClient:
+    last_instance: "FakeNativeAPIClient | None" = None
+
+    def __init__(self, **_: object) -> None:
+        type(self).last_instance = self
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self._run_polls = 0
+
+    def close(self) -> None:
+        self.calls.append(("close", {}))
+
+    def validate_package(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(("validate_package", kwargs))
+        return {"ready": True, "validation_token": "tok_cli"}
+
+    def create_agent(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(("create_agent", kwargs))
+        return {"id": 11, "name": kwargs["name"]}
+
+    def create_agent_version(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(("create_agent_version", kwargs))
+        return {"id": 21, "status": "ready"}
+
+    def submit_deployment_task(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(("submit_deployment_task", kwargs))
+        return {"run_id": 31, "task_id": 41, "status": "queued"}
+
+    def get_run(self, run_id: int) -> dict[str, Any]:
+        self.calls.append(("get_run", {"run_id": run_id}))
+        self._run_polls += 1
+        status = "running" if self._run_polls == 1 else "succeeded"
+        return {"id": run_id, "status": status, "started_at": None, "finished_at": None}
+
+    def list_run_events(self, run_id: int) -> list[dict[str, Any]]:
+        self.calls.append(("list_run_events", {"run_id": run_id}))
+        return [{"sequence": 1, "type": "run.started"}]
+
+    def replay_run(self, run_id: int, *, agent_version_id: int | None) -> dict[str, Any]:
+        self.calls.append(
+            ("replay_run", {"run_id": run_id, "agent_version_id": agent_version_id})
+        )
+        return {"id": 99, "status": "pending"}
+
+
+def test_cli_package_validate_calls_native_api_client(monkeypatch: Any, capsys: Any) -> None:
+    monkeypatch.setattr(cli_main, "NativeAPIClient", FakeNativeAPIClient)
+
+    exit_code = run_cli(
+        [
+            "package",
+            "validate",
+            "--base-url",
+            "https://api.example.test",
+            "--api-key",
+            "test-key",
+            "--tenant-id",
+            "1",
+            "--project-id",
+            "2",
+            "--package-uri",
+            "oci://registry.example/support",
+            "--framework",
+            "langgraph",
+            "--adapter",
+            "langgraph",
+            "--entrypoint",
+            "agent:create_agent",
+            "--secret-ref",
+            "secret://model",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"validation_token": "tok_cli"' in captured.out
+    assert FakeNativeAPIClient.last_instance is not None
+    assert FakeNativeAPIClient.last_instance.calls[0][0] == "validate_package"
+
+
+def test_cli_agent_publish_validates_package_then_creates_ready_version(
+    monkeypatch: Any,
+    tmp_path: Path,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(cli_main, "NativeAPIClient", FakeNativeAPIClient)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps({"runtime": {"entrypoint": "agent:create_agent"}}),
+        encoding="utf-8",
+    )
+
+    exit_code = run_cli(
+        [
+            "agent",
+            "publish",
+            "--base-url",
+            "https://api.example.test",
+            "--api-key",
+            "test-key",
+            "--tenant-id",
+            "1",
+            "--project-id",
+            "2",
+            "--name",
+            "support-agent",
+            "--version",
+            "1.0.0",
+            "--package-uri",
+            "oci://registry.example/support",
+            "--framework",
+            "langgraph",
+            "--adapter",
+            "langgraph",
+            "--entrypoint",
+            "agent:create_agent",
+            "--manifest-file",
+            str(manifest_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"status": "ready"' in captured.out
+    assert FakeNativeAPIClient.last_instance is not None
+    calls = FakeNativeAPIClient.last_instance.calls
+    assert [call[0] for call in calls[:3]] == [
+        "validate_package",
+        "create_agent",
+        "create_agent_version",
+    ]
+    assert calls[2][1]["manifest"]["validation_token"] == "tok_cli"
+
+
+def test_cli_deployment_task_submit_watch_and_replay_commands(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(cli_main, "NativeAPIClient", FakeNativeAPIClient)
+    monkeypatch.setattr(cli_main, "sleep", lambda _seconds: None)
+
+    submit_exit = run_cli(
+        [
+            "deployment",
+            "task",
+            "submit",
+            "--base-url",
+            "https://api.example.test",
+            "--api-key",
+            "test-key",
+            "--tenant-id",
+            "1",
+            "--project-id",
+            "2",
+            "--deployment-id",
+            "33",
+            "--input-json",
+            '{"message":"hello"}',
+            "--thread-id",
+            "thread_cli",
+        ]
+    )
+    watch_exit = run_cli(
+        [
+            "run",
+            "watch",
+            "--base-url",
+            "https://api.example.test",
+            "--api-key",
+            "test-key",
+            "--tenant-id",
+            "1",
+            "--project-id",
+            "2",
+            "--run-id",
+            "31",
+            "--poll-interval",
+            "0",
+            "--max-polls",
+            "2",
+            "--show-events",
+        ]
+    )
+    replay_exit = run_cli(
+        [
+            "run",
+            "replay",
+            "--base-url",
+            "https://api.example.test",
+            "--api-key",
+            "test-key",
+            "--tenant-id",
+            "1",
+            "--project-id",
+            "2",
+            "--run-id",
+            "31",
+            "--agent-version-id",
+            "44",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert submit_exit == 0
+    assert watch_exit == 0
+    assert replay_exit == 0
+    assert '"task_id": 41' in captured.out
+    assert '"status": "succeeded"' in captured.out
+    assert '"id": 99' in captured.out

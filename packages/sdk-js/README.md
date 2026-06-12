@@ -1,5 +1,6 @@
 # DimooRun TypeScript SDK
 
-This package is reserved for the generated OpenAPI TypeScript SDK plus the thin
-handwritten ergonomics layer for auth headers, cursor pagination, typed errors,
-and SSE reconnect with `Last-Event-ID`.
+This package provides the TypeScript SDK contract for the stable Native runtime
+workflow: package validation, agent/version publish, deployment creation, task
+submission, run lookup, event lookup, task lookup, and replay, with typed API
+errors and default scope headers.

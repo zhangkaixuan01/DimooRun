@@ -1758,13 +1758,13 @@ Acceptance:
 
 Tasks:
 
-- [ ] Generate or complete Python SDK coverage for stable Native APIs.
-- [ ] Implement TypeScript SDK.
-- [ ] Add SDK contract tests.
-- [ ] Add CLI production commands for package validation, agent publish, deployment task submit, run watch, and replay.
-- [ ] Add release workflow with changelog generation, image build, SBOM, vulnerability scans, provenance attestation, package publishing, and smoke verification.
-- [ ] Add release check script that validates version consistency, OpenAPI generation, SDK generation, changelog entry, migration status, and required docs links.
-- [ ] Commit as `feat(sdk): complete production developer workflow`.
+- [x] Generate or complete Python SDK coverage for stable Native APIs.
+- [x] Implement TypeScript SDK.
+- [x] Add SDK contract tests.
+- [x] Add CLI production commands for package validation, agent publish, deployment task submit, run watch, and replay.
+- [x] Add release workflow with changelog generation, image build, SBOM, vulnerability scans, provenance attestation, package publishing, and smoke verification.
+- [x] Add release check script that validates version consistency, OpenAPI generation, SDK generation, changelog entry, migration status, and required docs links.
+- [x] Commit as `feat(sdk): complete production developer workflow`.
 
 Acceptance:
 

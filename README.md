@@ -124,9 +124,11 @@ Implemented phase slices:
   tenant / project scoped API keys, and AuditLog, Agent Protocol
   capability skeleton, best-effort migration reports with source-specific
   warnings, a minimal Native Agents / AgentVersions / Runs / Tasks API backed by
-  an in-process runtime store, Python SDK error-code and idempotency-key
-  handling with a real Native API integration test, and TypeScript SDK
-  placeholder boundary.
+  an in-process runtime store, Python SDK workflow coverage for package
+  validation through replay, TypeScript SDK runtime workflow methods, CLI
+  production commands for package validate / agent publish / deployment task
+  submit / run watch / replay, and a release-contract path for changelog,
+  OpenAPI drift, SDK surface, SBOM, scan, provenance, and publish checks.
 - `10-production-foundation-and-console-wiring`: `.env.example`, Docker Compose
   and Dockerfile assets for server / worker / console / Postgres / Redis /
   MinIO, env-driven server CORS and SQLAlchemy Native runtime selection,

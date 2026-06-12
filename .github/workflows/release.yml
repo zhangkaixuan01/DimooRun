@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Release Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run release checks
+        run: uv run python scripts/release_check.py
+
+      - name: Verify OpenAPI contract
+        run: uv run python scripts/check_openapi_diff.py
+
+      - name: Build Python package
+        run: uv build
+
+      - name: Build TypeScript SDK
+        working-directory: packages/sdk-js
+        run: |
+          npm install
+          npm run build
+
+      - name: Smoke test Python SDK release artifact
+        run: uv run pytest -q tests/sdk/test_python_sdk.py tests/cli/test_project_config_cli.py
+
+  images:
+    name: Images, SBOM, And Provenance
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/server.Dockerfile
+          push: false
+          tags: dimoorun/server:${{ github.ref_name }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: dimoorun/server:${{ github.ref_name }}
+          output-file: sbom.spdx.json
+
+      - name: Scan image vulnerabilities
+        uses: anchore/scan-action@v6
+        with:
+          image: dimoorun/server:${{ github.ref_name }}
+          fail-build: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: dimoorun/server
+          subject-digest: sha256:${{ github.sha }}
+
+  publish:
+    name: Publish Artifacts
+    needs:
+      - verify
+      - images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Build Python package
+        run: uv build
+
+      - name: Publish Python package
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Publish TypeScript SDK
+        working-directory: packages/sdk-js
+        run: |
+          npm install
+          npm run build
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Generate release notes
+        run: gh release create "${{ github.ref_name }}" --notes-file CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
