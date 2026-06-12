@@ -1839,7 +1839,7 @@ Tasks:
 - [x] Add product comparison material that explains DimooRun versus plain LangGraph app, LangGraph Platform-style compatibility, generic workflow engines, and model gateways without making unverifiable marketing claims.
 - [x] Add demo script for maintainers to record or present the product: setup, agent publish, deployment promote, run inspect, replay, policy approval, gateway route test, incident triage, and cost drilldown.
 - [x] Extend docs quality tests for stale maturity wording, comparison claim evidence, missing security policy links, missing changelog entries, and missing demo prerequisites.
-- [ ] Commit as `docs(product): add trust assets and examples`.
+- [x] Commit as `docs(product): add trust assets and examples`.
 
 Acceptance:
 
