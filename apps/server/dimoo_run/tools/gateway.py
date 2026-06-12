@@ -2,10 +2,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from dimoo_run.core.context import RuntimeContext
-from dimoo_run.hitl.service import HumanTaskService
+from dimoo_run.domain.models import Tool as ToolModel
 from dimoo_run.policy.decisions import Decision
-from dimoo_run.policy.engine import PolicyEngine, PolicyRequest
+from dimoo_run.policy.engine import AuditRecord, PolicyEngine, PolicyRequest
 
 
 class ToolScopeMismatchError(PermissionError):
@@ -31,7 +34,7 @@ class ToolCallResult:
 
 
 class ToolGateway:
-    def __init__(self, *, policy_engine: PolicyEngine, human_tasks: HumanTaskService) -> None:
+    def __init__(self, *, policy_engine: PolicyEngine, human_tasks: Any) -> None:
         self.policy_engine = policy_engine
         self.human_tasks = human_tasks
         self.tools: dict[int, ToolDefinition] = {}
@@ -94,5 +97,83 @@ class ToolGateway:
                 payload={"tool_id": tool.id, "arguments": arguments, "risk_level": tool.risk_level},
                 requested_by=actor_id,
             )
+            self.policy_engine.audit_sink.write(
+                AuditRecord(
+                    tenant_id=context.tenant_id,
+                    project_id=context.project_id,
+                    actor_id=actor_id,
+                    actor_type="user" if actor_id else "agent",
+                    resource_type="tool",
+                    resource_id=tool.id,
+                    action="call",
+                    result="approval_required",
+                    metadata={"tool_name": tool.name, "risk_level": tool.risk_level},
+                )
+            )
             return ToolCallResult(status="approval_required", human_task_id=human_task.id)
-        return ToolCallResult(status="succeeded", output=tool.handler(arguments))
+        output = tool.handler(arguments)
+        self.policy_engine.audit_sink.write(
+            AuditRecord(
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                actor_id=actor_id,
+                actor_type="user" if actor_id else "agent",
+                resource_type="tool",
+                resource_id=tool.id,
+                action="call",
+                result="allow",
+                metadata={"tool_name": tool.name, "risk_level": tool.risk_level},
+            )
+        )
+        return ToolCallResult(status="succeeded", output=output)
+
+
+class SQLAlchemyToolGateway:
+    def __init__(
+        self,
+        *,
+        session: Session,
+        policy_engine: PolicyEngine,
+        human_tasks: Any,
+    ) -> None:
+        self.session = session
+        self.policy_engine = policy_engine
+        self.human_tasks = human_tasks
+
+    def call_by_name(
+        self,
+        *,
+        name: str,
+        arguments: dict[str, Any],
+        context: RuntimeContext,
+        actor_id: str | None,
+        handler: Callable[[dict[str, Any]], dict[str, Any]],
+    ) -> ToolCallResult:
+        statement = select(ToolModel).where(
+            ToolModel.tenant_id == context.tenant_id,
+            ToolModel.project_id == context.project_id,
+            ToolModel.name == name,
+            ToolModel.status == "active",
+            ToolModel.is_deleted.is_(False),
+        )
+        tool = self.session.scalar(statement)
+        if tool is None:
+            raise KeyError(name)
+        gateway = ToolGateway(policy_engine=self.policy_engine, human_tasks=self.human_tasks)
+        gateway.register(
+            ToolDefinition(
+                id=tool.id,
+                tenant_id=tool.tenant_id,
+                project_id=tool.project_id,
+                name=tool.name,
+                risk_level=tool.risk_level,
+                schema=tool.schema_json,
+                handler=handler,
+            )
+        )
+        return gateway.call(
+            tool_id=tool.id,
+            arguments=arguments,
+            context=context,
+            actor_id=actor_id,
+        )

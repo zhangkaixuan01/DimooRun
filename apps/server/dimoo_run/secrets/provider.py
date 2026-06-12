@@ -2,7 +2,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from dimoo_run.core.context import RuntimeContext
+from dimoo_run.domain.models import Secret
 from dimoo_run.policy.decisions import Decision
 from dimoo_run.policy.engine import AuditRecord, PolicyEngine, PolicyRequest
 
@@ -117,3 +121,117 @@ class InMemorySecretProvider:
             )
         )
         return record.value
+
+
+class SQLAlchemySecretProvider:
+    def __init__(
+        self,
+        *,
+        session: Session,
+        policy_engine: PolicyEngine,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
+        self.session = session
+        self.policy_engine = policy_engine
+        self._now = now or (lambda: datetime.now(UTC))
+
+    def get_secret(
+        self,
+        *,
+        tenant_id: int,
+        project_id: int | None,
+        secret_name: str,
+        context: RuntimeContext,
+    ) -> str:
+        actor_id = (
+            str(context.user_id or context.service_account_id)
+            if context.user_id is not None or context.service_account_id is not None
+            else None
+        )
+        if tenant_id != context.tenant_id or project_id != context.project_id:
+            self.policy_engine.record_violation(
+                PolicyRequest(
+                    tenant_id=context.tenant_id,
+                    project_id=context.project_id,
+                    actor_id=actor_id,
+                    actor_type="service_account" if context.service_account_id else "user",
+                    resource_type="secret",
+                    resource_id=None,
+                    action="read",
+                    runtime_context=context.to_metadata(),
+                    request_metadata={"secret_name": secret_name},
+                ),
+                reason="secret_scope_mismatch",
+                metadata={"requested_tenant_id": tenant_id, "requested_project_id": project_id},
+            )
+            raise SecretScopeMismatchError(secret_name)
+        record = self._secret_record(
+            tenant_id=tenant_id,
+            project_id=project_id,
+            secret_name=secret_name,
+        )
+        decision = self.policy_engine.evaluate(
+            PolicyRequest(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                actor_id=actor_id,
+                actor_type="service_account" if context.service_account_id else "user",
+                resource_type="secret",
+                resource_id=record.id,
+                action="read",
+                agent_id=context.agent_id,
+                agent_version_id=context.agent_version_id,
+                deployment_id=context.deployment_id,
+                environment=context.environment,
+                runtime_context=context.to_metadata(),
+                request_metadata={
+                    "secret_name": secret_name,
+                    "provider": record.provider,
+                    "scope": record.scope,
+                },
+            )
+        )
+        if decision.decision == Decision.deny:
+            raise SecretAccessDeniedError(decision.reason or "secret_access_denied")
+        secret_ref = context.secrets.get(secret_name)
+        if secret_ref is None:
+            raise KeyError(secret_name)
+        record.last_used_at = self._now()
+        self.session.flush()
+        self.policy_engine.audit_sink.write(
+            AuditRecord(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                actor_id=actor_id,
+                actor_type="service_account" if context.service_account_id else "user",
+                resource_type="secret",
+                resource_id=record.id,
+                action="read",
+                result="allow",
+                metadata={
+                    "secret_name": secret_name,
+                    "provider": record.provider,
+                    "scope": record.scope,
+                },
+            )
+        )
+        return secret_ref
+
+    def _secret_record(
+        self,
+        *,
+        tenant_id: int,
+        project_id: int | None,
+        secret_name: str,
+    ) -> Secret:
+        statement = select(Secret).where(
+            Secret.tenant_id == tenant_id,
+            Secret.project_id == project_id,
+            Secret.name == secret_name,
+            Secret.status == "active",
+            Secret.is_deleted.is_(False),
+        )
+        record = self.session.scalar(statement)
+        if record is None:
+            raise KeyError(secret_name)
+        return record

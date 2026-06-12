@@ -1,7 +1,10 @@
+import importlib
 import os
 import tempfile
+from pathlib import Path
 from uuid import uuid4
 
+from _pytest.monkeypatch import MonkeyPatch
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.domain.models import (
     Agent,
@@ -22,6 +25,9 @@ from sqlalchemy import create_engine
 
 ADMIN_PATHS = [
     "/v1/policies",
+    "/v1/policies/simulate",
+    "/v1/policies/activate",
+    "/v1/policies/{policy_id}/rollback",
     "/v1/artifacts/{artifact_id}",
     "/v1/human-tasks",
     "/v1/human-tasks/{task_id}/approve",
@@ -303,6 +309,104 @@ def test_human_task_decision_actions_update_persisted_admin_record(tmp_path, mon
         assert record.decision_ref == "inline:decision"
     finally:
         session.close()
+
+
+def test_admin_policy_simulate_returns_matching_scope_and_audit_preview() -> None:
+    client = TestClient(create_app())
+
+    created = client.post(
+        "/v1/policies",
+        headers=scoped_admin_headers("req_policy_simulate_seed"),
+        json={
+            "name": "deny-tool-write",
+            "resource_type": "tool",
+            "action": "call",
+            "decision": "deny",
+            "reason": "tool_write_denied",
+        },
+    )
+    simulated = client.post(
+        "/v1/policies/simulate",
+        headers=scoped_admin_headers("req_policy_simulate"),
+        json={
+            "draft_policy": {
+                "name": "approve-tool-write",
+                "resource_type": "tool",
+                "action": "call",
+                "decision": "require_approval",
+                "priority": 100,
+                "reason": "tool_write_requires_review",
+            },
+            "sample": {
+                "resource_type": "tool",
+                "resource_id": 11,
+                "action": "call",
+                "environment": "local",
+            },
+        },
+    )
+
+    assert created.status_code == 201
+    assert simulated.status_code == 200
+    body = simulated.json()
+    assert body["decision"]["result"] == "require_approval"
+    assert body["matched_resources"] == [
+        {
+            "resource_type": "tool",
+            "resource_id": 11,
+            "action": "call",
+            "environment": "local",
+        }
+    ]
+    assert body["audit_preview"]["action"] == "policy.simulate"
+    assert body["conflict_warnings"][0]["code"] == "priority_conflict"
+
+
+def test_admin_human_task_decision_response_includes_resume_outcome_context(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'admin-human-task-resume.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    admin_router_module = importlib.import_module("dimoo_run.api.admin.router")
+    admin_router_module._HUMAN_TASK_CONTEXT.clear()
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session = create_session_factory(database_url)()
+    try:
+        task = HumanTask(
+            id=42,
+            tenant_id=1,
+            project_id=1,
+            type="approval",
+            status="pending",
+            payload_ref="inline:payload",
+        )
+        session.add(task)
+        session.commit()
+    finally:
+        session.close()
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/v1/human-tasks/42/reject",
+        headers=scoped_admin_headers("req_human_task_resume"),
+        json={
+            "decision_payload": {
+                "comment": "Need security review before resuming.",
+                "decided_by": "operator-7",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    item = response.json()["item"]
+    assert item["status"] == "rejected"
+    assert item["resume_outcome"] == {
+        "status": "blocked",
+        "task_id": 42,
+        "decision": "rejected",
+    }
 
 
 def test_platform_setting_collections_persist_to_database(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]

@@ -9,7 +9,7 @@ from dimoo_run.adapters.base.utils import maybe_await
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentEvent, AgentResult
 from dimoo_run.observability.otel import attach_trace_fields, trace_context_from_runtime
-from dimoo_run.runtime.run_manager import RuntimeRunStore
+from dimoo_run.runtime.run_manager import RuntimeGovernanceBundle, RuntimeRunStore
 from dimoo_run.scheduler.backend import RuntimeTaskBackend
 from dimoo_run.scheduler.in_memory import StaleFencingTokenError
 from dimoo_run.streaming.replay_buffer import ReplayBuffer
@@ -46,6 +46,11 @@ class WorkerExecutor:
         adapters: dict[str, AgentAdapter],
         agent_specs: dict[int, AgentRuntimeSpec],
         runtime_spec_resolver: Callable[[Any], AgentRuntimeSpec] | None = None,
+        governance_bundle_factory: Callable[
+            [Any, RuntimeContext, dict[str, Any]],
+            RuntimeGovernanceBundle | None,
+        ]
+        | None = None,
     ) -> None:
         self.worker_id = worker_id
         self.task_backend = task_backend
@@ -54,6 +59,7 @@ class WorkerExecutor:
         self.adapters = adapters
         self.agent_specs = agent_specs
         self.runtime_spec_resolver = runtime_spec_resolver
+        self.governance_bundle_factory = governance_bundle_factory
         self._active_task_id: int | None = None
         self._active_worker_id: str | None = None
         self._active_fencing_token: int | None = None
@@ -105,8 +111,15 @@ class WorkerExecutor:
                 agent_version_id=run.agent_version_id,
                 deployment_id=run.deployment_id,
                 thread_id=run.thread_id,
+                environment=_runtime_environment(runtime_config),
                 framework=getattr(adapter, "framework", spec.adapter),
                 adapter=spec.adapter,
+            )
+            governance_bundle = self._governance_bundle(run, context, runtime_config)
+            runtime_config = (
+                governance_bundle.apply(runtime_config)
+                if governance_bundle
+                else runtime_config
             )
             trace = trace_context_from_runtime(context, worker_id=self.worker_id)
             context = RuntimeContext(
@@ -126,7 +139,7 @@ class WorkerExecutor:
                 trace_id=trace.trace_id,
                 correlation_id=trace.correlation_id,
                 idempotency_key=context.idempotency_key,
-                environment=context.environment,
+                environment=_runtime_environment(runtime_config),
                 framework=context.framework,
                 adapter=context.adapter,
                 agent_version=context.agent_version,
@@ -387,6 +400,16 @@ class WorkerExecutor:
             raise RuntimeError("worker_adapter_not_found")
         return adapter
 
+    def _governance_bundle(
+        self,
+        run: Any,
+        context: RuntimeContext,
+        runtime_config: dict[str, Any],
+    ) -> RuntimeGovernanceBundle | None:
+        if self.governance_bundle_factory is None:
+            return None
+        return self.governance_bundle_factory(run, context, runtime_config)
+
     async def _execute_agent(
         self,
         adapter: AgentAdapter,
@@ -406,3 +429,8 @@ class WorkerExecutor:
         async for event in stream:
             self._append(context.run_id, attempt_id, event)
         return AgentResult(output={"streamed": True})
+
+
+def _runtime_environment(runtime_config: dict[str, Any]) -> str | None:
+    environment = runtime_config.get("environment")
+    return str(environment) if isinstance(environment, str) and environment else None

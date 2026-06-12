@@ -1704,12 +1704,12 @@ Implemented evidence:
 
 Tasks:
 
-- [ ] Add persistent secret provider implementation.
-- [ ] Add model gateway call wrapper with policy, telemetry, timeout, and cost tracking.
-- [ ] Add tool call observation and approval enforcement.
-- [ ] Persist policy decisions and approvals in audit logs.
-- [ ] Add Console policy simulation and approval resume tests.
-- [ ] Commit as `feat(governance): enforce runtime policy services`.
+- [x] Add persistent secret provider implementation.
+- [x] Add model gateway call wrapper with policy, telemetry, timeout, and cost tracking.
+- [x] Add tool call observation and approval enforcement.
+- [x] Persist policy decisions and approvals in audit logs.
+- [x] Add Console policy simulation and approval resume tests.
+- [x] Commit as `feat(governance): enforce runtime policy services`.
 
 Acceptance:
 

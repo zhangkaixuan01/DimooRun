@@ -39,6 +39,26 @@ class RuntimeAttempt:
     error: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class RuntimeGovernanceBundle:
+    secret_provider: Any | None = None
+    model_gateway: Any | None = None
+    tool_gateway: Any | None = None
+
+    def apply(self, runtime_config: dict[str, Any]) -> dict[str, Any]:
+        governance = {
+            "secrets": self.secret_provider,
+            "model_gateway": self.model_gateway,
+            "tools": self.tool_gateway,
+        }
+        services = {key: value for key, value in governance.items() if value is not None}
+        if not services:
+            return dict(runtime_config)
+        merged = dict(runtime_config)
+        merged["governance"] = services
+        return merged
+
+
 class RuntimeRunStore(Protocol):
     @property
     def runs(self) -> dict[int, RuntimeRun]: ...
