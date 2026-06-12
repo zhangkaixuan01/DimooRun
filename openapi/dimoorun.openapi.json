@@ -957,6 +957,13 @@
           "summary": {
             "$ref": "#/components/schemas/ConsoleDashboardSummary"
           },
+          "trend_points": {
+            "items": {
+              "$ref": "#/components/schemas/ConsoleRuntimeTrendPoint"
+            },
+            "title": "Trend Points",
+            "type": "array"
+          },
           "worker_health": {
             "items": {
               "$ref": "#/components/schemas/ConsoleWorkerHealth"
@@ -973,6 +980,29 @@
           "pending_actions"
         ],
         "title": "ConsoleRuntimeOverview",
+        "type": "object"
+      },
+      "ConsoleRuntimeTrendPoint": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "success_rate": {
+            "title": "Success Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "runs",
+          "success_rate"
+        ],
+        "title": "ConsoleRuntimeTrendPoint",
         "type": "object"
       },
       "ConsoleWorkerHealth": {
@@ -2346,6 +2376,339 @@
           "created_at"
         ],
         "title": "RunRead",
+        "type": "object"
+      },
+      "RuntimeEventQueryRead": {
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "visibility_level": {
+            "title": "Visibility Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "event_id",
+          "sequence",
+          "type",
+          "visibility_level",
+          "payload"
+        ],
+        "title": "RuntimeEventQueryRead",
+        "type": "object"
+      },
+      "RuntimeIncidentRead": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_summary": {
+            "title": "Error Summary",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "error_summary",
+          "created_at"
+        ],
+        "title": "RuntimeIncidentRead",
+        "type": "object"
+      },
+      "RuntimeMetricsSnapshotRead": {
+        "properties": {
+          "active_incidents": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeIncidentRead"
+            },
+            "title": "Active Incidents",
+            "type": "array"
+          },
+          "queues": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeQueueMetricsRead"
+            },
+            "title": "Queues",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RuntimeMetricsSummaryRead"
+          },
+          "trend_points": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeTrendPointRead"
+            },
+            "title": "Trend Points",
+            "type": "array"
+          },
+          "workers": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeWorkerMetricsRead"
+            },
+            "title": "Workers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "RuntimeMetricsSnapshotRead",
+        "type": "object"
+      },
+      "RuntimeMetricsSummaryRead": {
+        "properties": {
+          "active_incidents": {
+            "title": "Active Incidents",
+            "type": "integer"
+          },
+          "active_workers": {
+            "title": "Active Workers",
+            "type": "integer"
+          },
+          "dead_letters": {
+            "title": "Dead Letters",
+            "type": "integer"
+          },
+          "failed_runs": {
+            "title": "Failed Runs",
+            "type": "integer"
+          },
+          "monthly_cost_usd": {
+            "title": "Monthly Cost Usd",
+            "type": "number"
+          },
+          "p95_latency_ms": {
+            "title": "P95 Latency Ms",
+            "type": "integer"
+          },
+          "p99_latency_ms": {
+            "title": "P99 Latency Ms",
+            "type": "integer"
+          },
+          "pending_approvals": {
+            "title": "Pending Approvals",
+            "type": "integer"
+          },
+          "queue_backlog": {
+            "title": "Queue Backlog",
+            "type": "integer"
+          },
+          "retries": {
+            "title": "Retries",
+            "type": "integer"
+          },
+          "run_count_today": {
+            "title": "Run Count Today",
+            "type": "integer"
+          },
+          "running_tasks": {
+            "title": "Running Tasks",
+            "type": "integer"
+          },
+          "success_rate": {
+            "title": "Success Rate",
+            "type": "number"
+          },
+          "worker_ready": {
+            "title": "Worker Ready",
+            "type": "integer"
+          },
+          "worker_total": {
+            "title": "Worker Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_count_today",
+          "success_rate",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "queue_backlog",
+          "running_tasks",
+          "worker_ready",
+          "worker_total",
+          "dead_letters",
+          "retries",
+          "active_incidents",
+          "active_workers",
+          "failed_runs",
+          "monthly_cost_usd",
+          "pending_approvals"
+        ],
+        "title": "RuntimeMetricsSummaryRead",
+        "type": "object"
+      },
+      "RuntimeQueueMetricsRead": {
+        "properties": {
+          "dead_letters": {
+            "title": "Dead Letters",
+            "type": "integer"
+          },
+          "leased_tasks": {
+            "title": "Leased Tasks",
+            "type": "integer"
+          },
+          "oldest_task_age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Task Age Seconds"
+          },
+          "queue": {
+            "title": "Queue",
+            "type": "string"
+          },
+          "queue_backlog": {
+            "title": "Queue Backlog",
+            "type": "integer"
+          },
+          "retrying_tasks": {
+            "title": "Retrying Tasks",
+            "type": "integer"
+          },
+          "running_tasks": {
+            "title": "Running Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queue",
+          "queue_backlog",
+          "running_tasks",
+          "leased_tasks",
+          "retrying_tasks",
+          "dead_letters"
+        ],
+        "title": "RuntimeQueueMetricsRead",
+        "type": "object"
+      },
+      "RuntimeTrendPointRead": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "success_rate": {
+            "title": "Success Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "runs",
+          "success_rate"
+        ],
+        "title": "RuntimeTrendPointRead",
+        "type": "object"
+      },
+      "RuntimeWorkerMetricsRead": {
+        "properties": {
+          "active_attempts": {
+            "title": "Active Attempts",
+            "type": "integer"
+          },
+          "dead_letter_tasks": {
+            "title": "Dead Letter Tasks",
+            "type": "integer"
+          },
+          "heartbeat_age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat Age Seconds"
+          },
+          "liveness": {
+            "title": "Liveness",
+            "type": "string"
+          },
+          "readiness": {
+            "title": "Readiness",
+            "type": "string"
+          },
+          "retrying_tasks": {
+            "title": "Retrying Tasks",
+            "type": "integer"
+          },
+          "worker_id": {
+            "title": "Worker Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "worker_id",
+          "readiness",
+          "liveness",
+          "active_attempts",
+          "retrying_tasks",
+          "dead_letter_tasks"
+        ],
+        "title": "RuntimeWorkerMetricsRead",
         "type": "object"
       },
       "TaskRead": {
@@ -3745,6 +4108,119 @@
           }
         },
         "summary": "Healthz"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "prometheus_metrics_metrics_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Tenant-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Environment"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prometheus Metrics",
+        "tags": [
+          "runtime-observability"
+        ]
       }
     },
     "/v1/agents": {
@@ -37919,6 +38395,310 @@
         "summary": "Retry Run",
         "tags": [
           "native-runs"
+        ]
+      }
+    },
+    "/v1/runtime/events": {
+      "get": {
+        "operationId": "query_runtime_events_v1_runtime_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visibility_level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visibility Level"
+            }
+          },
+          {
+            "in": "query",
+            "name": "trace_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trace Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Request Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "redact",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Redact",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Tenant-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Environment"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RuntimeEventQueryRead"
+                  },
+                  "title": "Response Query Runtime Events V1 Runtime Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Query Runtime Events",
+        "tags": [
+          "runtime-observability"
+        ]
+      }
+    },
+    "/v1/runtime/metrics/summary": {
+      "get": {
+        "operationId": "get_runtime_metrics_summary_v1_runtime_metrics_summary_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Tenant-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Project-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Environment"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeMetricsSnapshotRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Runtime Metrics Summary",
+        "tags": [
+          "runtime-observability"
         ]
       }
     },
