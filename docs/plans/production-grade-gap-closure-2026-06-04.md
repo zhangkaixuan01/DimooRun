@@ -1798,7 +1798,7 @@ Tasks:
 - [x] Add a 15-minute quickstart that starts Compose, registers a real example agent, creates a deployment, submits a task, inspects Console, watches a run, and tears down cleanly.
 - [x] Add architecture diagrams or Mermaid diagrams for control plane, runtime plane, agent plane, worker loop, governance decision path, compatibility path, and observability path.
 - [x] Add baseline docs quality tests for required files, required sections, internal links, command blocks with declared working directory, broken image references, and forbidden unsupported claims such as "production-ready" before DoD is satisfied.
-- [ ] Commit as `docs(product): add narrative baseline`.
+- [x] Commit as `docs(product): add narrative baseline`.
 
 Acceptance:
 
