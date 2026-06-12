@@ -6,6 +6,7 @@ from typing import Any
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentResult
 from dimoo_run.domain.models import Agent, AgentVersion, Run, Task
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.persistence.database import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -37,6 +38,26 @@ class FakeEntrypointAdapter:
     ) -> AgentResult:
         _ = agent, context
         return AgentResult(output={"message": input_data["message"]})
+
+
+def ready_manifest(package_uri: str) -> dict[str, Any]:
+    manifest = {
+        "runtime": {
+            "framework": "fake",
+            "adapter": "fake",
+            "entrypoint": "agent:create",
+        }
+    }
+    return {
+        **manifest,
+        "validation_token": validation_token(
+            package_uri=package_uri,
+            framework="fake",
+            adapter="fake",
+            entrypoint="agent:create",
+            manifest=manifest,
+        ),
+    }
 
 
 def test_worker_entrypoint_exposes_one_shot_mode() -> None:
@@ -73,8 +94,9 @@ def test_worker_entrypoint_run_once_executes_sqlalchemy_task(tmp_path, monkeypat
         framework="fake",
         adapter="fake",
         entrypoint="agent:create",
-        manifest_json={"runtime": {"entrypoint": "agent:create"}},
+        manifest_json=ready_manifest("memory://support"),
         capabilities_json={},
+        status="ready",
     )
     session.add(version)
     session.flush()

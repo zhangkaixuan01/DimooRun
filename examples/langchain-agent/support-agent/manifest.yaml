@@ -4,7 +4,7 @@ version: "0.1.0"
 runtime:
   framework: langchain-agent
   adapter: langchain-agent
-  entrypoint: agent:build_agent
+  entrypoint: support_agent:build_agent
   python: ">=3.11"
 capabilities:
   invoke: true

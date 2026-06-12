@@ -31,7 +31,7 @@ def ready_manifest(
     package_uri: str,
     framework: str = "langchain-agent",
     adapter: str = "langchain-agent",
-    entrypoint: str = "agent:build_agent",
+    entrypoint: str = "support_agent:build_agent",
 ) -> dict[str, Any]:
     manifest = {
         "name": "support-agent",

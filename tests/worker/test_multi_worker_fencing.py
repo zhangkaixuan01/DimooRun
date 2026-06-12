@@ -10,6 +10,7 @@ from dimoo_run.adapters.base.contract import AgentAdapter, CapabilityNotSupporte
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentEvent, AgentResult
 from dimoo_run.domain.models import Agent, AgentVersion, Event, Run, RunAttempt, Task
+from dimoo_run.packages.validation import validation_token
 from dimoo_run.persistence.database import Base
 from dimoo_run.runtime.sqlalchemy_run_store import SQLAlchemyRunStore
 from dimoo_run.scheduler.sqlalchemy_backend import SQLAlchemyTaskBackend
@@ -71,6 +72,28 @@ class FastDurableAdapter:
         raise CapabilityNotSupportedError("cancel", self.framework)
 
 
+def ready_manifest(package_uri: str) -> dict[str, Any]:
+    manifest = {
+        "name": "support-v1",
+        "runtime": {
+            "framework": "fake",
+            "adapter": "fake",
+            "entrypoint": "agent:create",
+        },
+        "capabilities": {"invoke": True},
+    }
+    return {
+        **manifest,
+        "validation_token": validation_token(
+            package_uri=package_uri,
+            framework="fake",
+            adapter="fake",
+            entrypoint="agent:create",
+            manifest=manifest,
+        ),
+    }
+
+
 def _seed_runtime(session: Session) -> tuple[int, int]:
     agent = Agent(tenant_id=1, project_id=1, name="support", status="active")
     session.add(agent)
@@ -82,7 +105,7 @@ def _seed_runtime(session: Session) -> tuple[int, int]:
         framework="fake",
         adapter="fake",
         entrypoint="agent:create",
-        manifest_json={"name": "support-v1"},
+        manifest_json=ready_manifest("memory://support"),
         capabilities_json={},
         status="ready",
     )
