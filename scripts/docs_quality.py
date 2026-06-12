@@ -6,6 +6,13 @@ from pathlib import Path
 
 REQUIRED_DOCS = [
     "docs/plans/production-grade-gap-closure-2026-06-04.md",
+    "docs/OPERATIONS_RUNBOOK.md",
+    "docs/THREAT_MODEL.md",
+    "docs/TRUST_AND_SECURITY.md",
+    "docs/COMPARISONS.md",
+    "docs/ROADMAP.md",
+    "docs/FAQ.md",
+    "docs/DEMO_SCRIPT.md",
     "docs/product/console-user-task-model.md",
     "docs/product/console-experience-acceptance.md",
     "docs/product/workflow-coverage-matrix.md",
@@ -23,6 +30,18 @@ REQUIRED_DOCS = [
     "docs/readiness/compose-smoke-report.md",
     "docs/readiness/browser-smoke-report.md",
     "docs/architecture/adrs/0001-runtime-control-plane.md",
+    "examples/langgraph/support-agent/README.md",
+    "examples/langchain-agent/support-agent/README.md",
+    "examples/deepagents/support-agent/README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+]
+
+REQUIRED_REPO_FILES = [
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ".github/pull_request_template.md",
 ]
 
 REQUIRED_SECTIONS = {
@@ -43,8 +62,66 @@ REQUIRED_SECTIONS = {
         "## Product",
         "## API And SDK",
         "## Readiness",
+        "## Trust And Operations",
+        "## Examples",
+        "## Community",
         "## Known Gaps",
         "## Directory Map",
+    ],
+    "docs/OPERATIONS_RUNBOOK.md": [
+        "# Operations Runbook",
+        "## Scope",
+        "## Runtime Health Checks",
+        "## Run Failure Triage",
+        "## Backup And Restore",
+    ],
+    "docs/THREAT_MODEL.md": [
+        "# Threat Model",
+        "## Scope",
+        "## Trust Boundaries",
+        "## Threats By Surface",
+        "## Residual Risks",
+    ],
+    "docs/TRUST_AND_SECURITY.md": [
+        "# Trust And Security",
+        "## Security Posture",
+        "## Security Reporting",
+        "## Dependency And Supply Chain Checks",
+        "## Secret Handling Model",
+        "## Production Safety Defaults",
+    ],
+    "docs/COMPARISONS.md": [
+        "# Comparisons",
+        "## Versus A Plain LangGraph App",
+        "## Versus LangGraph Platform-Style Compatibility",
+        "## Versus Generic Workflow Engines",
+        "## Versus Model Gateways",
+    ],
+    "docs/ROADMAP.md": [
+        "# Roadmap",
+        "## Principles",
+        "## Now",
+        "## Next",
+        "## Later",
+        "## Boundaries",
+    ],
+    "docs/FAQ.md": [
+        "# FAQ",
+        "## What Is DimooRun?",
+        "## Is It Ready For External Production Use?",
+        "## How Should I Contribute?",
+    ],
+    "docs/DEMO_SCRIPT.md": [
+        "# Demo Script",
+        "## Prerequisites",
+        "## Agent Publish",
+        "## Deployment Promote",
+        "## Run Inspect",
+        "## Replay",
+        "## Policy Approval",
+        "## Gateway Route Test",
+        "## Incident Triage",
+        "## Cost Drilldown",
     ],
     "docs/start/product-overview.md": [
         "# Product Overview",
@@ -108,6 +185,48 @@ REQUIRED_SECTIONS = {
         "## Decision",
         "## Consequences",
     ],
+    "examples/langgraph/support-agent/README.md": [
+        "# LangGraph Support Agent Example",
+        "## Manifest",
+        "## Expected Commands",
+        "## Expected Console Result",
+        "## Troubleshooting",
+        "## Production Caveats",
+    ],
+    "examples/langchain-agent/support-agent/README.md": [
+        "# LangChain Agent Support Example",
+        "## Manifest",
+        "## Expected Commands",
+        "## Expected Console Result",
+        "## Troubleshooting",
+        "## Production Caveats",
+    ],
+    "examples/deepagents/support-agent/README.md": [
+        "# DeepAgents Support Example",
+        "## Manifest",
+        "## Expected Commands",
+        "## Expected Console Result",
+        "## Troubleshooting",
+        "## Production Caveats",
+    ],
+    "CONTRIBUTING.md": [
+        "# Contributing",
+        "## Development Setup",
+        "## Coding Standards",
+        "## Test Expectations",
+        "## Pull Requests",
+    ],
+    "SECURITY.md": [
+        "# Security Policy",
+        "## Reporting A Vulnerability",
+        "## Supported Scope",
+        "## Response Expectations",
+    ],
+    "CHANGELOG.md": [
+        "# Changelog",
+        "## Unreleased",
+        "## 0.1.0",
+    ],
 }
 
 REQUIRED_MILESTONES = [
@@ -125,6 +244,7 @@ REQUIRED_PHASES = [
     "Phase -1C: Console Aggregate And Permission API Contract",
     "Phase 1: Production Truth Baseline",
     "Phase 12A: Product Narrative Baseline",
+    "Phase 12B: Product Trust Assets, Examples, Demo, And Community",
 ]
 
 ALLOWED_STATUSES = {"complete", "partial", "missing", "blocked"}
@@ -135,6 +255,10 @@ UNSUPPORTED_MATURITY_PHRASES = [
     "production-ready",
     "fully production ready",
     "perfect production-grade",
+]
+STALE_MATURITY_PHRASES = [
+    "belong to the next phase",
+    "next product-doc phase is trust assets",
 ]
 
 
@@ -161,6 +285,11 @@ def validate_docs_quality(root: Path) -> DocsQualityResult:
                 if section not in text:
                     errors.append(f"{relative_path} missing required section: {section}")
 
+    for relative_path in REQUIRED_REPO_FILES:
+        path = root / relative_path
+        if not path.exists():
+            errors.append(f"Missing required repository file: {relative_path}")
+
     scorecard_path = root / "docs/readiness/scorecard.md"
     if scorecard_path.exists():
         scorecard = scorecard_path.read_text(encoding="utf-8")
@@ -178,6 +307,11 @@ def validate_docs_quality(root: Path) -> DocsQualityResult:
     errors.extend(_validate_internal_links(root))
     errors.extend(_validate_image_refs(root))
     errors.extend(_validate_command_blocks(root))
+    errors.extend(_validate_comparison_evidence(root))
+    errors.extend(_validate_security_links(root))
+    errors.extend(_validate_changelog_entries(root))
+    errors.extend(_validate_demo_prerequisites(root))
+    errors.extend(_validate_stale_maturity_wording(root))
 
     return DocsQualityResult(errors=errors)
 
@@ -329,7 +463,19 @@ def _line_is_negated_claim(line: str, phrase: str) -> bool:
 
 
 def _markdown_files(root: Path) -> list[Path]:
-    return sorted((root / "docs").rglob("*.md")) + [root / "README.md"]
+    files = sorted((root / "docs").rglob("*.md"))
+    files.extend(
+        [
+            root / "README.md",
+            root / "CONTRIBUTING.md",
+            root / "SECURITY.md",
+            root / "CHANGELOG.md",
+            root / "examples" / "langgraph" / "support-agent" / "README.md",
+            root / "examples" / "langchain-agent" / "support-agent" / "README.md",
+            root / "examples" / "deepagents" / "support-agent" / "README.md",
+        ]
+    )
+    return [path for path in files if path.exists()]
 
 
 def _is_external_or_special_link(target: str) -> bool:
@@ -344,3 +490,62 @@ def _is_external_or_special_link(target: str) -> bool:
 
 def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
+
+
+def _validate_comparison_evidence(root: Path) -> list[str]:
+    path = root / "docs/COMPARISONS.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    if text.count("### Evidence In Repository") < 4:
+        return ["docs/COMPARISONS.md must provide repository evidence for each comparison."]
+    return []
+
+
+def _validate_security_links(root: Path) -> list[str]:
+    path = root / "docs/TRUST_AND_SECURITY.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    for target in ("../SECURITY.md", "THREAT_MODEL.md", "OPERATIONS_RUNBOOK.md"):
+        if f"({target})" not in text:
+            errors.append(f"docs/TRUST_AND_SECURITY.md missing required link: {target}")
+    return errors
+
+
+def _validate_changelog_entries(root: Path) -> list[str]:
+    path = root / "CHANGELOG.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    if "## Unreleased" not in text:
+        return ["CHANGELOG.md must contain an Unreleased section."]
+    if "Phase 12B" not in text and "trust and security docs" not in text.lower():
+        return ["CHANGELOG.md must mention the Phase 12B trust/examples/community changes."]
+    return []
+
+
+def _validate_demo_prerequisites(root: Path) -> list[str]:
+    path = root / "docs/DEMO_SCRIPT.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    for phrase in ("## Prerequisites", "docker compose up --build", "uv run dimoorun run watch"):
+        if phrase not in text:
+            errors.append(f"docs/DEMO_SCRIPT.md missing demo prerequisite or command: {phrase}")
+    return errors
+
+
+def _validate_stale_maturity_wording(root: Path) -> list[str]:
+    errors: list[str] = []
+    for relative_path in ("docs/README.md", "docs/readiness/current-maturity.md"):
+        path = root / relative_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8").lower()
+        for phrase in STALE_MATURITY_PHRASES:
+            if phrase in text:
+                errors.append(f"{relative_path} contains stale maturity wording: {phrase}")
+    return errors

@@ -62,6 +62,16 @@ Use these for maturity, smoke evidence, and release-claim guardrails:
 - [Browser Smoke Report](readiness/browser-smoke-report.md)
 - [Screenshots](readiness/screenshots.md)
 
+## Trust And Operations
+
+Use these when you want to evaluate security posture, operational expectations,
+and failure handling:
+
+- [Trust And Security](TRUST_AND_SECURITY.md)
+- [Threat Model](THREAT_MODEL.md)
+- [Operations Runbook](OPERATIONS_RUNBOOK.md)
+- [Security Policy](../SECURITY.md)
+
 ## Architecture
 
 Use these for system shape and design decisions:
@@ -71,11 +81,30 @@ Use these for system shape and design decisions:
 - [Design Spec](reference/design-spec.md)
 - [ADR 0001: Runtime Control Plane](architecture/adrs/0001-runtime-control-plane.md)
 
+## Examples
+
+Use these for realistic framework-specific packages and evaluator workflows:
+
+- [LangGraph support-agent](../examples/langgraph/support-agent/README.md)
+- [LangChain Agent support-agent](../examples/langchain-agent/support-agent/README.md)
+- [DeepAgents support-agent](../examples/deepagents/support-agent/README.md)
+- [Demo Script](DEMO_SCRIPT.md)
+
+## Community
+
+Use these when contributing, reporting issues, or tracking product direction:
+
+- [Contributing Guide](../CONTRIBUTING.md)
+- [Roadmap](ROADMAP.md)
+- [FAQ](FAQ.md)
+- [Changelog](../CHANGELOG.md)
+
 ## Known Gaps
 
 - Clean-machine Compose and ephemeral Kubernetes smoke evidence is still incomplete.
 - Screenshot placeholders exist, but generated product screenshots are not yet complete.
-- Trust/security docs, polished examples, and contributor/community assets belong to the next phase.
+- Hosted deployment proof, generated screenshots, and broader trust verification
+  evidence are still incomplete.
 
 ## Plans
 

@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible defect in runtime, Console, docs, or release workflow behavior
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the actual defect and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include exact commands, URLs, IDs, and screenshots if relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Runtime API
+        - Worker and execution
+        - Console UI
+        - Docs and quickstart
+        - SDK or CLI
+        - Release or CI
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Add logs, request IDs, run IDs, deployment IDs, or test output. Redact secrets.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for existing issues first.
+        - label: I removed or redacted secrets and customer data.
+        - label: I included the exact environment or commit when possible.

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "name": "support-agent",
+  "version": "0.1.0",
+  "runtime": {
+    "framework": "deepagents",
+    "adapter": "deepagents",
+    "entrypoint": "support_agent:build_agent",
+    "python": ">=3.11"
+  },
+  "capabilities": {
+    "invoke": true,
+    "stream": true,
+    "interrupt": true,
+    "human_in_loop": true,
+    "tool_events": true,
+    "model_events": true,
+    "token_usage": true,
+    "filesystem": true,
+    "subagents": true
+  }
+}

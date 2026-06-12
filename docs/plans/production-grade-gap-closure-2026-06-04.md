@@ -1833,12 +1833,12 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add realistic examples for LangGraph, LangChain Agent, and DeepAgents, each with manifest, expected commands, expected Console result, troubleshooting, and production caveats.
-- [ ] Add trust assets: threat model, trust/security overview, security reporting policy, dependency/security scanning expectations, data retention model, secret handling model, audit model, and production safety defaults.
-- [ ] Add community and contributor assets: contribution guide, issue templates, PR template, coding standards, test expectations, release process, changelog policy, and roadmap boundaries.
-- [ ] Add product comparison material that explains DimooRun versus plain LangGraph app, LangGraph Platform-style compatibility, generic workflow engines, and model gateways without making unverifiable marketing claims.
-- [ ] Add demo script for maintainers to record or present the product: setup, agent publish, deployment promote, run inspect, replay, policy approval, gateway route test, incident triage, and cost drilldown.
-- [ ] Extend docs quality tests for stale maturity wording, comparison claim evidence, missing security policy links, missing changelog entries, and missing demo prerequisites.
+- [x] Add realistic examples for LangGraph, LangChain Agent, and DeepAgents, each with manifest, expected commands, expected Console result, troubleshooting, and production caveats.
+- [x] Add trust assets: threat model, trust/security overview, security reporting policy, dependency/security scanning expectations, data retention model, secret handling model, audit model, and production safety defaults.
+- [x] Add community and contributor assets: contribution guide, issue templates, PR template, coding standards, test expectations, release process, changelog policy, and roadmap boundaries.
+- [x] Add product comparison material that explains DimooRun versus plain LangGraph app, LangGraph Platform-style compatibility, generic workflow engines, and model gateways without making unverifiable marketing claims.
+- [x] Add demo script for maintainers to record or present the product: setup, agent publish, deployment promote, run inspect, replay, policy approval, gateway route test, incident triage, and cost drilldown.
+- [x] Extend docs quality tests for stale maturity wording, comparison claim evidence, missing security policy links, missing changelog entries, and missing demo prerequisites.
 - [ ] Commit as `docs(product): add trust assets and examples`.
 
 Acceptance:

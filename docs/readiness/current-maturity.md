@@ -8,7 +8,8 @@ CLI, and Console foundations.
 
 It is not yet an externally production-grade platform. Product workflows,
 hardening proof, browser evidence, production defaults, smoke environments,
-trust assets, release engineering, and SDK compatibility still need work.
+hosted trust verification, release engineering, and SDK compatibility still
+need work.
 
 Authoritative status:
 
@@ -45,7 +46,8 @@ Authoritative status:
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete, even though the runtime and Helm smoke scripts plus `integration.yml` contract are now in place.
 - Hosted Prometheus/OTel exporter proof and live monitoring-stack verification are not complete yet, even though the Phase 5 observability API and Console surfaces are now implemented and locally verified.
 - OCI package retrieval and live production package execution proof are not complete yet, even though the runtime now blocks unsafe package paths, validates runtime bindings before worker execution, and injects enforced governance services into the durable worker path.
-- Hosted package publishing proof, release attestation evidence, trust/security docs, examples, and screenshots are incomplete.
+- Hosted package publishing proof, release attestation evidence, generated
+  screenshots, and externally hosted trust verification are incomplete.
 - Cost, budget, scheduled/batch, catalog, and some gateway/runtime hardening
   workflows are not complete yet.
 
@@ -54,8 +56,4 @@ Authoritative status:
 Do not claim DimooRun is production-ready or externally GA-ready until the gap
 closure plan definition of done is satisfied and the scorecard proves it.
 
-## Next Documentation Gap
-
-The next product-doc phase is trust assets, examples, demo, and community
-material in Phase 12B.
 

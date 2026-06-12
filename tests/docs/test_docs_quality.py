@@ -7,6 +7,61 @@ sys.path.insert(0, str(ROOT))
 from scripts.docs_quality import validate_docs_quality  # noqa: E402
 
 PHASE_12A_DOCS = {
+    "docs/OPERATIONS_RUNBOOK.md": [
+        "# Operations Runbook",
+        "## Scope",
+        "## Runtime Health Checks",
+        "## Run Failure Triage",
+        "## Backup And Restore",
+    ],
+    "docs/THREAT_MODEL.md": [
+        "# Threat Model",
+        "## Scope",
+        "## Trust Boundaries",
+        "## Threats By Surface",
+        "## Residual Risks",
+    ],
+    "docs/TRUST_AND_SECURITY.md": [
+        "# Trust And Security",
+        "## Security Posture",
+        "## Security Reporting",
+        "## Dependency And Supply Chain Checks",
+        "## Secret Handling Model",
+        "## Production Safety Defaults",
+    ],
+    "docs/COMPARISONS.md": [
+        "# Comparisons",
+        "## Versus A Plain LangGraph App",
+        "## Versus LangGraph Platform-Style Compatibility",
+        "## Versus Generic Workflow Engines",
+        "## Versus Model Gateways",
+    ],
+    "docs/ROADMAP.md": [
+        "# Roadmap",
+        "## Principles",
+        "## Now",
+        "## Next",
+        "## Later",
+        "## Boundaries",
+    ],
+    "docs/FAQ.md": [
+        "# FAQ",
+        "## What Is DimooRun?",
+        "## Is It Ready For External Production Use?",
+        "## How Should I Contribute?",
+    ],
+    "docs/DEMO_SCRIPT.md": [
+        "# Demo Script",
+        "## Prerequisites",
+        "## Agent Publish",
+        "## Deployment Promote",
+        "## Run Inspect",
+        "## Replay",
+        "## Policy Approval",
+        "## Gateway Route Test",
+        "## Incident Triage",
+        "## Cost Drilldown",
+    ],
     "README.md": [
         "# DimooRun",
         "## Why Teams Use DimooRun",
@@ -24,6 +79,9 @@ PHASE_12A_DOCS = {
         "## Product",
         "## API And SDK",
         "## Readiness",
+        "## Trust And Operations",
+        "## Examples",
+        "## Community",
         "## Known Gaps",
         "## Directory Map",
     ],
@@ -88,6 +146,48 @@ PHASE_12A_DOCS = {
         "# ADR 0001: Runtime Control Plane",
         "## Decision",
         "## Consequences",
+    ],
+    "examples/langgraph/support-agent/README.md": [
+        "# LangGraph Support Agent Example",
+        "## Manifest",
+        "## Expected Commands",
+        "## Expected Console Result",
+        "## Troubleshooting",
+        "## Production Caveats",
+    ],
+    "examples/langchain-agent/support-agent/README.md": [
+        "# LangChain Agent Support Example",
+        "## Manifest",
+        "## Expected Commands",
+        "## Expected Console Result",
+        "## Troubleshooting",
+        "## Production Caveats",
+    ],
+    "examples/deepagents/support-agent/README.md": [
+        "# DeepAgents Support Example",
+        "## Manifest",
+        "## Expected Commands",
+        "## Expected Console Result",
+        "## Troubleshooting",
+        "## Production Caveats",
+    ],
+    "CONTRIBUTING.md": [
+        "# Contributing",
+        "## Development Setup",
+        "## Coding Standards",
+        "## Test Expectations",
+        "## Pull Requests",
+    ],
+    "SECURITY.md": [
+        "# Security Policy",
+        "## Reporting A Vulnerability",
+        "## Supported Scope",
+        "## Response Expectations",
+    ],
+    "CHANGELOG.md": [
+        "# Changelog",
+        "## Unreleased",
+        "## 0.1.0",
     ],
 }
 
@@ -185,6 +285,54 @@ def test_docs_quality_rejects_unsupported_maturity_claims(tmp_path: Path) -> Non
     assert "README.md contains unsupported maturity claim: production-ready" in result.errors
 
 
+def test_docs_quality_requires_comparison_evidence_and_security_links(tmp_path: Path) -> None:
+    root = _write_minimal_docs_tree(tmp_path)
+    (root / "docs/COMPARISONS.md").write_text(
+        "# Comparisons\n\n"
+        "## Versus A Plain LangGraph App\n\n"
+        "## Versus LangGraph Platform-Style Compatibility\n\n"
+        "## Versus Generic Workflow Engines\n\n"
+        "## Versus Model Gateways\n",
+        encoding="utf-8",
+    )
+    (root / "docs/TRUST_AND_SECURITY.md").write_text(
+        "# Trust And Security\n\n"
+        "## Security Posture\n\n"
+        "## Security Reporting\n\n"
+        "## Dependency And Supply Chain Checks\n\n"
+        "## Secret Handling Model\n\n"
+        "## Production Safety Defaults\n",
+        encoding="utf-8",
+    )
+
+    result = validate_docs_quality(root)
+
+    assert (
+        "docs/COMPARISONS.md must provide repository evidence for each comparison."
+        in result.errors
+    )
+    assert "docs/TRUST_AND_SECURITY.md missing required link: ../SECURITY.md" in result.errors
+
+
+def test_docs_quality_requires_demo_prerequisites_and_unreleased_changelog(tmp_path: Path) -> None:
+    root = _write_minimal_docs_tree(tmp_path)
+    (root / "docs/DEMO_SCRIPT.md").write_text(
+        "# Demo Script\n\n"
+        "## Prerequisites\n\n"
+        "## Agent Publish\n",
+        encoding="utf-8",
+    )
+    (root / "CHANGELOG.md").write_text("# Changelog\n\n## 0.1.0\n", encoding="utf-8")
+
+    result = validate_docs_quality(root)
+
+    assert "CHANGELOG.md must contain an Unreleased section." in result.errors
+    assert (
+        "docs/DEMO_SCRIPT.md missing demo prerequisite or command: docker compose up --build"
+        in result.errors
+    )
+
+
 def _write_minimal_docs_tree(root: Path) -> Path:
     docs_dir = root / "docs"
     adr_dir = docs_dir / "architecture" / "adrs"
@@ -210,6 +358,9 @@ def _write_minimal_docs_tree(root: Path) -> Path:
         "docs/readiness/placeholders/approval-queue-desktop.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\n",
         "docs/readiness/placeholders/settings-danger-zone-desktop.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\n",
         "docs/readiness/placeholders/docs-quickstart-mobile.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\n",
+        ".github/ISSUE_TEMPLATE/bug_report.yml": "name: Bug report\n",
+        ".github/ISSUE_TEMPLATE/feature_request.yml": "name: Feature request\n",
+        ".github/pull_request_template.md": "## Summary\n",
     }
     for relative_path, text in {**minimal_docs, **_minimal_phase_12a_docs()}.items():
         path = root / relative_path
@@ -245,5 +396,7 @@ def _minimal_scorecard() -> str:
             "evidence | gap |",
             "| Phase 1: Production Truth Baseline | partial | evidence | gap |",
             "| Phase 12A: Product Narrative Baseline | partial | evidence | gap |",
+            "| Phase 12B: Product Trust Assets, Examples, Demo, And Community | "
+            "partial | evidence | gap |",
         ]
     )

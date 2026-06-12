@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "name": "support-agent",
+  "version": "0.1.0",
+  "runtime": {
+    "framework": "langchain-agent",
+    "adapter": "langchain-agent",
+    "entrypoint": "support_agent:build_agent",
+    "python": ">=3.11"
+  },
+  "capabilities": {
+    "invoke": true,
+    "stream": true,
+    "tool_events": true,
+    "model_events": true,
+    "token_usage": true
+  }
+}

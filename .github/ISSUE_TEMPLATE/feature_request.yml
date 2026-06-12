@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a product or workflow improvement with concrete evaluator or operator value
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow
+      description: Describe the user or operator job this feature improves.
+    validations:
+      required: true
+  - type: textarea
+    id: current_gap
+    attributes:
+      label: Current gap
+      description: Explain what is missing today and why current behavior is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the desired behavior, including boundaries and non-goals.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or references
+      description: Link to docs, tests, traces, or competitive references if you have them.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: This request is framed as a workflow improvement, not only raw route coverage.
+        - label: I checked the roadmap and existing docs first.
