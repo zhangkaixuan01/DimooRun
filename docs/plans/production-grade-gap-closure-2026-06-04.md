@@ -1738,7 +1738,7 @@ Tasks:
 - [x] Add KinD/K3d smoke script.
 - [x] Add Compose smoke to CI.
 - [x] Add backup/restore smoke against Postgres and MinIO.
-- [ ] Commit as `feat(deploy): add production smoke and kubernetes guards`.
+- [x] Commit as `feat(deploy): add production smoke and kubernetes guards`.
 
 Acceptance:
 
