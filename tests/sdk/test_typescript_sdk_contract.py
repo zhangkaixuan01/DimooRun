@@ -8,6 +8,7 @@ def test_typescript_sdk_declares_package_version_and_build_contract() -> None:
     assert package["name"] == "@dimoorun/sdk"
     assert package["version"] == "0.1.0"
     assert package["scripts"]["build"] == "tsc -p tsconfig.json"
+    assert package["devDependencies"]["typescript"].startswith("^5.")
     assert package["exports"]["."]["import"] == "./dist/index.js"
     assert package["exports"]["."]["types"] == "./dist/index.d.ts"
 
