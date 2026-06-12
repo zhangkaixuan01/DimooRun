@@ -58,13 +58,14 @@ test("tests a route and drills into the redacted request log", async ({ page }) 
   await page.getByRole("button", { name: "Test route" }).click();
 
   await expect(page.getByText("Route test: matched")).toBeVisible();
-  await expect(page.getByText("auth: allow")).toBeVisible();
-  await expect(page.getByText("policy: allow")).toBeVisible();
+  await expect(page.getByText("Auth: allow")).toBeVisible();
+  await expect(page.getByText("Policy: allow")).toBeVisible();
   await expect(page.getByText("deployment.invoke")).toBeVisible();
   await page.getByRole("button", { name: "Open request log" }).click();
   await expect(page.locator(".request-log-detail").getByText("trace_1", { exact: true })).toBeVisible();
-  await expect(page.getByText("authorization: [REDACTED]")).toBeVisible();
-  await expect(page.getByText("run_id: 9001")).toBeVisible();
+  await expect(page.getByText("Authorization: [REDACTED]")).toBeVisible();
+  await expect(page.getByText("Run ID: 9001")).toBeVisible();
+  await expect(page.getByText("Task ID: 8001")).toBeVisible();
 });
 
 test("controls rollout with traffic split, revoke confirmation, and rollback", async ({ page }) => {

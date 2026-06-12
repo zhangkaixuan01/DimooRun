@@ -4,11 +4,12 @@ import { installConsoleApiMocks, seedConsoleSession } from "../fixtures/api";
 
 test("previews promotion impact, promotes a candidate, and rolls back", async ({ page }) => {
   await seedConsoleSession(page);
+  await page.addInitScript(() => localStorage.setItem("dimoorun.console.locale", "en-US"));
   await installConsoleApiMocks(page);
 
   await page.goto("/deployments");
 
-  await expect(page.getByRole("heading", { name: "部署" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Deployments", exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Promotion" }).click();
   await page.getByLabel("Candidate version").selectOption("12");
   await page.getByRole("button", { name: "Preview promotion" }).click();
@@ -51,10 +52,12 @@ test("confirms pause and resume controls with audit impact", async ({ page }) =>
 
 test("surfaces policy denial and stale deployment conflicts during promotion", async ({ page }) => {
   await seedConsoleSession(page);
+  await page.addInitScript(() => localStorage.setItem("dimoorun.console.locale", "en-US"));
   await installConsoleApiMocks(page);
 
   await page.goto("/deployments");
 
+  await expect(page.getByRole("heading", { name: "Deployments", exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Promotion" }).click();
   await page.getByLabel("Candidate version").selectOption("12");
   await page.getByRole("button", { name: "Preview promotion" }).click();
