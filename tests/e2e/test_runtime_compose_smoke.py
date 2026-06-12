@@ -94,6 +94,8 @@ def test_runtime_compose_smoke_runs_compose_and_probes_server_and_console() -> N
     assert SERVER_HEALTH_URL in runner.probed
     assert CONSOLE_URL in runner.probed
     assert len(runner.requests) == 2
+    assert runner.requests[0][1]["targets"] == ["runs", "datasets", "audit_logs"]
+    assert runner.requests[1][1]["confirmation"] == "RESTORE PROJECT 1"
 
 
 def test_runtime_compose_smoke_records_failure_and_still_tears_down() -> None:

@@ -178,7 +178,7 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
             {
                 "plan_id": 1,
                 "scope": "project",
-                "targets": ["database", "artifacts"],
+                "targets": ["runs", "datasets", "audit_logs"],
                 "storage_ref": "minio://dimoorun-backups/local",
             },
         ),
@@ -187,9 +187,9 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
             {
                 "backup_ref": "backup://2026-06-12/project",
                 "restore_scope": "project",
-                "targets": ["database", "artifacts"],
+                "targets": ["runs"],
                 "destructive": True,
-                "confirmation": "restore project from backup",
+                "confirmation": "RESTORE PROJECT 1",
             },
         ),
     ]

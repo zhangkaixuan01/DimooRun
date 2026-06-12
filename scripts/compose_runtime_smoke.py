@@ -156,15 +156,15 @@ def _backup_restore_smoke(runner: RuntimeSmokeRunner) -> None:
     backup_payload = {
         "plan_id": 1,
         "scope": "project",
-        "targets": ["database", "artifacts"],
+        "targets": ["runs", "datasets", "audit_logs"],
         "storage_ref": "minio://dimoorun-backups/local",
     }
     restore_payload = {
         "backup_ref": "backup://2026-06-12/project",
         "restore_scope": "project",
-        "targets": ["database", "artifacts"],
+        "targets": ["runs"],
         "destructive": True,
-        "confirmation": "restore project from backup",
+        "confirmation": "RESTORE PROJECT 1",
     }
     backup_response = runner.request_json(
         BACKUP_DRY_RUN_URL,
