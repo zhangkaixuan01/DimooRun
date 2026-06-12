@@ -280,6 +280,8 @@ test("exposes the production deployment task flow from the Console", () => {
     const agentsPage = read("src/pages/agents/AgentsPage.vue");
     const deploymentsPage = read("src/pages/deployments/DeploymentsPage.vue");
     const publishedPage = read("src/pages/published/PublishedSurfacesPage.vue");
+    const drawer = read("src/components/AppDrawer.vue");
+    const table = read("src/components/DataTable.vue");
     const router = read("src/router/index.ts");
     const shell = read("src/layouts/AppShell.vue");
 
@@ -301,12 +303,15 @@ test("exposes the production deployment task flow from the Console", () => {
     assert.match(agentsPage, /openEditVersionDrawer/);
     assert.match(agentsPage, /openArchiveVersionConfirm/);
     assert.match(agentsPage, /runConfirmedArchiveVersion/);
-    assert.match(agentsPage, /v-for="version in versions"/);
+    assert.match(agentsPage, /<DataTable/);
+    assert.match(agentsPage, /:rows="versions"/);
+    assert.match(agentsPage, /<AppDrawer/);
     assert.doesNotMatch(agentsPage, /submitTask/);
     assert.doesNotMatch(agentsPage, /taskInputJson/);
     assert.match(deploymentsPage, /deploymentForm/);
     assert.match(deploymentsPage, /editDeploymentForm/);
-    assert.match(deploymentsPage, /class="deployment-row"/);
+    assert.match(deploymentsPage, /deploymentColumns/);
+    assert.match(deploymentsPage, /@row-select="selectDeploymentRow"/);
     assert.match(deploymentsPage, /selectedDeployment/);
     assert.match(deploymentsPage, /activeDetailTab/);
     assert.match(deploymentsPage, /createOpen/);
@@ -317,7 +322,8 @@ test("exposes the production deployment task flow from the Console", () => {
     assert.match(deploymentsPage, /archiveDeployment/);
     assert.match(deploymentsPage, /DangerConfirmDialog/);
     assert.match(deploymentsPage, /ResourceLink/);
-    assert.match(publishedPage, /class="surface-row"/);
+    assert.match(publishedPage, /surfaceColumns/);
+    assert.match(publishedPage, /routeColumns/);
     assert.match(publishedPage, /defineProps<\{\s*surfaceId\?: string/);
     assert.match(publishedPage, /selectedSurface/);
     assert.match(publishedPage, /Number\(props\.surfaceId\)/);
@@ -328,16 +334,20 @@ test("exposes the production deployment task flow from the Console", () => {
     assert.match(publishedPage, /consoleClient\.testIngressRoute/);
     assert.match(publishedPage, /consoleClient\.getPublishedSurfaceDetail/);
     assert.match(publishedPage, /consoleClient\.rolloutPublishedSurface/);
+    assert.match(drawer, /event.key === "Escape"/);
+    assert.match(drawer, /event.key !== "Tab"/);
+    assert.match(table, /@keydown.enter="selectRow\(row\)"/);
+    assert.match(table, /content: attr\(data-label\)/);
     [
-      "Validate publish",
-      "Publish surface",
-      "Test route",
-      "Open request log",
-      "Apply traffic split",
-      "Revoke surface",
-      "Confirm revoke",
-      "Rollback surface",
-    ].forEach((literal) => assert.match(publishedPage, new RegExp(literal)));
+      "validatePublish",
+      "publishSurfaceAction",
+      "testRoute",
+      "openRequestLog",
+      "applyTrafficSplit",
+      "revokeSurface",
+      "confirmRevoke",
+      "rollbackSurface",
+    ].forEach((literal) => assert.match(publishedPage, new RegExp(`t\\("${literal}"\\)`)));
     assert.match(router, /path: "\/published-surfaces\/:surfaceId"/);
     assert.match(router, /path: "\/published-surfaces\/ingress-routes", redirect: "\/published-surfaces"/);
     assert.doesNotMatch(shell, /to: "\/published-surfaces\/ingress-routes"/);
@@ -566,7 +576,8 @@ test("opens an agent registration form before creating an Agent", () => {
     assert.match(agentsPage, /openArchiveAgentConfirm/);
     assert.match(agentsPage, /runConfirmedArchiveAgent/);
     assert.match(agentsPage, /DangerConfirmDialog/);
-    assert.match(agentsPage, /class="agent-row"/);
+    assert.match(agentsPage, /selectAgentRow/);
+    assert.match(agentsPage, /selectable/);
     assert.match(agentsPage, /class="agent-summary"/);
     assert.match(agentsPage, /class="child-workspace"/);
     assert.match(agentsPage, /activeDetailTab/);
@@ -620,8 +631,10 @@ test("explains AgentVersion fields with inline user guidance", () => {
     assert.match(agentsPage, /field-help-button/);
     assert.match(agentsPage, /aria-label="t\('versionFieldHelp'\)"/);
     assert.match(agentsPage, /placeholder="0\.1\.0"/);
-    assert.match(agentsPage, /placeholder="file:\/\/\/opt\/dimoorun\/agents\/support"/);
-    assert.match(agentsPage, /placeholder="agent:create_agent"/);
+    assert.match(agentsPage, /packageUriPlaceholder/);
+    assert.match(agentsPage, /entrypointPlaceholder/);
+    assert.match(messages, /packageUriPlaceholder:/);
+    assert.match(messages, /entrypointPlaceholder:/);
 });
 
 test("uses supported runtime selects for AgentVersion framework and adapter", () => {
@@ -641,22 +654,15 @@ test("uses supported runtime selects for AgentVersion framework and adapter", ()
 });
 
 test("uses row background instead of an action-cell selected label", () => {
-    const runtimePages = [
-      read("src/pages/agents/AgentsPage.vue"),
-      read("src/pages/deployments/DeploymentsPage.vue"),
-      read("src/pages/published/PublishedSurfacesPage.vue"),
-    ];
+    const table = read("src/components/DataTable.vue");
 
-    runtimePages.forEach((page) => {
-      assert.match(page, /:class="\{ selected:/);
-      assert.match(page, /:data-selected=/);
-      assert.match(page, /\.selected/);
-      assert.match(page, /\.selected td/);
-      assert.match(page, /\[data-selected="true"\] td/);
-      assert.match(page, /background: var\(--color-accent-soft\) !important/);
-      assert.doesNotMatch(page, /selected-pill/);
-      assert.doesNotMatch(page, /t\("selected(?:Agent|Deployment|Surface)"\)/);
-    });
+    assert.match(table, /:class="\{\s*selectable,\s*selected:/);
+    assert.match(table, /:data-selected=/);
+    assert.match(table, /\.selected/);
+    assert.match(table, /\.selected td/);
+    assert.match(table, /\[data-selected="true"\] td/);
+    assert.match(table, /background: var\(--color-accent-soft\) !important/);
+    assert.doesNotMatch(table, /selected-pill/);
 });
 
 test("confirms runtime destructive actions before writing", () => {

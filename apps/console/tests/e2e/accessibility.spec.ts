@@ -95,3 +95,30 @@ test("mobile agent drawer has no critical accessibility violations", async ({ pa
 
   await expectNoCriticalAxeViolations(page);
 });
+
+test("shared drawer closes on Escape and restores keyboard workflow", async ({ page }) => {
+  await seedEnglishLocale(page);
+  await seedConsoleSession(page);
+  await installConsoleApiMocks(page);
+
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "Register Agent" }).click();
+  await expect(page.getByRole("dialog", { name: "Register Agent" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Register Agent" })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Register Agent" })).toBeFocused();
+});
+
+test("shared data table supports keyboard row selection", async ({ page }) => {
+  await seedEnglishLocale(page);
+  await seedConsoleSession(page);
+  await installConsoleApiMocks(page);
+
+  await page.goto("/deployments");
+  const firstRow = page.locator("tbody tr").first();
+  await firstRow.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("heading", { name: /Deployment #/ })).toBeVisible();
+});

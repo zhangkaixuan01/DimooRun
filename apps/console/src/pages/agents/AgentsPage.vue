@@ -13,53 +13,48 @@
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && agents.length === 0" />
 
-    <div v-if="mode !== 'offline' && !loading && !error && agents.length > 0" class="table-wrap agents-table">
-      <table>
-        <thead>
-          <tr>
-            <th>{{ t("agent") }}</th>
-            <th>{{ t("description") }}</th>
-            <th>{{ t("status") }}</th>
-            <th>{{ t("versionCount") }}</th>
-            <th>{{ t("deploymentCount") }}</th>
-            <th>{{ t("createdAt") }}</th>
-            <th>{{ t("actions") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="agent in agents"
-            :key="agent.id"
-            class="agent-row"
-            :class="{ selected: selectedAgent?.id === agent.id }"
-            :data-selected="selectedAgent?.id === agent.id ? 'true' : 'false'"
-            tabindex="0"
-            :aria-selected="selectedAgent?.id === agent.id"
-            @click="selectAgent(agent)"
-            @keydown.enter="selectAgent(agent)"
-            @keydown.space.prevent="selectAgent(agent)"
-          >
-            <td><strong>{{ agent.name }}</strong><br /><span class="mono muted">{{ agent.id }}</span></td>
-            <td>{{ agent.description || "-" }}</td>
-            <td><StatusBadge :status="agent.status" :label="agent.status" /></td>
-            <td>{{ agent.versionCount }}</td>
-            <td>{{ agent.deploymentCount }}</td>
-            <td>{{ formatDateTime(agent.createdAt) }}</td>
-            <td class="actions-cell">
-              <button class="button" type="button" :disabled="pendingAgent === agent.id" @click.stop="openEditAgentDrawer(agent)">
-                {{ t("edit") }}
-              </button>
-              <button class="button" type="button" :disabled="pendingAgent === agent.id" @click.stop="toggleAgentStatus(agent)">
-                {{ agent.status === "disabled" ? t("enable") : t("disable") }}
-              </button>
-              <button class="button danger" type="button" :disabled="pendingAgent === agent.id" @click.stop="openArchiveAgentConfirm(agent)">
-                {{ t("delete") }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <section v-if="mode !== 'offline' && loading" class="dense-loading">
+      <SkeletonBlock variant="table" :lines="7" />
+      <SkeletonBlock :lines="6" />
+    </section>
+
+    <DataTable
+      v-if="mode !== 'offline' && !loading && !error && agents.length > 0"
+      class="agents-table"
+      :columns="agentColumns"
+      :rows="agents"
+      row-key="id"
+      :selected-key="selectedAgent?.id ?? null"
+      :label="t('agents')"
+      selectable
+      @row-select="selectAgentRow"
+    >
+      <template #cell-agent="{ row }">
+        <strong>{{ row.name }}</strong><br /><span class="mono muted">{{ row.id }}</span>
+      </template>
+      <template #cell-description="{ row }">
+        {{ row.description || "-" }}
+      </template>
+      <template #cell-status="{ row }">
+        <StatusBadge :status="row.status" :label="row.status" />
+      </template>
+      <template #cell-createdAt="{ row }">
+        {{ formatDateTime(row.createdAt) }}
+      </template>
+      <template #cell-actions="{ row }">
+        <div class="actions-cell">
+          <button class="button" type="button" :disabled="pendingAgent === row.id" @click.stop="openEditAgentDrawer(row)">
+            {{ t("edit") }}
+          </button>
+          <button class="button" type="button" :disabled="pendingAgent === row.id" @click.stop="toggleAgentStatus(row)">
+            {{ row.status === "disabled" ? t("enable") : t("disable") }}
+          </button>
+          <button class="button danger" type="button" :disabled="pendingAgent === row.id" @click.stop="openArchiveAgentConfirm(row)">
+            {{ t("delete") }}
+          </button>
+        </div>
+      </template>
+    </DataTable>
 
     <section v-if="mode !== 'offline' && !loading && !error && selectedAgent" class="panel agent-detail-panel">
       <div class="panel-header">
@@ -161,10 +156,10 @@
                 </label>
                 <label>
                   <span class="label-row">
-                    <span>package_uri</span>
+                    <span>{{ t("packageUri") }}</span>
                     <button class="field-help-button" type="button" :title="t('packageUriFieldHelp')" :aria-label="t('packageUriFieldHelp')">?</button>
                   </span>
-                  <input v-model="versionForm.package_uri" class="input" placeholder="file:///opt/dimoorun/agents/support" required />
+                  <input v-model="versionForm.package_uri" class="input" :placeholder="t('packageUriPlaceholder')" required />
                 </label>
                 <label>
                   <span class="label-row">
@@ -190,10 +185,10 @@
                 </label>
                 <label class="wide">
                   <span class="label-row">
-                    <span>entrypoint</span>
+                    <span>{{ t("entrypoint") }}</span>
                     <button class="field-help-button" type="button" :title="t('entrypointFieldHelp')" :aria-label="t('entrypointFieldHelp')">?</button>
                   </span>
-                  <input v-model="versionForm.entrypoint" class="input" placeholder="agent:create_agent" required />
+                  <input v-model="versionForm.entrypoint" class="input" :placeholder="t('entrypointPlaceholder')" required />
                 </label>
               </div>
               <div class="nested-form-actions">
@@ -207,40 +202,39 @@
             </form>
 
             <div class="version-list">
-              <table v-if="versions.length > 0">
-                <thead>
-                  <tr>
-                    <th>{{ t("version") }}</th>
-                    <th>package_uri</th>
-                    <th>{{ t("framework") }}</th>
-                    <th>{{ t("adapter") }}</th>
-                    <th>entrypoint</th>
-                    <th>{{ t("status") }}</th>
-                    <th>{{ t("actions") }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="version in versions" :key="version.id">
-                    <td><strong>{{ version.version }}</strong><br /><span class="mono muted">{{ version.id }}</span></td>
-                    <td class="mono">{{ version.packageUri }}</td>
-                    <td>{{ version.framework }}</td>
-                    <td>{{ version.adapter }}</td>
-                    <td class="mono">{{ version.entrypoint }}</td>
-                    <td><StatusBadge :status="version.status" :label="version.status" /></td>
-                    <td class="actions-cell">
-                      <button class="button" type="button" :disabled="pendingVersion === version.id" @click="openEditVersionDrawer(version)">
-                        {{ t("edit") }}
-                      </button>
-                      <button class="button" type="button" :disabled="pendingVersion === version.id" @click="toggleVersionStatus(version)">
-                        {{ version.status === "disabled" ? t("enable") : t("disable") }}
-                      </button>
-                      <button class="button danger" type="button" :disabled="pendingVersion === version.id" @click="openArchiveVersionConfirm(version)">
-                        {{ t("delete") }}
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <DataTable
+                v-if="versions.length > 0"
+                :columns="versionColumns"
+                :rows="versions"
+                row-key="id"
+                :label="t('versionInventory')"
+              >
+                <template #cell-version="{ row }">
+                  <strong>{{ row.version }}</strong><br /><span class="mono muted">{{ row.id }}</span>
+                </template>
+                <template #cell-packageUri="{ row }">
+                  <span class="mono">{{ row.packageUri }}</span>
+                </template>
+                <template #cell-entrypoint="{ row }">
+                  <span class="mono">{{ row.entrypoint }}</span>
+                </template>
+                <template #cell-status="{ row }">
+                  <StatusBadge :status="row.status" :label="row.status" />
+                </template>
+                <template #cell-actions="{ row }">
+                  <div class="actions-cell">
+                    <button class="button" type="button" :disabled="pendingVersion === row.id" @click="openEditVersionDrawer(row)">
+                      {{ t("edit") }}
+                    </button>
+                    <button class="button" type="button" :disabled="pendingVersion === row.id" @click="toggleVersionStatus(row)">
+                      {{ row.status === "disabled" ? t("enable") : t("disable") }}
+                    </button>
+                    <button class="button danger" type="button" :disabled="pendingVersion === row.id" @click="openArchiveVersionConfirm(row)">
+                      {{ t("delete") }}
+                    </button>
+                  </div>
+                </template>
+              </DataTable>
               <p v-else class="empty-child">{{ t("noVersionsYet") }}</p>
             </div>
           </section>
@@ -255,74 +249,64 @@
       </div>
     </section>
 
-    <Teleport to="body">
-      <div v-if="showCreateAgent" class="drawer-layer" @click.self="closeCreateAgentDrawer">
-        <aside class="drawer" :aria-label="t('registerAgent')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ t("agentVersionDeployment") }}</p>
-              <h2>{{ t("registerAgent") }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="createAgent">
-            <label>
-              <span>{{ t("name") }}</span>
-              <input v-model="agentForm.name" class="input" required autofocus />
-            </label>
-            <label>
-              <span>{{ t("description") }}</span>
-              <textarea v-model="agentForm.description" class="textarea" rows="5"></textarea>
-            </label>
-            <div class="drawer-actions">
-              <button class="button" type="button" @click="closeCreateAgentDrawer">{{ t("cancel") }}</button>
-              <button class="button primary" type="submit" :disabled="creating || !agentForm.name.trim()">
-                {{ creating ? t("creating") : t("registerAgent") }}
-              </button>
-            </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+    <AppDrawer
+      :open="showCreateAgent"
+      :label="t('registerAgent')"
+      :title="t('registerAgent')"
+      :kicker="t('agentVersionDeployment')"
+      @close="closeCreateAgentDrawer"
+    >
+      <form class="drawer-form" @submit.prevent="createAgent">
+        <label>
+          <span>{{ t("name") }}</span>
+          <input v-model="agentForm.name" class="input" required autofocus />
+        </label>
+        <label>
+          <span>{{ t("description") }}</span>
+          <textarea v-model="agentForm.description" class="textarea" rows="5"></textarea>
+        </label>
+        <div class="drawer-actions">
+          <button class="button" type="button" @click="closeCreateAgentDrawer">{{ t("cancel") }}</button>
+          <button class="button primary" type="submit" :disabled="creating || !agentForm.name.trim()">
+            {{ creating ? t("creating") : t("registerAgent") }}
+          </button>
+        </div>
+      </form>
+    </AppDrawer>
 
-    <Teleport to="body">
-      <div v-if="showEditAgent && editAgentTarget" class="drawer-layer" @click.self="closeEditAgentDrawer">
-        <aside class="drawer" :aria-label="t('editAgent')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ t("logicalAgent") }} #{{ editAgentTarget.id }}</p>
-              <h2>{{ t("editAgent") }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="updateAgent">
-            <label>
-              <span>{{ t("name") }}</span>
-              <input v-model="editAgentForm.name" class="input" required autofocus />
-            </label>
-            <label>
-              <span>{{ t("description") }}</span>
-              <textarea v-model="editAgentForm.description" class="textarea" rows="6"></textarea>
-            </label>
-            <div class="drawer-actions">
-              <button class="button" type="button" @click="closeEditAgentDrawer">{{ t("cancel") }}</button>
-              <button class="button primary" type="submit" :disabled="updatingAgent || !editAgentForm.name.trim()">
-                {{ updatingAgent ? t("saving") : t("save") }}
-              </button>
-            </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+    <AppDrawer
+      :open="showEditAgent && Boolean(editAgentTarget)"
+      :label="t('editAgent')"
+      :title="t('editAgent')"
+      :kicker="editAgentTarget ? `${t('logicalAgent')} #${editAgentTarget.id}` : t('logicalAgent')"
+      @close="closeEditAgentDrawer"
+    >
+      <form class="drawer-form" @submit.prevent="updateAgent">
+        <label>
+          <span>{{ t("name") }}</span>
+          <input v-model="editAgentForm.name" class="input" required autofocus />
+        </label>
+        <label>
+          <span>{{ t("description") }}</span>
+          <textarea v-model="editAgentForm.description" class="textarea" rows="6"></textarea>
+        </label>
+        <div class="drawer-actions">
+          <button class="button" type="button" @click="closeEditAgentDrawer">{{ t("cancel") }}</button>
+          <button class="button primary" type="submit" :disabled="updatingAgent || !editAgentForm.name.trim()">
+            {{ updatingAgent ? t("saving") : t("save") }}
+          </button>
+        </div>
+      </form>
+    </AppDrawer>
 
-    <Teleport to="body">
-      <div v-if="showEditVersion && editVersionTarget" class="drawer-layer" @click.self="closeEditVersionDrawer">
-        <aside class="drawer" :aria-label="t('editAgentVersion')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ t("versionImplementation") }} #{{ editVersionTarget.id }}</p>
-              <h2>{{ t("editAgentVersion") }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="updateVersion">
+    <AppDrawer
+      :open="showEditVersion && Boolean(editVersionTarget)"
+      :label="t('editAgentVersion')"
+      :title="t('editAgentVersion')"
+      :kicker="editVersionTarget ? `${t('versionImplementation')} #${editVersionTarget.id}` : t('versionImplementation')"
+      @close="closeEditVersionDrawer"
+    >
+      <form class="drawer-form" @submit.prevent="updateVersion">
             <p class="form-help">{{ t("agentVersionFormHelp") }}</p>
             <div class="form-grid">
               <label>
@@ -338,10 +322,10 @@
               </label>
               <label class="wide">
                 <span class="label-row">
-                  <span>package_uri</span>
+                  <span>{{ t("packageUri") }}</span>
                   <button class="field-help-button" type="button" :title="t('packageUriFieldHelp')" :aria-label="t('packageUriFieldHelp')">?</button>
                 </span>
-                <input v-model="editVersionForm.package_uri" class="input" placeholder="file:///opt/dimoorun/agents/support" required />
+                <input v-model="editVersionForm.package_uri" class="input" :placeholder="t('packageUriPlaceholder')" required />
               </label>
               <label>
                 <span class="label-row">
@@ -367,10 +351,10 @@
               </label>
               <label class="wide">
                 <span class="label-row">
-                  <span>entrypoint</span>
+                  <span>{{ t("entrypoint") }}</span>
                   <button class="field-help-button" type="button" :title="t('entrypointFieldHelp')" :aria-label="t('entrypointFieldHelp')">?</button>
                 </span>
-                <input v-model="editVersionForm.entrypoint" class="input" placeholder="agent:create_agent" required />
+                <input v-model="editVersionForm.entrypoint" class="input" :placeholder="t('entrypointPlaceholder')" required />
               </label>
               <label class="wide">
                 <span>{{ t("capabilitiesJson") }}</span>
@@ -387,10 +371,8 @@
                 {{ updatingVersion ? t("saving") : t("save") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
     <DangerConfirmDialog
       :open="Boolean(archiveAgentTarget)"
@@ -428,7 +410,10 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
 import type { Agent, AgentVersion } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
+import AppDrawer from "../../components/AppDrawer.vue";
+import DataTable from "../../components/DataTable.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
+import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { formatDateTime } from "../../utils/dateTime";
@@ -516,6 +501,24 @@ const archiveVersionConfirmItems = computed(() => archiveVersionTarget.value ? [
   { label: t("id"), value: String(archiveVersionTarget.value.id) },
   { label: t("status"), value: archiveVersionTarget.value.status },
 ] : []);
+const agentColumns = computed(() => [
+  { key: "agent", label: t("agent") },
+  { key: "description", label: t("description") },
+  { key: "status", label: t("status") },
+  { key: "versionCount", label: t("versionCount"), align: "center" as const },
+  { key: "deploymentCount", label: t("deploymentCount"), align: "center" as const },
+  { key: "createdAt", label: t("createdAt") },
+  { key: "actions", label: t("actions") },
+]);
+const versionColumns = computed(() => [
+  { key: "version", label: t("version") },
+  { key: "packageUri", label: t("packageUri") },
+  { key: "framework", label: t("framework") },
+  { key: "adapter", label: t("adapter") },
+  { key: "entrypoint", label: t("entrypoint") },
+  { key: "status", label: t("status") },
+  { key: "actions", label: t("actions") },
+]);
 
 async function loadAgents() {
   if (mode === "offline") return;
@@ -531,6 +534,10 @@ async function loadAgents() {
   } finally {
     loading.value = false;
   }
+}
+
+function selectAgentRow(row: Record<string, unknown>) {
+  void selectAgent(row as Agent);
 }
 
 function openCreateAgentDrawer() {
@@ -902,34 +909,9 @@ onMounted(loadAgents);
   gap: 8px;
 }
 
-.agents-table tbody tr.agent-row {
-  cursor: pointer;
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.agents-table tbody tr.agent-row td {
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.agents-table tbody tr.agent-row:hover,
-.agents-table tbody tr.agent-row:focus-visible {
-  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
-  outline: none;
-}
-
-.agents-table tbody tr.agent-row.selected,
-.agents-table tbody tr.agent-row[data-selected="true"] {
-  background: var(--color-accent-soft);
-}
-
-.agents-table tbody tr.agent-row.selected td,
-.agents-table tbody tr.agent-row[data-selected="true"] td {
-  background: var(--color-accent-soft) !important;
-}
-
-.agents-table tbody tr.agent-row.selected td:first-child,
-.agents-table tbody tr.agent-row[data-selected="true"] td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-primary) !important;
+.dense-loading {
+  display: grid;
+  gap: 16px;
 }
 
 .agent-detail-panel {
@@ -1168,44 +1150,10 @@ label span {
   padding: 16px;
 }
 
-.drawer-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-  background: oklch(18% 0.017 248 / 36%);
-}
-
-.drawer {
-  display: grid;
-  width: min(440px, 100%);
-  grid-template-rows: auto 1fr;
-  border-left: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-popover);
-}
-
-.drawer-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--color-border);
-  padding: 18px;
-}
-
-.drawer-header h2 {
-  margin: 0;
-  font-size: 19px;
-  line-height: 1.2;
-}
-
 .drawer-form {
   display: grid;
   align-content: start;
   gap: 14px;
-  overflow: auto;
   padding: 18px;
 }
 
@@ -1229,10 +1177,6 @@ label span {
     border-bottom: 1px solid var(--color-border);
     padding-right: 0;
     padding-bottom: 14px;
-  }
-
-  .drawer {
-    width: 100%;
   }
 }
 </style>

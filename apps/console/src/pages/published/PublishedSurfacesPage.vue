@@ -13,59 +13,58 @@
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && surfaces.length === 0" />
 
-    <div v-if="mode !== 'offline' && !loading && !error && surfaces.length > 0" class="table-wrap surfaces-table">
-      <table>
-        <thead>
-          <tr>
-            <th>{{ t("surface") }}</th>
-            <th>deployment_id</th>
-            <th>{{ t("type") }}</th>
-            <th>{{ t("status") }}</th>
-            <th>{{ t("routeCount") }}</th>
-            <th>{{ t("createdAt") }}</th>
-            <th>{{ t("actions") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="surface in surfaces"
-            :key="surface.id"
-            class="surface-row"
-            :class="{ selected: selectedSurface?.id === surface.id }"
-            :data-selected="selectedSurface?.id === surface.id ? 'true' : 'false'"
-            tabindex="0"
-            :aria-selected="selectedSurface?.id === surface.id"
-            @click="selectSurface(surface)"
-            @keydown.enter="selectSurface(surface)"
-            @keydown.space.prevent="selectSurface(surface)"
-          >
-            <td>
-              <strong>{{ resourceName(surface) }}</strong><br />
-              <span class="mono muted">{{ surface.id }}</span>
-            </td>
-            <td class="mono">{{ surface.deployment_id }}</td>
-            <td>{{ surface.type || "http" }}</td>
-            <td><StatusBadge :status="String(surface.status || 'active')" :label="String(surface.status || 'active')" /></td>
-            <td>{{ routesForSurface(surface.id).length }}</td>
-            <td>{{ formatDateTime(surface.created_at) }}</td>
-            <td class="actions-cell">
-              <button class="button" type="button" :disabled="!canWrite || mutatingId === surface.id" @click.stop="openEdit('surface', surface)">{{ t("edit") }}</button>
-              <button class="button" type="button" :disabled="!canWrite || mutatingId === surface.id" @click.stop="toggleStatus('surface', surface)">
-                {{ surface.status === "disabled" ? t("enable") : t("disable") }}
-              </button>
-              <button class="button danger" type="button" :disabled="!canWrite || mutatingId === surface.id" @click.stop="openDelete('surface', surface)">{{ t("delete") }}</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <section v-if="mode !== 'offline' && loading" class="dense-loading">
+      <SkeletonBlock variant="table" :lines="7" />
+      <SkeletonBlock :lines="7" />
+    </section>
+
+    <DataTable
+      v-if="mode !== 'offline' && !loading && !error && surfaces.length > 0"
+      class="surfaces-table"
+      :columns="surfaceColumns"
+      :rows="surfaces"
+      row-key="id"
+      :selected-key="selectedSurface?.id ?? null"
+      :label="t('publishedSurfaces')"
+      selectable
+      @row-select="selectSurfaceRow"
+    >
+      <template #cell-surface="{ row }">
+        <strong>{{ resourceName(row) }}</strong><br />
+        <span class="mono muted">{{ row.id }}</span>
+      </template>
+      <template #cell-deploymentId="{ row }">
+        <span class="mono">{{ row.deployment_id }}</span>
+      </template>
+      <template #cell-type="{ row }">
+        {{ row.type || "http" }}
+      </template>
+      <template #cell-status="{ row }">
+        <StatusBadge :status="String(row.status || 'active')" :label="String(row.status || 'active')" />
+      </template>
+      <template #cell-routeCount="{ row }">
+        {{ routesForSurface(row.id).length }}
+      </template>
+      <template #cell-createdAt="{ row }">
+        {{ formatDateTime(row.created_at) }}
+      </template>
+      <template #cell-actions="{ row }">
+        <div class="actions-cell">
+          <button class="button" type="button" :disabled="!canWrite || mutatingId === row.id" @click.stop="openEdit('surface', row)">{{ t("edit") }}</button>
+          <button class="button" type="button" :disabled="!canWrite || mutatingId === row.id" @click.stop="toggleStatus('surface', row)">
+            {{ row.status === "disabled" ? t("enable") : t("disable") }}
+          </button>
+          <button class="button danger" type="button" :disabled="!canWrite || mutatingId === row.id" @click.stop="openDelete('surface', row)">{{ t("delete") }}</button>
+        </div>
+      </template>
+    </DataTable>
 
     <section v-if="mode !== 'offline' && !loading && !error && selectedSurface" class="panel publish-detail-panel">
       <div class="panel-header">
         <div>
           <p class="section-kicker">{{ t("surface") }}</p>
           <h2 class="panel-title">{{ resourceName(selectedSurface) }}</h2>
-          <p class="muted">Deployment #{{ selectedSurface.deployment_id }} / {{ selectedSurface.type || "http" }}</p>
+          <p class="muted">{{ t("deployment") }} #{{ selectedSurface.deployment_id }} / {{ selectedSurface.type || "http" }}</p>
         </div>
         <div class="detail-actions">
           <button class="button primary" type="button" :disabled="!canWrite || selectedSurface.status === 'disabled'" @click="showRouteForm = true">
@@ -89,7 +88,7 @@
               <dd><StatusBadge :status="String(selectedSurface.status || 'active')" :label="String(selectedSurface.status || 'active')" /></dd>
             </div>
             <div>
-              <dt>deployment_id</dt>
+              <dt>{{ t("deploymentId") }}</dt>
               <dd class="mono">{{ selectedSurface.deployment_id }}</dd>
             </div>
             <div>
@@ -125,7 +124,7 @@
                 <input v-model="routeForm.auth_mode" class="input" required />
               </label>
               <label>
-                <span>custom_domain</span>
+                <span>{{ t("customDomain") }}</span>
                 <input v-model="routeForm.custom_domain" class="input" />
               </label>
             </div>
@@ -137,34 +136,33 @@
             </div>
           </form>
 
-          <div class="table-wrap embedded" v-if="selectedRoutes.length > 0">
-            <table>
-              <thead>
-                <tr>
-                  <th>{{ t("path") }}</th>
-                  <th>{{ t("auth") }}</th>
-                  <th>custom_domain</th>
-                  <th>{{ t("status") }}</th>
-                  <th>{{ t("actions") }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="route in selectedRoutes" :key="route.id">
-                  <td class="mono">{{ route.path }}</td>
-                  <td>{{ route.auth_mode }}</td>
-                  <td>{{ route.custom_domain || "-" }}</td>
-                  <td><StatusBadge :status="String(route.status || 'active')" :label="String(route.status || 'active')" /></td>
-                  <td class="actions-cell">
-                    <button class="button" type="button" :disabled="!canWrite || mutatingId === route.id" @click="openEdit('route', route)">{{ t("edit") }}</button>
-                    <button class="button" type="button" :disabled="!canWrite || mutatingId === route.id" @click="toggleStatus('route', route)">
-                      {{ route.status === "disabled" ? t("enable") : t("disable") }}
-                    </button>
-                    <button class="button danger" type="button" :disabled="!canWrite || mutatingId === route.id" @click="openDelete('route', route)">{{ t("delete") }}</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            v-if="selectedRoutes.length > 0"
+            class="embedded"
+            :columns="routeColumns"
+            :rows="selectedRoutes"
+            row-key="id"
+            :label="t('routeInventory')"
+          >
+            <template #cell-path="{ row }">
+              <span class="mono">{{ row.path }}</span>
+            </template>
+            <template #cell-customDomain="{ row }">
+              {{ row.custom_domain || "-" }}
+            </template>
+            <template #cell-status="{ row }">
+              <StatusBadge :status="String(row.status || 'active')" :label="String(row.status || 'active')" />
+            </template>
+            <template #cell-actions="{ row }">
+              <div class="actions-cell">
+                <button class="button" type="button" :disabled="!canWrite || mutatingId === row.id" @click="openEdit('route', row)">{{ t("edit") }}</button>
+                <button class="button" type="button" :disabled="!canWrite || mutatingId === row.id" @click="toggleStatus('route', row)">
+                  {{ row.status === "disabled" ? t("enable") : t("disable") }}
+                </button>
+                <button class="button danger" type="button" :disabled="!canWrite || mutatingId === row.id" @click="openDelete('route', row)">{{ t("delete") }}</button>
+              </div>
+            </template>
+          </DataTable>
           <p v-else class="empty-child">{{ t("noIngressRoutesYet") }}</p>
         </div>
       </div>
@@ -173,9 +171,9 @@
     <section v-if="mode !== 'offline' && !loading && !error && selectedSurface" class="panel governed-surface-panel">
       <div class="panel-header">
         <div>
-          <p class="section-kicker">Agent Gateway</p>
-          <h2 class="panel-title">Governed Published Surface</h2>
-          <p class="muted">Surface #{{ selectedSurface.id }} / deployment #{{ selectedSurface.deployment_id }}</p>
+          <p class="section-kicker">{{ t("agentGateway") }}</p>
+          <h2 class="panel-title">{{ t("governedPublishedSurface") }}</h2>
+          <p class="muted">{{ t("surface") }} #{{ selectedSurface.id }} / {{ t("deployment") }} #{{ selectedSurface.deployment_id }}</p>
         </div>
         <StatusBadge
           :status="String(surfaceDetail?.deploymentBindingHealth.status || selectedSurface.status || 'active')"
@@ -185,19 +183,19 @@
 
       <div class="exposure-health-strip">
         <div>
-          <span class="label">Exposure health</span>
-          <strong>Exposure health: {{ exposureHealthStatus }}</strong>
+          <span class="label">{{ t("exposureHealth") }}</span>
+          <strong>{{ t("exposureHealth") }}: {{ exposureHealthStatus }}</strong>
         </div>
         <div>
-          <span class="label">Route</span>
+          <span class="label">{{ t("route") }}</span>
           <strong class="mono">{{ exposureHealthRoute }}</strong>
         </div>
         <div>
-          <span class="label">Last live request</span>
+          <span class="label">{{ t("lastLiveRequest") }}</span>
           <strong>{{ exposureHealthLastRequest }}</strong>
         </div>
         <div v-if="exposureHealthBlockedReasons.length > 0">
-          <span class="label">Blocked reasons</span>
+          <span class="label">{{ t("blockedReasons") }}</span>
           <strong>{{ exposureHealthBlockedReasons.join(", ") }}</strong>
         </div>
       </div>
@@ -206,47 +204,47 @@
         <form class="workflow-panel" @submit.prevent="validatePublish">
           <header class="workflow-panel-header">
             <div>
-              <h3>Publish control</h3>
-              <p class="muted">Validate route, auth, CORS, quota, and policy before exposure.</p>
+              <h3>{{ t("publishControl") }}</h3>
+              <p class="muted">{{ t("publishControlCopy") }}</p>
             </div>
           </header>
           <div class="form-grid">
             <label>
-              <span>Route path</span>
+              <span>{{ t("routePath") }}</span>
               <input v-model="publishForm.routePath" class="input" />
             </label>
             <label>
-              <span>Deployment</span>
+              <span>{{ t("deployment") }}</span>
               <input v-model="publishForm.deploymentId" class="input" inputmode="numeric" />
             </label>
             <label>
-              <span>Auth mode</span>
+              <span>{{ t("authMode") }}</span>
               <input v-model="publishForm.authMode" class="input" />
             </label>
             <label>
-              <span>Allowed origins</span>
+              <span>{{ t("allowedOrigins") }}</span>
               <input v-model="publishForm.allowedOrigins" class="input" />
             </label>
             <label>
-              <span>Requests per minute</span>
+              <span>{{ t("requestsPerMinute") }}</span>
               <input v-model="publishForm.requestsPerMinute" class="input" inputmode="numeric" />
             </label>
           </div>
           <div class="workflow-actions">
-            <button class="button" type="submit" :disabled="workflowBusy">{{ workflowBusy ? "Validating" : "Validate publish" }}</button>
+            <button class="button" type="submit" :disabled="workflowBusy">{{ workflowBusy ? t("validating") : t("validatePublish") }}</button>
             <button class="button primary" type="button" :disabled="workflowBusy || !publishValidation?.canPublish" @click="publishSurface">
-              Publish surface
+              {{ t("publishSurfaceAction") }}
             </button>
           </div>
           <div v-if="publishValidation" class="workflow-result">
-            <strong>Publish validation: {{ publishValidation.status }}</strong>
+            <strong>{{ t("publishValidation") }}: {{ publishValidation.status }}</strong>
             <span v-for="(check, name) in publishValidation.checks" :key="name" class="result-line">
-              {{ name }}: {{ check.status || "unknown" }}
+              {{ name }}: {{ check.status || t("unknown") }}
             </span>
             <span v-for="reason in publishValidation.blockedReasons" :key="reason" class="result-line danger-text">{{ reason }}</span>
           </div>
           <div v-if="publishResult" class="workflow-result success-text">
-            <strong>Surface published</strong>
+            <strong>{{ t("surfacePublished") }}</strong>
             <span>{{ publishResult.audit.action }}</span>
           </div>
         </form>
@@ -254,65 +252,65 @@
         <form class="workflow-panel" @submit.prevent="testRoute">
           <header class="workflow-panel-header">
             <div>
-              <h3>Route tester</h3>
-              <p class="muted">Submit a synthetic request before real traffic reaches the route.</p>
+              <h3>{{ t("routeTester") }}</h3>
+              <p class="muted">{{ t("routeTesterCopy") }}</p>
             </div>
           </header>
           <div class="form-grid compact-form">
             <label>
-              <span>Synthetic path</span>
+              <span>{{ t("syntheticPath") }}</span>
               <input v-model="routeTestForm.path" class="input" />
             </label>
             <label>
-              <span>Synthetic method</span>
+              <span>{{ t("syntheticMethod") }}</span>
               <input v-model="routeTestForm.method" class="input" />
             </label>
           </div>
           <div class="workflow-actions">
-            <button class="button primary" type="submit" :disabled="workflowBusy">Test route</button>
-            <button class="button" type="button" :disabled="!routeTestResult?.requestLog" @click="openRequestLog">Open request log</button>
+            <button class="button primary" type="submit" :disabled="workflowBusy">{{ t("testRoute") }}</button>
+            <button class="button" type="button" :disabled="!routeTestResult?.requestLog" @click="openRequestLog">{{ t("openRequestLog") }}</button>
           </div>
           <div v-if="routeTestResult" class="workflow-result">
-            <strong>Route test: {{ routeTestResult.status }}</strong>
-            <span>auth: {{ routeTestResult.authDecision.result || "unknown" }}</span>
-            <span>policy: {{ routeTestResult.policyDecision.result || "unknown" }}</span>
-            <span>{{ routeTestResult.expectedRuntimeTask.task_shape || "runtime task unavailable" }}</span>
+            <strong>{{ t("routeTestResult") }}: {{ routeTestResult.status }}</strong>
+            <span>{{ t("auth") }}: {{ routeTestResult.authDecision.result || t("unknown") }}</span>
+            <span>{{ t("policy") }}: {{ routeTestResult.policyDecision.result || t("unknown") }}</span>
+            <span>{{ routeTestResult.expectedRuntimeTask.task_shape || t("runtimeTaskUnavailable") }}</span>
             <span v-for="reason in routeTestResult.blockedReasons" :key="reason" class="result-line danger-text">{{ reason }}</span>
           </div>
           <div v-if="openedRequestLog" class="workflow-result request-log-detail">
             <strong>{{ openedRequestLog.trace_id }}</strong>
-            <span>authorization: {{ requestAuthorization }}</span>
-            <span>run_id: {{ openedRequestLog.run_id ?? "none" }}</span>
-            <span>task_id: {{ openedRequestLog.task_id ?? "none" }}</span>
+            <span>{{ t("authorization") }}: {{ requestAuthorization }}</span>
+            <span>{{ t("runId") }}: {{ openedRequestLog.run_id ?? t("none") }}</span>
+            <span>{{ t("taskId") }}: {{ openedRequestLog.task_id ?? t("none") }}</span>
           </div>
         </form>
 
         <section class="workflow-panel">
           <header class="workflow-panel-header">
             <div>
-              <h3>Rollout controls</h3>
-              <p class="muted">Change traffic, revoke exposure, or restore a previous surface snapshot.</p>
+              <h3>{{ t("rolloutControls") }}</h3>
+              <p class="muted">{{ t("rolloutControlsCopy") }}</p>
             </div>
           </header>
           <div class="form-grid compact-form">
             <label>
-              <span>Candidate traffic</span>
+              <span>{{ t("candidateTraffic") }}</span>
               <input v-model="trafficCandidate" class="input" inputmode="numeric" />
             </label>
           </div>
           <div class="workflow-actions">
-            <button class="button" type="button" :disabled="workflowBusy" @click="applyTrafficSplit">Apply traffic split</button>
-            <button class="button danger" type="button" :disabled="workflowBusy" @click="openRevokeConfirm">Revoke surface</button>
-            <button class="button" type="button" :disabled="workflowBusy" @click="rollbackSurface">Rollback surface</button>
+            <button class="button" type="button" :disabled="workflowBusy" @click="applyTrafficSplit">{{ t("applyTrafficSplit") }}</button>
+            <button class="button danger" type="button" :disabled="workflowBusy" @click="openRevokeConfirm">{{ t("revokeSurface") }}</button>
+            <button class="button" type="button" :disabled="workflowBusy" @click="rollbackSurface">{{ t("rollbackSurface") }}</button>
           </div>
           <div v-if="revokePending" class="confirmation-strip">
-            <strong>REVOKE SURFACE {{ selectedSurface.id }}</strong>
+            <strong>{{ revokePhrase }}</strong>
             <label>
-              <span>Danger confirmation</span>
+              <span>{{ t("dangerConfirmation") }}</span>
               <input v-model="revokeConfirmation" class="input" />
             </label>
             <button class="button danger" type="button" :disabled="workflowBusy || revokeConfirmation !== revokePhrase" @click="confirmRevoke">
-              Confirm revoke
+              {{ t("confirmRevoke") }}
             </button>
           </div>
           <div v-if="rolloutResult" class="workflow-result">
@@ -329,42 +327,40 @@
         <section class="workflow-panel">
           <header class="workflow-panel-header">
             <div>
-              <h3>Evidence</h3>
-              <p class="muted">Recent request logs and rollout history from the Console aggregate.</p>
+              <h3>{{ t("evidence") }}</h3>
+              <p class="muted">{{ t("recentEvidenceCopy") }}</p>
             </div>
           </header>
           <div class="evidence-list">
             <div v-for="log in surfaceDetail?.requestLogs || []" :key="String(log.id)" class="evidence-row">
-              <strong>request log #{{ log.id }}</strong>
-              <span>status: {{ log.status }}</span>
-              <span>{{ log.run_id ? "run linked" : "no run linked" }}</span>
+              <strong>{{ t("requestLog") }} #{{ log.id }}</strong>
+              <span>{{ t("status") }}: {{ log.status }}</span>
+              <span>{{ log.run_id ? t("runLinked") : t("noRunLinked") }}</span>
             </div>
             <div v-for="entry in surfaceDetail?.rolloutHistory || []" :key="`${entry.operation}-${entry.version || entry.created_at}`" class="evidence-row">
-              <strong>rollout event #{{ entry.version || "latest" }}</strong>
-              <span v-if="entry.traffic_split">traffic canary recorded</span>
-              <span>operation recorded</span>
+              <strong>{{ t("rolloutEvent") }} #{{ entry.version || t("latest") }}</strong>
+              <span v-if="entry.traffic_split">{{ t("trafficCanaryRecorded") }}</span>
+              <span>{{ t("operationRecorded") }}</span>
             </div>
           </div>
         </section>
       </div>
     </section>
 
-    <Teleport to="body">
-      <div v-if="showCreateSurface" class="drawer-layer" @click.self="closeCreateSurface">
-        <aside class="drawer" :aria-label="t('createPublishedSurface')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ t("surface") }}</p>
-              <h2>{{ t("createPublishedSurface") }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="createSurface">
+    <AppDrawer
+      :open="showCreateSurface"
+      :label="t('createPublishedSurface')"
+      :title="t('createPublishedSurface')"
+      :kicker="t('surface')"
+      @close="closeCreateSurface"
+    >
+      <form class="drawer-form" @submit.prevent="createSurface">
             <label>
               <span>{{ t("name") }}</span>
               <input v-model="surfaceForm.name" class="input" required />
             </label>
             <label>
-              <span>deployment_id</span>
+              <span>{{ t("deploymentId") }}</span>
               <input v-model.number="surfaceForm.deployment_id" class="input" min="1" required type="number" />
             </label>
             <label>
@@ -377,21 +373,18 @@
                 {{ creatingSurface ? t("creating") : t("createPublishedSurface") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
-    <Teleport to="body">
-      <div v-if="editTarget" class="drawer-layer" @click.self="closeEdit">
-        <aside class="drawer wide-drawer" :aria-label="t('edit')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ editKind === "surface" ? t("surface") : t("ingressRoutes") }}</p>
-              <h2>{{ t("edit") }} #{{ editTarget.id }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="saveEdit">
+    <AppDrawer
+      :open="Boolean(editTarget)"
+      :label="t('edit')"
+      :title="editTarget ? `${t('edit')} #${editTarget.id}` : t('edit')"
+      :kicker="editKind === 'surface' ? t('surface') : t('ingressRoutes')"
+      width="wide"
+      @close="closeEdit"
+    >
+      <form class="drawer-form" @submit.prevent="saveEdit">
             <label>
               <span>{{ t("payload") }}</span>
               <textarea v-model="editPayloadJson" class="textarea code-input" rows="16"></textarea>
@@ -403,10 +396,8 @@
                 {{ editTarget && mutatingId === editTarget.id ? t("saving") : t("save") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
     <DangerConfirmDialog
       :open="Boolean(deleteTarget)"
@@ -436,7 +427,10 @@ import type {
   PublishValidationResult,
 } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
+import AppDrawer from "../../components/AppDrawer.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
+import DataTable from "../../components/DataTable.vue";
+import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
@@ -496,13 +490,13 @@ const rolloutCandidate = computed(() => {
   return isRecord(trafficSplit) ? trafficSplit.candidate : trafficCandidate.value;
 });
 const exposureHealth = computed(() => surfaceDetail.value?.exposureHealth ?? {});
-const exposureHealthStatus = computed(() => String(exposureHealth.value.status || "unknown"));
+const exposureHealthStatus = computed(() => String(exposureHealth.value.status || t("unknown")));
 const exposureHealthRoute = computed(() => String(exposureHealth.value.route_path || publishForm.routePath || "-"));
 const exposureHealthLastRequest = computed(() => {
   const status = exposureHealth.value.last_live_request_status;
   const trace = exposureHealth.value.last_live_trace_id;
-  if (!status && !trace) return "not proven";
-  return `status ${String(status || "unknown")} / ${String(trace || "no trace")}`;
+  if (!status && !trace) return t("notProven");
+  return `${t("status")} ${String(status || t("unknown"))} / ${String(trace || t("noTrace"))}`;
 });
 const exposureHealthBlockedReasons = computed(() => {
   const reasons = exposureHealth.value.blocked_reasons;
@@ -528,6 +522,22 @@ const deleteConfirmItems = computed(() => deleteTarget.value ? [
   { label: t("name"), value: resourceName(deleteTarget.value) },
   { label: t("status"), value: String(deleteTarget.value.status || "-") },
 ] : []);
+const surfaceColumns = computed(() => [
+  { key: "surface", label: t("surface") },
+  { key: "deploymentId", label: t("deploymentId") },
+  { key: "type", label: t("type") },
+  { key: "status", label: t("status") },
+  { key: "routeCount", label: t("routeCount"), align: "center" as const },
+  { key: "createdAt", label: t("createdAt") },
+  { key: "actions", label: t("actions") },
+]);
+const routeColumns = computed(() => [
+  { key: "path", label: t("path") },
+  { key: "auth_mode", label: t("auth") },
+  { key: "customDomain", label: t("customDomain") },
+  { key: "status", label: t("status") },
+  { key: "actions", label: t("actions") },
+]);
 
 async function loadPublishing() {
   if (mode === "offline") return;
@@ -563,6 +573,10 @@ function selectSurface(surface: AdminResource) {
   closeRouteForm();
   seedWorkflowFromSurface(surface);
   void refreshSurfaceDetail(surface.id);
+}
+
+function selectSurfaceRow(row: Record<string, unknown>) {
+  selectSurface(row as AdminResource);
 }
 
 function routesForSurface(surfaceId: number): AdminResource[] {
@@ -924,34 +938,9 @@ onMounted(loadPublishing);
 </script>
 
 <style scoped>
-.surfaces-table tbody tr.surface-row {
-  cursor: pointer;
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.surfaces-table tbody tr.surface-row td {
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.surfaces-table tbody tr.surface-row:hover,
-.surfaces-table tbody tr.surface-row:focus-visible {
-  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
-  outline: none;
-}
-
-.surfaces-table tbody tr.surface-row.selected,
-.surfaces-table tbody tr.surface-row[data-selected="true"] {
-  background: var(--color-accent-soft);
-}
-
-.surfaces-table tbody tr.surface-row.selected td,
-.surfaces-table tbody tr.surface-row[data-selected="true"] td {
-  background: var(--color-accent-soft) !important;
-}
-
-.surfaces-table tbody tr.surface-row.selected td:first-child,
-.surfaces-table tbody tr.surface-row[data-selected="true"] td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-primary) !important;
+.dense-loading {
+  display: grid;
+  gap: 16px;
 }
 
 .actions-cell,
@@ -1088,48 +1077,10 @@ label span {
   padding: 18px;
 }
 
-.drawer-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-  background: oklch(18% 0.017 248 / 36%);
-}
-
-.drawer {
-  display: grid;
-  width: min(460px, 100%);
-  grid-template-rows: auto 1fr;
-  border-left: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-popover);
-}
-
-.wide-drawer {
-  width: min(640px, 100%);
-}
-
-.drawer-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--color-border);
-  padding: 18px;
-}
-
-.drawer-header h2 {
-  margin: 0;
-  font-size: 19px;
-  line-height: 1.2;
-}
-
 .drawer-form {
   display: grid;
   align-content: start;
   gap: 14px;
-  overflow: auto;
   padding: 18px;
 }
 
@@ -1178,8 +1129,5 @@ label span {
     padding-bottom: 14px;
   }
 
-  .drawer {
-    width: 100%;
-  }
 }
 </style>

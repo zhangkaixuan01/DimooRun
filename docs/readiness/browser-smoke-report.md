@@ -50,6 +50,18 @@ using the supplied Chrome executable. The current suite builds the e2e bundle,
 runs 58 Playwright tests, and now includes dedicated Phase 6 runtime workflow,
 accessibility, and responsive screenshot evidence.
 
+Focused Phase 7 accessibility proof also passes locally:
+
+Working directory: `apps/console`.
+
+```bash
+npx playwright test tests/e2e/accessibility.spec.ts --project=chrome --output test-results-phase7-a11y
+```
+
+That focused verifier now passes 9 tests, including shared drawer Escape/focus
+behavior, shared data-table keyboard row selection, dense-table axe coverage,
+and mobile drawer accessibility.
+
 This mocked suite does not by itself prove hosted CI or the default
 Playwright-managed browser cache. Real live-backend and ingress evidence is
 tracked separately below.
@@ -94,10 +106,18 @@ Running 58 tests using 8 workers
 58 passed (32.3s)
 ```
 
+Focused Phase 7 accessibility result:
+
+```text
+Running 9 tests using 8 workers
+9 passed (10.6s)
+```
+
 Covered workflow groups in this local mocked run:
 
 - Console smoke and authenticated shell.
 - Critical axe checks for dashboard, login, dense table, drawer flow, deployment task workflow, run detail diagnostics, high-risk confirmation, and a mobile viewport drawer.
+- Focused Phase 7 proof for the shared drawer Escape/focus lifecycle and shared data-table keyboard row selection.
 - Dedicated Phase 6 runtime workflow proof for login, agent registration, AgentVersion creation, Deployment creation, Deployment task submission, Run detail inspection, replay comparison, and destructive confirmation.
 - Offline, loading, empty, and normalized API error state coverage on core runtime surfaces.
 - Desktop and mobile workflow screenshots attached through Playwright report artifacts.
@@ -150,6 +170,10 @@ npx playwright test tests/e2e/console-runtime.spec.ts tests/e2e/accessibility.sp
 Then add hosted browser proof for the workflows that still depend on local-only
 or mocked evidence, especially Published Surface / Ingress / Agent Gateway,
 deployment promotion, policy approval, and recovery flows.
+
+Keep the focused Phase 7 accessibility verifier in that hosted proof path so the
+shared drawer and data-table primitives stay covered after future Console page
+refactors.
 
 The CI workflow now includes an explicit Phase 0H browser command after the
 managed Chromium install:

@@ -1624,16 +1624,21 @@ Notes:
 
 Tasks:
 
-- [ ] Extract shared drawer with focus trap and Escape close.
-- [ ] Extract shared data table with keyboard row selection and responsive behavior.
-- [ ] Replace generic loading panels on dense pages with skeletons.
-- [ ] Add hard-coded copy scan and move remaining user-visible copy into i18n.
-- [ ] Add chart accessible summaries.
+- [x] Extract shared drawer with focus trap and Escape close.
+- [x] Extract shared data table with keyboard row selection and responsive behavior.
+- [x] Replace generic loading panels on dense pages with skeletons.
+- [x] Add hard-coded copy scan and move remaining user-visible copy into i18n.
+- [x] Add chart accessible summaries.
 - [ ] Commit as `refactor(console): harden shared control-plane components`.
 
 Acceptance:
 
 - Large Console pages are easier to maintain and pass keyboard/accessibility tests.
+
+Verification note on 2026-06-12:
+
+- Local `apps/console` proof now includes `npm run test`, `npm run build:e2e`, and `npx playwright test tests/e2e/accessibility.spec.ts --project=chrome --output test-results-phase7-a11y`.
+- The focused accessibility verifier passes 9 tests, including shared drawer Escape/focus restore and shared data-table keyboard selection coverage.
 
 ### Phase 8: Package, Adapter, and Sandbox Production Path
 

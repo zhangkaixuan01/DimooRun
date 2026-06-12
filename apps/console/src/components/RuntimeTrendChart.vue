@@ -1,5 +1,14 @@
 <template>
-  <div ref="chartRef" class="runtime-chart" role="img" :aria-label="t('runtimeTrendChart')" />
+  <figure class="runtime-chart-figure">
+    <figcaption class="sr-only" :id="summaryId">{{ summary }}</figcaption>
+    <div
+      ref="chartRef"
+      class="runtime-chart"
+      role="img"
+      :aria-label="t('runtimeTrendChart')"
+      :aria-describedby="summaryId"
+    />
+  </figure>
 </template>
 
 <script setup lang="ts">
@@ -45,6 +54,12 @@ const props = withDefaults(defineProps<{
 const labels = computed(() => props.trendPoints.map((point) => point.label));
 const runCounts = computed(() => props.trendPoints.map((point) => point.runs));
 const successRates = computed(() => props.trendPoints.map((point) => point.successRate));
+const summaryId = `runtime-trend-summary-${Math.random().toString(36).slice(2, 10)}`;
+const summary = computed(() => props.trendPoints.length === 0
+  ? t("noTrendData")
+  : props.trendPoints
+    .map((point) => `${point.label}: ${point.runs} ${t("runs")}, ${point.successRate}% ${t("successRate")}`)
+    .join("; "));
 
 function renderChart() {
   if (!chartRef.value) return;
@@ -69,14 +84,14 @@ function renderChart() {
     },
     series: [
       {
-        name: "runs",
+        name: t("runs"),
         type: "bar",
         data: runCounts.value,
         barMaxWidth: 18,
         itemStyle: { borderRadius: [4, 4, 0, 0] },
       },
       {
-        name: "success",
+        name: t("successRate"),
         type: "line",
         data: successRates.value,
         smooth: true,
@@ -103,8 +118,24 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.runtime-chart-figure {
+  margin: 0;
+}
+
 .runtime-chart {
   width: 100%;
   height: 230px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

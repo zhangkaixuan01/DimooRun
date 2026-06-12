@@ -22,12 +22,13 @@ Authoritative status:
 - Governance, audit, service account, policy, tool/model/secret boundaries.
 - Production startup guards now fail closed on SQLite, in-memory runtime store, dev CORS origins, default object-store credentials, missing secret provider config, and dev API key mode.
 - Console route and API coverage for many product areas, now backed by a 58-test local browser suite that covers workflow interactions, critical accessibility checks, and responsive screenshot evidence.
+- Shared Console control-plane primitives now centralize drawers, dense tables, skeleton loading states, and runtime chart accessibility semantics across the largest operator pages.
 - Docker, Helm, OpenAPI, CLI, and SDK foundations.
 
 ## Known Gaps
 
 - Many Console pages remain partial product workflows rather than complete operator tools.
-- Hosted/default-browser proof is still incomplete even though the local browser suite now covers 58 workflow, accessibility, and responsive tests.
+- Hosted/default-browser proof is still incomplete even though the local browser suite now covers 58 workflow, accessibility, and responsive tests plus a focused 9-test Phase 7 accessibility verifier.
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete.
 - Hosted Prometheus/OTel exporter proof and live monitoring-stack verification are not complete yet, even though the Phase 5 observability API and Console surfaces are now implemented and locally verified.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.

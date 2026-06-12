@@ -13,72 +13,76 @@
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && items.length === 0" />
 
-    <div v-if="mode !== 'offline' && !loading && !error && items.length > 0" class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>{{ t("id") }}</th>
-            <th>{{ t("name") }}</th>
-            <th>{{ t("status") }}</th>
-            <th>{{ t("tenant") }}</th>
-            <th>{{ t("project") }}</th>
-            <th>{{ t("environment") }}</th>
-            <th>{{ t("createdAt") }}</th>
-            <th>{{ t("updatedAt") }}</th>
-            <th>{{ t("metadata") }}</th>
-            <th>{{ t("actions") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in items" :key="item.id">
-            <td class="mono">{{ item.id }}</td>
-            <td>
-              <input
-                class="input compact-input"
-                :value="String(item.name || item.label || '')"
-                :placeholder="t('name')"
-                :disabled="!canWrite"
-                @change="updateName(item, ($event.target as HTMLInputElement).value)"
-              />
-            </td>
-            <td><StatusBadge :status="String(item.status || 'active')" :label="String(item.status || 'active')" /></td>
-            <td class="muted">{{ tenantName(item.tenant_id) }}</td>
-            <td class="muted">{{ projectName(item.project_id) }}</td>
-            <td class="mono muted">{{ item.environment || "-" }}</td>
-            <td>{{ formatDateTime(item.created_at) }}</td>
-            <td>{{ formatDateTime(item.updated_at) }}</td>
-            <td class="mono muted">{{ metadataPreview(item) }}</td>
-            <td>
-              <div class="row-actions">
-                <button class="button" type="button" @click="openDetailDrawer(item)">
-                  {{ t("view") }}
-                </button>
-                <button class="button" type="button" :disabled="mutatingId === item.id || !canWrite" @click="openEditDrawer(item)">
-                  {{ t("edit") }}
-                </button>
-                <button class="button" type="button" :disabled="mutatingId === item.id || !canWrite" @click="toggleStatus(item)">
-                  {{ item.status === "disabled" ? t("enable") : t("disable") }}
-                </button>
-                <button class="button danger" type="button" :disabled="mutatingId === item.id || !canWrite" @click="openDeleteConfirm(item)">
-                  {{ t("delete") }}
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <section v-if="mode !== 'offline' && loading" class="dense-loading">
+      <SkeletonBlock variant="table" :lines="8" />
+    </section>
 
-    <Teleport to="body">
-      <div v-if="showCreate" class="drawer-layer" @click.self="closeCreateDrawer">
-        <aside class="drawer" :aria-label="t('create')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ labelFor(kicker) }}</p>
-              <h2>{{ t("create") }} {{ labelFor(title) }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="createItem">
+    <DataTable
+      v-if="mode !== 'offline' && !loading && !error && items.length > 0"
+      :columns="tableColumns"
+      :rows="items"
+      row-key="id"
+      :label="labelFor(title)"
+    >
+      <template #cell-id="{ row }">
+        <span class="mono">{{ row.id }}</span>
+      </template>
+      <template #cell-name="{ row }">
+        <input
+          class="input compact-input"
+          :value="String(row.name || row.label || '')"
+          :placeholder="t('name')"
+          :disabled="!canWrite"
+          @change="updateName(row, ($event.target as HTMLInputElement).value)"
+        />
+      </template>
+      <template #cell-status="{ row }">
+        <StatusBadge :status="String(row.status || 'active')" :label="String(row.status || 'active')" />
+      </template>
+      <template #cell-tenant="{ row }">
+        <span class="muted">{{ tenantName(row.tenant_id) }}</span>
+      </template>
+      <template #cell-project="{ row }">
+        <span class="muted">{{ projectName(row.project_id) }}</span>
+      </template>
+      <template #cell-environment="{ row }">
+        <span class="mono muted">{{ row.environment || "-" }}</span>
+      </template>
+      <template #cell-createdAt="{ row }">
+        {{ formatDateTime(row.created_at) }}
+      </template>
+      <template #cell-updatedAt="{ row }">
+        {{ formatDateTime(row.updated_at) }}
+      </template>
+      <template #cell-metadata="{ row }">
+        <span class="mono muted">{{ metadataPreview(row) }}</span>
+      </template>
+      <template #cell-actions="{ row }">
+        <div class="row-actions">
+          <button class="button" type="button" @click="openDetailDrawer(row)">
+            {{ t("view") }}
+          </button>
+          <button class="button" type="button" :disabled="mutatingId === row.id || !canWrite" @click="openEditDrawer(row)">
+            {{ t("edit") }}
+          </button>
+          <button class="button" type="button" :disabled="mutatingId === row.id || !canWrite" @click="toggleStatus(row)">
+            {{ row.status === "disabled" ? t("enable") : t("disable") }}
+          </button>
+          <button class="button danger" type="button" :disabled="mutatingId === row.id || !canWrite" @click="openDeleteConfirm(row)">
+            {{ t("delete") }}
+          </button>
+        </div>
+      </template>
+    </DataTable>
+
+    <AppDrawer
+      :open="showCreate"
+      :label="t('create')"
+      :title="`${t('create')} ${labelFor(title)}`"
+      :kicker="labelFor(kicker)"
+      @close="closeCreateDrawer"
+    >
+      <form class="drawer-form" @submit.prevent="createItem">
             <label v-for="field in createFields" :key="field.key" class="field">
               {{ field.label }}
               <input
@@ -94,40 +98,34 @@
                 {{ creating ? t("creating") : t("save") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
-    <Teleport to="body">
-      <div v-if="detailItem" class="drawer-layer" @click.self="closeDetailDrawer">
-        <aside class="drawer wide-drawer" :aria-label="t('details')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ labelFor(kicker) }}</p>
-              <h2>{{ t("details") }} #{{ detailItem.id }}</h2>
-            </div>
-          </header>
-          <div class="drawer-form">
+    <AppDrawer
+      :open="Boolean(detailItem)"
+      :label="t('details')"
+      :title="detailItem ? `${t('details')} #${detailItem.id}` : t('details')"
+      :kicker="labelFor(kicker)"
+      width="wide"
+      @close="closeDetailDrawer"
+    >
+      <div class="drawer-form">
             <pre class="json-preview">{{ formatJson(detailItem) }}</pre>
             <div class="drawer-actions">
               <button class="button" type="button" @click="closeDetailDrawer">{{ t("cancel") }}</button>
             </div>
-          </div>
-        </aside>
       </div>
-    </Teleport>
+    </AppDrawer>
 
-    <Teleport to="body">
-      <div v-if="editItem" class="drawer-layer" @click.self="closeEditDrawer">
-        <aside class="drawer wide-drawer" :aria-label="t('edit')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ labelFor(kicker) }}</p>
-              <h2>{{ t("edit") }} #{{ editItem.id }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="saveEditDrawer">
+    <AppDrawer
+      :open="Boolean(editItem)"
+      :label="t('edit')"
+      :title="editItem ? `${t('edit')} #${editItem.id}` : t('edit')"
+      :kicker="labelFor(kicker)"
+      width="wide"
+      @close="closeEditDrawer"
+    >
+      <form class="drawer-form" @submit.prevent="saveEditDrawer">
             <label class="field">
               {{ t("payload") }}
               <textarea v-model="editPayloadJson" class="textarea code-input" rows="18"></textarea>
@@ -135,14 +133,12 @@
             <p v-if="editError" class="form-error">{{ editError }}</p>
             <div class="drawer-actions">
               <button class="button" type="button" @click="closeEditDrawer">{{ t("cancel") }}</button>
-              <button class="button primary" type="submit" :disabled="mutatingId === editItem.id">
-                {{ mutatingId === editItem.id ? t("saving") : t("save") }}
+              <button class="button primary" type="submit" :disabled="mutatingId === editItem?.id">
+                {{ mutatingId === editItem?.id ? t("saving") : t("save") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
     <DangerConfirmDialog
       :open="Boolean(deleteTarget)"
@@ -166,7 +162,10 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError } from "../../api/client";
 import { readCurrentScope } from "../../api/scope";
 import ApiState from "../../components/ApiState.vue";
+import AppDrawer from "../../components/AppDrawer.vue";
+import DataTable from "../../components/DataTable.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
+import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
 import { useAuthStore } from "../../stores/auth";
@@ -206,6 +205,18 @@ const deleteConfirmItems = computed(() => deleteTarget.value ? [
   { label: t("name"), value: String(deleteTarget.value.name || deleteTarget.value.label || "-") },
   { label: t("status"), value: String(deleteTarget.value.status || "-") },
 ] : []);
+const tableColumns = computed(() => [
+  { key: "id", label: t("id") },
+  { key: "name", label: t("name") },
+  { key: "status", label: t("status") },
+  { key: "tenant", label: t("tenant") },
+  { key: "project", label: t("project") },
+  { key: "environment", label: t("environment") },
+  { key: "createdAt", label: t("createdAt") },
+  { key: "updatedAt", label: t("updatedAt") },
+  { key: "metadata", label: t("metadata") },
+  { key: "actions", label: t("actions") },
+]);
 
 async function loadItems() {
   if (mode === "offline") return;
@@ -444,25 +455,25 @@ function fieldsForPath(path: string): Array<{
 }> {
   const scope = readCurrentScope();
   if (path === "/v1/identity/tenants") {
-    return [{ key: "name", label: t("name"), required: true, placeholder: "Acme" }];
+    return [{ key: "name", label: t("name"), required: true, placeholder: t("tenantNamePlaceholder") }];
   }
   if (path === "/v1/identity/projects") {
     return [
-      { key: "name", label: t("name"), required: true, placeholder: "Support Platform" },
+      { key: "name", label: t("name"), required: true, placeholder: t("supportPlatformPlaceholder") },
       { key: "tenant_id", label: t("tenant"), required: true, defaultValue: String(scope.tenant_id) },
     ];
   }
   if (path === "/v1/identity/environments") {
     return [
-      { key: "name", label: t("name"), required: true, placeholder: "Production" },
-      { key: "environment", label: t("environment"), required: true, placeholder: "prod" },
+      { key: "name", label: t("name"), required: true, placeholder: t("productionNamePlaceholder") },
+      { key: "environment", label: t("environment"), required: true, placeholder: t("productionEnvPlaceholder") },
       { key: "tenant_id", label: t("tenant"), required: true, defaultValue: String(scope.tenant_id) },
       { key: "project_id", label: t("project"), required: true, defaultValue: String(scope.project_id) },
     ];
   }
   if (path === "/v1/identity/permissions") {
     return [
-      { key: "name", label: t("name"), required: true, placeholder: "Read agents" },
+      { key: "name", label: t("name"), required: true, placeholder: t("readAgentsPlaceholder") },
       { key: "resource", label: t("resource"), required: true, placeholder: "agent" },
       { key: "action", label: t("action"), required: true, placeholder: "read" },
     ];
@@ -475,104 +486,104 @@ function fieldsForPath(path: string): Array<{
   }
   if (path === "/v1/published-surfaces") {
     return [
-      { key: "name", label: t("name"), required: true, placeholder: "Public API" },
-      { key: "deployment_id", label: "Deployment ID", required: true, placeholder: "1" },
-      { key: "type", label: "Type", defaultValue: "http" },
+      { key: "name", label: t("name"), required: true, placeholder: t("publicApiPlaceholder") },
+      { key: "deployment_id", label: t("deploymentIdLabel"), required: true, placeholder: "1" },
+      { key: "type", label: t("type"), defaultValue: "http" },
     ];
   }
   if (path === "/v1/ingress-routes") {
     return [
-      { key: "name", label: t("name"), required: true, placeholder: "Public route" },
-      { key: "surface_id", label: "Surface ID", required: true, placeholder: "1" },
-      { key: "path", label: "Path", required: true, placeholder: "/api/support" },
-      { key: "auth_mode", label: "Auth mode", defaultValue: "api_key" },
+      { key: "name", label: t("name"), required: true, placeholder: t("publicRoutePlaceholder") },
+      { key: "surface_id", label: t("surfaceIdLabel"), required: true, placeholder: "1" },
+      { key: "path", label: t("path"), required: true, placeholder: "/api/support" },
+      { key: "auth_mode", label: t("authMode"), defaultValue: "api_key" },
     ];
   }
   if (path === "/v1/artifacts") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "artifact_type", label: "Artifact type", defaultValue: "file" },
-      { key: "mime_type", label: "MIME type", defaultValue: "application/octet-stream" },
-      { key: "storage_uri", label: "Storage URI", required: true, placeholder: "minio://bucket/key" },
-      { key: "checksum", label: "Checksum", required: true },
-      { key: "size_bytes", label: "Size bytes", defaultValue: "0" },
-      { key: "run_id", label: "Run ID" },
+      { key: "artifact_type", label: t("artifactType"), defaultValue: "file" },
+      { key: "mime_type", label: t("mimeType"), defaultValue: "application/octet-stream" },
+      { key: "storage_uri", label: t("storageUri"), required: true, placeholder: "minio://bucket/key" },
+      { key: "checksum", label: t("checksum"), required: true },
+      { key: "size_bytes", label: t("sizeBytes"), defaultValue: "0" },
+      { key: "run_id", label: t("runId") },
     ];
   }
   if (path === "/v1/dataset-items") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "dataset_id", label: "Dataset ID", required: true, placeholder: "1" },
-      { key: "input_ref", label: "Input ref", required: true },
-      { key: "output_ref", label: "Output ref" },
-      { key: "expected_ref", label: "Expected ref" },
+      { key: "dataset_id", label: t("datasetId"), required: true, placeholder: "1" },
+      { key: "input_ref", label: t("inputRef"), required: true },
+      { key: "output_ref", label: t("outputRef") },
+      { key: "expected_ref", label: t("expectedRef") },
     ];
   }
   if (path === "/v1/experiments") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "agent_id", label: "Agent ID", required: true },
-      { key: "candidate_agent_version_id", label: "Candidate version ID", required: true },
-      { key: "dataset_id", label: "Dataset ID", required: true },
-      { key: "baseline_agent_version_id", label: "Baseline version ID" },
+      { key: "agent_id", label: t("agentId"), required: true },
+      { key: "candidate_agent_version_id", label: t("candidateVersionId"), required: true },
+      { key: "dataset_id", label: t("datasetId"), required: true },
+      { key: "baseline_agent_version_id", label: t("baselineVersionId") },
     ];
   }
   if (path === "/v1/evaluations/results") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "experiment_run_id", label: "Experiment run ID", required: true },
-      { key: "evaluator_name", label: "Evaluator", required: true },
-      { key: "score", label: "Score", required: true, defaultValue: "1" },
-      { key: "passed", label: "Passed", required: true, defaultValue: "true" },
+      { key: "experiment_run_id", label: t("experimentRunId"), required: true },
+      { key: "evaluator_name", label: t("evaluator"), required: true },
+      { key: "score", label: t("score"), required: true, defaultValue: "1" },
+      { key: "passed", label: t("passed"), required: true, defaultValue: "true" },
     ];
   }
   if (path === "/v1/feedback") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "run_id", label: "Run ID", required: true },
-      { key: "source", label: "Source", defaultValue: "console" },
-      { key: "rating", label: "Rating" },
-      { key: "comment", label: "Comment" },
+      { key: "run_id", label: t("runId"), required: true },
+      { key: "source", label: t("source"), defaultValue: "console" },
+      { key: "rating", label: t("rating") },
+      { key: "comment", label: t("comment") },
     ];
   }
   if (path === "/v1/replay-jobs") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "source_run_id", label: "Source run ID", required: true },
-      { key: "candidate_agent_version_id", label: "Candidate version ID", required: true },
-      { key: "source_agent_version_id", label: "Source version ID" },
+      { key: "source_run_id", label: t("sourceRunId"), required: true },
+      { key: "candidate_agent_version_id", label: t("candidateVersionId"), required: true },
+      { key: "source_agent_version_id", label: t("sourceVersionId") },
     ];
   }
   if (path === "/v1/alerts/rules") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "channel_id", label: "Channel ID", required: true, placeholder: "1" },
-      { key: "signal", label: "Signal", defaultValue: "runtime.error_rate" },
-      { key: "threshold", label: "Threshold", defaultValue: "1" },
+      { key: "channel_id", label: t("channelId"), required: true, placeholder: "1" },
+      { key: "signal", label: t("signal"), defaultValue: "runtime.error_rate" },
+      { key: "threshold", label: t("threshold"), defaultValue: "1" },
     ];
   }
   if (path === "/v1/observability/exporters") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "exporter_type", label: "Exporter type", defaultValue: "otlp" },
-      { key: "target_ref", label: "Target ref", required: true, placeholder: "http://otel:4318" },
+      { key: "exporter_type", label: t("exporterType"), defaultValue: "otlp" },
+      { key: "target_ref", label: t("targetRef"), required: true, placeholder: "http://otel:4318" },
     ];
   }
   if (path === "/v1/sandbox/policies") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "isolation_level", label: "Isolation", defaultValue: "process" },
-      { key: "network_policy", label: "Network", defaultValue: "deny_all" },
-      { key: "filesystem_policy", label: "Filesystem", defaultValue: "read_only" },
+      { key: "isolation_level", label: t("isolation"), defaultValue: "process" },
+      { key: "network_policy", label: t("network"), defaultValue: "deny_all" },
+      { key: "filesystem_policy", label: t("filesystem"), defaultValue: "read_only" },
     ];
   }
   if (path === "/v1/container-pool/policies") {
     return [
       { key: "name", label: t("name"), required: true },
-      { key: "max_containers", label: "Max containers", defaultValue: "10" },
-      { key: "cpu_limit", label: "CPU limit", defaultValue: "1000m" },
-      { key: "memory_limit", label: "Memory limit", defaultValue: "1Gi" },
-      { key: "idle_timeout_seconds", label: "Idle timeout seconds", defaultValue: "300" },
+      { key: "max_containers", label: t("maxContainers"), defaultValue: "10" },
+      { key: "cpu_limit", label: t("cpuLimit"), defaultValue: "1000m" },
+      { key: "memory_limit", label: t("memoryLimit"), defaultValue: "1Gi" },
+      { key: "idle_timeout_seconds", label: t("idleTimeoutSeconds"), defaultValue: "300" },
     ];
   }
   return [{ key: "name", label: t("name"), required: true }];
@@ -719,48 +730,15 @@ watch(createFields, resetCreateForm, { immediate: true });
   gap: 8px;
 }
 
-.drawer-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-  background: oklch(18% 0.017 248 / 36%);
-}
-
-.drawer {
+.dense-loading {
   display: grid;
-  width: min(440px, 100%);
-  grid-template-rows: auto 1fr;
-  border-left: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-popover);
-}
-
-.wide-drawer {
-  width: min(640px, 100%);
-}
-
-.drawer-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--color-border);
-  padding: 18px;
-}
-
-.drawer-header h2 {
-  margin: 0;
-  font-size: 19px;
-  line-height: 1.2;
+  gap: 16px;
 }
 
 .drawer-form {
   display: grid;
   align-content: start;
   gap: 14px;
-  overflow: auto;
   padding: 18px;
 }
 
@@ -815,11 +793,5 @@ watch(createFields, resetCreateForm, { immediate: true });
   margin: 0;
   color: var(--color-danger);
   font-weight: 700;
-}
-
-@media (max-width: 920px) {
-  .drawer {
-    width: 100%;
-  }
 }
 </style>

@@ -13,56 +13,47 @@
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && deployments.length === 0" />
 
-    <div v-if="mode !== 'offline' && !loading && deployments.length > 0" class="table-wrap deployments-table">
-      <table>
-        <thead>
-          <tr>
-            <th>{{ t("deployment") }}</th>
-            <th>{{ t("agent") }}</th>
-            <th>{{ t("environment") }}</th>
-            <th>{{ t("desiredStatus") }}</th>
-            <th>{{ t("runtimeStatus") }}</th>
-            <th>{{ t("instances") }}</th>
-            <th>{{ t("backlog") }}</th>
-            <th>{{ t("modelGateway") }}</th>
-            <th>{{ t("operations") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="deployment in deployments"
-            :key="deployment.id"
-            class="deployment-row"
-            :class="{ selected: selectedDeployment?.id === deployment.id }"
-            :data-selected="selectedDeployment?.id === deployment.id ? 'true' : 'false'"
-            tabindex="0"
-            :aria-selected="selectedDeployment?.id === deployment.id"
-            @click="selectDeployment(deployment)"
-            @keydown.enter="selectDeployment(deployment)"
-            @keydown.space.prevent="selectDeployment(deployment)"
-          >
-            <td class="mono">{{ deployment.id }}</td>
-            <td>{{ deployment.agent }}@{{ deployment.version }}</td>
-            <td>{{ deployment.environment }}</td>
-            <td><StatusBadge :status="deployment.desiredStatus" :label="deployment.desiredStatus" /></td>
-            <td><StatusBadge :status="deployment.runtimeStatus" :label="deployment.runtimeStatus" /></td>
-            <td>{{ deployment.instances }}</td>
-            <td>{{ deployment.queueBacklog }}</td>
-            <td>{{ deployment.modelGateway }}</td>
-            <td class="ops">
-              <button class="button" type="button" :disabled="pendingOperation === deployment.id" @click.stop="openEditDeployment(deployment)">{{ t("edit") }}</button>
-              <button class="button danger" type="button" :disabled="pendingOperation === deployment.id" @click.stop="openArchiveDeployment(deployment)">{{ t("archive") }}</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <section v-if="mode !== 'offline' && loading" class="dense-loading">
+      <SkeletonBlock variant="table" :lines="8" />
+      <SkeletonBlock :lines="6" />
+    </section>
+
+    <DataTable
+      v-if="mode !== 'offline' && !loading && deployments.length > 0"
+      class="deployments-table"
+      :columns="deploymentColumns"
+      :rows="deployments"
+      row-key="id"
+      :selected-key="selectedDeployment?.id ?? null"
+      :label="t('deployments')"
+      selectable
+      @row-select="selectDeploymentRow"
+    >
+      <template #cell-deployment="{ row }">
+        <span class="mono">{{ row.id }}</span>
+      </template>
+      <template #cell-agentVersion="{ row }">
+        {{ row.agent }}@{{ row.version }}
+      </template>
+      <template #cell-desiredStatus="{ row }">
+        <StatusBadge :status="row.desiredStatus" :label="row.desiredStatus" />
+      </template>
+      <template #cell-runtimeStatus="{ row }">
+        <StatusBadge :status="row.runtimeStatus" :label="row.runtimeStatus" />
+      </template>
+      <template #cell-operations="{ row }">
+        <div class="ops">
+          <button class="button" type="button" :disabled="pendingOperation === row.id" @click.stop="openEditDeployment(row)">{{ t("edit") }}</button>
+          <button class="button danger" type="button" :disabled="pendingOperation === row.id" @click.stop="openArchiveDeployment(row)">{{ t("archive") }}</button>
+        </div>
+      </template>
+    </DataTable>
 
     <section v-if="mode !== 'offline' && !loading && selectedDeployment" class="panel deployment-detail-panel">
       <div class="panel-header">
         <div>
           <p class="section-kicker">{{ t("deployment") }}</p>
-          <h2 class="panel-title">Deployment #{{ selectedDeployment.id }}</h2>
+          <h2 class="panel-title">{{ t("deployment") }} #{{ selectedDeployment.id }}</h2>
           <p class="muted">{{ selectedDeployment.agent }}@{{ selectedDeployment.version }} / {{ selectedDeployment.environment }}</p>
         </div>
         <div class="detail-actions">
@@ -107,7 +98,7 @@
               {{ t("submitDeploymentTask") }}
             </button>
             <button class="tab-button" :class="{ active: activeDetailTab === 'promotion' }" type="button" role="tab" :aria-selected="activeDetailTab === 'promotion'" @click="openPromotionTab">
-              Promotion
+              {{ t("promotion") }}
             </button>
           </div>
 
@@ -132,7 +123,7 @@
               :rows="8"
             />
             <label>
-              <span>thread_id</span>
+              <span>{{ t("threadId") }}</span>
               <input v-model="deploymentTaskThreadId" class="input" />
             </label>
             <button class="button primary" type="submit" :disabled="creatingTask || selectedDeployment.desiredStatus !== 'active'">
@@ -146,10 +137,10 @@
           </form>
 
           <section v-else class="child-panel promotion-panel">
-            <p class="muted">Promote a ready AgentVersion with impact preview, audit reason, and rollback context.</p>
+            <p class="muted">{{ t("deploymentPromotionCopy") }}</p>
             <div class="form-grid">
               <label>
-                <span>Candidate version</span>
+                <span>{{ t("candidateVersion") }}</span>
                 <select v-model.number="promotionCandidateVersionId" class="select">
                   <option v-for="version in promotionVersions" :key="version.id" :value="version.id">
                     {{ version.version }} / {{ version.status }}
@@ -157,45 +148,45 @@
                 </select>
               </label>
               <label>
-                <span>Rollout reason</span>
+                <span>{{ t("rolloutReason") }}</span>
                 <input v-model="rolloutReason" class="input" />
               </label>
             </div>
             <div class="operation-grid">
               <button class="button" type="button" :disabled="previewingPromotion || !promotionCandidateVersionId" @click="previewPromotion">
-                {{ previewingPromotion ? "Previewing" : "Preview promotion" }}
+                {{ previewingPromotion ? t("previewing") : t("previewPromotion") }}
               </button>
               <button class="button primary" type="button" :disabled="promotingDeployment || !canPromoteDeployment" @click="promoteDeployment">
-                {{ promotingDeployment ? "Promoting" : "Promote candidate" }}
+                {{ promotingDeployment ? t("promoting") : t("promoteCandidate") }}
               </button>
             </div>
-            <section v-if="promotionPreview" class="impact-preview" aria-label="Impact preview">
-              <h3>Impact preview</h3>
+            <section v-if="promotionPreview" class="impact-preview" :aria-label="t('impactPreview')">
+              <h3>{{ t("impactPreview") }}</h3>
               <p class="muted">{{ promotionPreview.currentAgentVersionId }} -> {{ promotionPreview.candidateAgentVersionId }}</p>
               <dl>
                 <div>
-                  <dt>Current version</dt>
+                  <dt>{{ t("currentVersion") }}</dt>
                   <dd>{{ promotionPreview.currentAgentVersionId }}</dd>
                 </div>
                 <div>
-                  <dt>Candidate version</dt>
+                  <dt>{{ t("candidateVersion") }}</dt>
                   <dd>{{ promotionPreview.candidateAgentVersionId }}</dd>
                 </div>
                 <div>
-                  <dt>Active runs</dt>
+                  <dt>{{ t("activeRuns") }}</dt>
                   <dd>{{ promotionPreview.activeRuns }}</dd>
                 </div>
                 <div>
-                  <dt>Queued tasks</dt>
+                  <dt>{{ t("queuedTasks") }}</dt>
                   <dd>{{ promotionPreview.queuedTasks }}</dd>
                 </div>
                 <div>
-                  <dt>Candidate status</dt>
+                  <dt>{{ t("candidateStatus") }}</dt>
                   <dd>{{ promotionPreview.candidateValidationStatus }}</dd>
                 </div>
                 <div>
-                  <dt>Rollback target</dt>
-                  <dd>{{ promotionPreview.rollbackAgentVersionId || "none" }}</dd>
+                  <dt>{{ t("rollbackTarget") }}</dt>
+                  <dd>{{ promotionPreview.rollbackAgentVersionId || t("none") }}</dd>
                 </div>
               </dl>
               <p v-if="promotionPreview.blockedReason" class="form-error">{{ promotionPreview.blockedReason }}</p>
@@ -203,27 +194,25 @@
             </section>
             <p v-if="promotionMessage" class="muted">{{ promotionMessage }}</p>
             <label>
-              <span>Rollback reason</span>
+              <span>{{ t("rollbackReason") }}</span>
               <input v-model="rollbackReason" class="input" />
             </label>
             <button class="button danger" type="button" :disabled="rollingBackDeployment || !canRollbackDeployment" @click="rollbackDeployment">
-              {{ rollingBackDeployment ? "Rolling back" : "Rollback" }}
+              {{ rollingBackDeployment ? t("rollingBack") : t("rollback") }}
             </button>
           </section>
         </div>
       </div>
     </section>
 
-    <Teleport to="body">
-      <div v-if="createOpen" class="drawer-layer" @click.self="closeCreateDeployment">
-        <aside class="drawer" :aria-label="t('createDeployment')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ t("deployment") }}</p>
-              <h2>{{ t("createDeployment") }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="createDeployment">
+    <AppDrawer
+      :open="createOpen"
+      :label="t('createDeployment')"
+      :title="t('createDeployment')"
+      :kicker="t('deployment')"
+      @close="closeCreateDeployment"
+    >
+      <form class="drawer-form" @submit.prevent="createDeployment">
             <p v-if="agents.length === 0" class="muted">
               {{ t("deploymentNeedsAgentVersion") }}
               <RouterLink to="/agents">{{ t("agents") }}</RouterLink>
@@ -259,21 +248,17 @@
                 {{ creatingDeployment ? t("creating") : t("createDeployment") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
-    <Teleport to="body">
-      <div v-if="editOpen" class="drawer-layer" @click.self="closeEditDeployment">
-        <aside class="drawer" :aria-label="t('editDeployment')" role="dialog" aria-modal="true">
-          <header class="drawer-header">
-            <div>
-              <p class="page-kicker">{{ t("deployment") }} #{{ editDeploymentForm.id }}</p>
-              <h2>{{ t("editDeployment") }}</h2>
-            </div>
-          </header>
-          <form class="drawer-form" @submit.prevent="updateDeployment">
+    <AppDrawer
+      :open="editOpen"
+      :label="t('editDeployment')"
+      :title="t('editDeployment')"
+      :kicker="`${t('deployment')} #${editDeploymentForm.id ?? ''}`"
+      @close="closeEditDeployment"
+    >
+      <form class="drawer-form" @submit.prevent="updateDeployment">
             <label>
               <span>{{ t("version") }}</span>
               <select v-model.number="editDeploymentForm.agentVersionId" class="select">
@@ -303,10 +288,8 @@
                 {{ updatingDeployment ? t("saving") : t("save") }}
               </button>
             </div>
-          </form>
-        </aside>
-      </div>
-    </Teleport>
+      </form>
+    </AppDrawer>
 
     <DangerConfirmDialog
       :open="Boolean(archiveTarget)"
@@ -346,10 +329,13 @@ import { createMutationAction } from "../../api/mutations";
 import { createQueryResource } from "../../api/query";
 import type { Agent, AgentVersion, Deployment, DeploymentPromotionPreview, TaskCreateResult } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
+import AppDrawer from "../../components/AppDrawer.vue";
 import ConfirmImpactDialog from "../../components/ConfirmImpactDialog.vue";
+import DataTable from "../../components/DataTable.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
 import JsonSchemaEditor from "../../components/JsonSchemaEditor.vue";
 import ResourceLink from "../../components/ResourceLink.vue";
+import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { isJsonParseFailure, parseJsonObject, type JsonParseFailure } from "../../forms/jsonForm";
 import { validateDeploymentConfig } from "../../forms/validators";
@@ -408,6 +394,17 @@ const archiveConfirmItems = computed(() => archiveTarget.value ? [
   { label: t("agent"), value: `${archiveTarget.value.agent}@${archiveTarget.value.version}` },
   { label: t("environment"), value: archiveTarget.value.environment },
 ] : []);
+const deploymentColumns = computed(() => [
+  { key: "deployment", label: t("deployment") },
+  { key: "agentVersion", label: t("agent") },
+  { key: "environment", label: t("environment") },
+  { key: "desiredStatus", label: t("desiredStatus") },
+  { key: "runtimeStatus", label: t("runtimeStatus") },
+  { key: "instances", label: t("instances"), align: "center" as const },
+  { key: "queueBacklog", label: t("backlog"), align: "center" as const },
+  { key: "modelGateway", label: t("modelGateway") },
+  { key: "operations", label: t("operations") },
+]);
 const runtimeQuery = createQueryResource(async () => {
   if (mode === "offline") {
     return { agents: [] as Agent[], deployments: [] as Deployment[] };
@@ -525,6 +522,10 @@ async function loadRuntimeEntry() {
     deploymentForm.agentId = agents.value[0].id;
     await loadVersionsForSelectedAgent();
   }
+}
+
+function selectDeploymentRow(row: Record<string, unknown>) {
+  selectDeployment(row as Deployment);
 }
 
 function resetDeploymentForm() {
@@ -743,7 +744,7 @@ async function promoteDeployment() {
       reason: rolloutReason.value.trim(),
     }, { auditReason: rolloutReason.value.trim() });
     selectedDeployment.value = promoted;
-    promotionMessage.value = `Promoted to version ${promoted.version}`;
+    promotionMessage.value = `${t("promotedToVersion")} ${promoted.version}`;
     promotionPreview.value = {
       ...promotionPreview.value,
       currentAgentVersionId: previousVersion,
@@ -766,7 +767,7 @@ async function rollbackDeployment() {
       reason: rollbackReason.value.trim(),
     }, { auditReason: rollbackReason.value.trim() });
     selectedDeployment.value = rolledBack;
-    promotionMessage.value = `Rolled back to version ${rolledBack.version}`;
+    promotionMessage.value = `${t("rolledBackToVersion")} ${rolledBack.version}`;
   } catch (caught) {
     pageError.value = toConsoleApiError(caught);
   }
@@ -810,34 +811,9 @@ onMounted(loadRuntimeEntry);
 </script>
 
 <style scoped>
-.deployments-table tbody tr.deployment-row {
-  cursor: pointer;
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.deployments-table tbody tr.deployment-row td {
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.deployments-table tbody tr.deployment-row:hover,
-.deployments-table tbody tr.deployment-row:focus-visible {
-  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
-  outline: none;
-}
-
-.deployments-table tbody tr.deployment-row.selected,
-.deployments-table tbody tr.deployment-row[data-selected="true"] {
-  background: var(--color-accent-soft);
-}
-
-.deployments-table tbody tr.deployment-row.selected td,
-.deployments-table tbody tr.deployment-row[data-selected="true"] td {
-  background: var(--color-accent-soft) !important;
-}
-
-.deployments-table tbody tr.deployment-row.selected td:first-child,
-.deployments-table tbody tr.deployment-row[data-selected="true"] td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-primary) !important;
+.dense-loading {
+  display: grid;
+  gap: 16px;
 }
 
 .deployment-detail-panel {
@@ -987,44 +963,10 @@ label span {
   font-weight: 700;
 }
 
-.drawer-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-  background: oklch(18% 0.017 248 / 36%);
-}
-
-.drawer {
-  display: grid;
-  width: min(480px, 100%);
-  grid-template-rows: auto 1fr;
-  border-left: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-popover);
-}
-
-.drawer-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--color-border);
-  padding: 18px;
-}
-
-.drawer-header h2 {
-  margin: 0;
-  font-size: 19px;
-  line-height: 1.2;
-}
-
 .drawer-form {
   display: grid;
   align-content: start;
   gap: 14px;
-  overflow: auto;
   padding: 18px;
 }
 
@@ -1050,8 +992,5 @@ label span {
     padding-bottom: 14px;
   }
 
-  .drawer {
-    width: 100%;
-  }
 }
 </style>
