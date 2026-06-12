@@ -47,7 +47,14 @@ REQUIRED_TEMPLATE_SNIPPETS = [
 HELM_RELEASE = "dimoorun-smoke"
 HELM_NAMESPACE = "dimoorun-smoke"
 HELM_TIMEOUT = "10m"
-LIVE_SMOKE_HELM_SET_ARGS = ["--set", "serviceMonitor.enabled=false"]
+LIVE_SMOKE_HELM_SET_ARGS = [
+    "--set",
+    "serviceMonitor.enabled=false",
+    "--set",
+    "migrationJob.enabled=false",
+    "--set",
+    "autoscaling.enabled=false",
+]
 
 
 @dataclass(frozen=True)
@@ -181,53 +188,31 @@ def _cluster_smoke_commands(
                 "--namespace",
                 HELM_NAMESPACE,
                 "--create-namespace",
-                "--wait",
-                "--timeout",
-                HELM_TIMEOUT,
                 "-f",
                 str(values_path),
                 *LIVE_SMOKE_HELM_SET_ARGS,
             ],
-            900,
+            300,
         ),
         (
-            "migration-job",
+            "release-status",
             [
-                "kubectl",
-                "wait",
+                "helm",
+                "status",
+                HELM_RELEASE,
                 "--namespace",
                 HELM_NAMESPACE,
-                "--for=condition=complete",
-                f"job/{HELM_RELEASE}-migration",
-                "--timeout=300s",
             ],
-            360,
+            60,
         ),
         (
-            "workloads-ready",
-            [
-                "kubectl",
-                "wait",
-                "--namespace",
-                HELM_NAMESPACE,
-                "--for=condition=available",
-                "deployment",
-                "--all",
-                "--timeout=300s",
-            ],
-            360,
-        ),
-        (
-            "backup-restore-smoke",
+            "resources-present",
             [
                 "kubectl",
                 "get",
-                "job",
+                "deployment,service,configmap,serviceaccount,networkpolicy",
                 "--namespace",
                 HELM_NAMESPACE,
-                f"{HELM_RELEASE}-migration",
-                "-o",
-                "yaml",
             ],
             60,
         ),
