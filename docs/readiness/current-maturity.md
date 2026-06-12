@@ -2,15 +2,26 @@
 
 ## Current Status
 
-DimooRun is a production-shaped foundation. It has meaningful backend runtime, deployment, governance, identity, observability, worker, Docker, Helm, SDK, CLI, and Console foundations.
+DimooRun is a production-shaped foundation. It has meaningful backend runtime,
+deployment, governance, identity, observability, worker, Docker, Helm, SDK,
+CLI, and Console foundations.
 
-It is not yet an externally production-grade platform. Product workflows, hardening proof, browser evidence, production defaults, smoke environments, trust assets, release engineering, and SDK compatibility still need work.
+It is not yet an externally production-grade platform. Product workflows,
+hardening proof, browser evidence, production defaults, smoke environments,
+trust assets, release engineering, and SDK compatibility still need work.
 
 Authoritative status:
 
 - [Production Readiness Scorecard](scorecard.md)
 - [Product Function Coverage Review](../product/function-coverage-review.md)
 - [Product Workflow Coverage Matrix](../product/workflow-coverage-matrix.md)
+
+## What You Can Evaluate Today
+
+- the local Compose runtime path
+- real agent publish, deploy, and task submission through API/SDK
+- Console inspection of deployments, runs, tasks, approvals, and admin surfaces
+- control-plane and runtime-plane architecture shape
 
 ## What Is Strong
 
@@ -40,5 +51,11 @@ Authoritative status:
 
 ## Claim Policy
 
-Do not claim DimooRun is production-ready or externally GA-ready until the gap closure plan definition of done is satisfied and the scorecard proves it.
+Do not claim DimooRun is production-ready or externally GA-ready until the gap
+closure plan definition of done is satisfied and the scorecard proves it.
+
+## Next Documentation Gap
+
+The next product-doc phase is trust assets, examples, demo, and community
+material in Phase 12B.
 

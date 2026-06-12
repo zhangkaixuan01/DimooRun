@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#f5f1ea"/>
+  <rect x="48" y="48" width="1184" height="624" rx="28" fill="#fffdfa" stroke="#5c3947" stroke-width="4"/>
+  <text x="88" y="130" fill="#5c3947" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700">Approval Queue Placeholder</text>
+  <text x="88" y="182" fill="#7f5766" font-family="Segoe UI, Arial, sans-serif" font-size="24">Human review, policy reason, and decision evidence</text>
+  <rect x="88" y="232" width="1072" height="90" rx="18" fill="#eedbe4"/>
+  <rect x="88" y="350" width="1072" height="90" rx="18" fill="#d8e7ef"/>
+  <rect x="88" y="468" width="1072" height="90" rx="18" fill="#e3ead8"/>
+</svg>

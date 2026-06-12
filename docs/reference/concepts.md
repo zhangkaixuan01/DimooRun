@@ -2,9 +2,26 @@
 
 ## Resource Model
 
-DimooRun uses scoped resources. Tenant, project, and environment define where runtime and governance actions apply. Core runtime resources include agents, versions, deployments, tasks, runs, attempts, events, artifacts, replay jobs, policies, approvals, service accounts, and audit logs.
+DimooRun uses scoped resources. Tenant, project, and environment define where
+runtime and governance actions apply. Core runtime resources include agents,
+versions, deployments, tasks, runs, attempts, events, artifacts, replay jobs,
+policies, approvals, service accounts, and audit logs.
 
-Numeric IDs are used for internal managed resources. String identifiers are reserved for protocol and external boundaries such as request IDs, trace IDs, worker IDs, idempotency keys, and object storage URIs.
+Numeric IDs are used for internal managed resources. String identifiers are
+reserved for protocol and external boundaries such as request IDs, trace IDs,
+worker IDs, idempotency keys, and object storage URIs.
+
+## Control Plane And Runtime Plane
+
+DimooRun separates metadata control from execution:
+
+- Control plane: agents, versions, deployments, identity, policy, settings,
+  admin APIs, Console aggregates
+- Runtime plane: task creation, worker leases, attempts, events, replay,
+  cancellation, and terminal run state
+
+That split is why users can treat business logic as a black box while still
+making runtime behavior inspectable.
 
 ## Runtime Evidence
 
@@ -40,5 +57,15 @@ The current workflow status is tracked in [Product Workflow Coverage Matrix](../
 
 ## Idempotency And Request Identity
 
-Write APIs should have stable request identity and idempotency where duplicate submission could cause unsafe behavior. The target production contract is documented in the gap closure plan; not every write path is complete yet.
+Write APIs should have stable request identity and idempotency where duplicate
+submission could cause unsafe behavior. The target production contract is
+documented in the gap closure plan; not every write path is complete yet.
+
+## Compatibility Boundary
+
+Compatibility does not mean "turn off native controls." The product intent is:
+
+- accept familiar framework entrypoints
+- surface capability gaps honestly
+- keep deployment, policy, audit, and evidence inside DimooRun
 

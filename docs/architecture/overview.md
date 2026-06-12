@@ -1,8 +1,45 @@
 # Architecture
 
-## Planes
+## Control Plane
 
-DimooRun keeps three product planes plus the Console:
+```mermaid
+flowchart LR
+    Console[Console UI] --> NativeAPI[Native and Admin APIs]
+    NativeAPI --> Metadata[(Agents Versions Deployments Identity Policy)]
+    NativeAPI --> Aggregates[Console aggregate read models]
+    NativeAPI --> Audit[Audit log sink]
+```
+
+The control plane owns metadata, identity, policy, admin routes, and Console
+aggregates.
+
+## Runtime Plane
+
+```mermaid
+flowchart LR
+    Submit[Task submission] --> RunStore[(Runs Tasks Attempts Events)]
+    RunStore --> Queue[Queue and leasing backend]
+    Queue --> Replay[Replay and retry services]
+    Replay --> RunStore
+```
+
+The runtime plane owns task lifecycle, retries, replay, cancellation, and the
+durable evidence model around execution.
+
+## Agent Plane
+
+```mermaid
+flowchart LR
+    Package[Agent package] --> Adapter[Adapter loader]
+    Adapter --> Entrypoint[Framework entrypoint]
+    Entrypoint --> Logic[User agent logic]
+    Logic --> Output[Invoke stream interrupt output]
+```
+
+The agent plane is where user code runs. DimooRun should wrap it, not replace
+it.
+
+## Planes
 
 ```mermaid
 flowchart LR
@@ -17,6 +54,23 @@ flowchart LR
 - Runtime Plane: task submission, leases, attempts, runs, events, replay, cancellation, retries, and worker coordination.
 - Agent Plane: adapter-loaded user agent code and framework compatibility boundaries.
 - Console: operator workflows backed by typed APIs and aggregate read models.
+
+## Worker Loop
+
+```mermaid
+sequenceDiagram
+    participant Worker
+    participant Backend as Task Backend
+    participant Store as Run Store
+    participant Adapter
+    Worker->>Backend: lease task
+    Backend-->>Worker: task payload + fencing token
+    Worker->>Store: create or resume attempt
+    Worker->>Adapter: invoke or stream agent
+    Adapter-->>Worker: events, output, interrupt, error
+    Worker->>Store: persist attempt, events, artifacts
+    Worker->>Backend: complete, retry, or requeue
+```
 
 ## Runtime Flow
 
@@ -53,13 +107,40 @@ flowchart TD
     Resume --> Audit
 ```
 
-High-risk actions should show disabled reasons, required permissions, policy warnings, audit requirements, impact preview, and rollback guidance before submit.
+High-risk actions should show disabled reasons, required permissions, policy
+warnings, audit requirements, impact preview, and rollback guidance before
+submit.
 
 ## Compatibility Path
 
-Compatibility APIs and adapters let users bring LangGraph, LangChain Agent, and DeepAgents code without bypassing native governance. Unsupported capabilities must be reported as gaps, not hidden behind optimistic claims.
+```mermaid
+flowchart LR
+    ExternalClient[Compatibility client] --> CompatAPI[Compatibility API]
+    CompatAPI --> Translator[Request translation]
+    Translator --> NativeRuntime[Native runtime model]
+    NativeRuntime --> Governance[Policy and audit]
+    NativeRuntime --> Adapter[Adapter execution]
+```
+
+Compatibility APIs and adapters let users bring LangGraph, LangChain Agent, and
+DeepAgents code without bypassing native governance. Unsupported capabilities
+must be reported as gaps, not hidden behind optimistic claims.
 
 ## Observability Path
 
-Runtime observability separates events, traces, artifacts, metrics, and audit records. The target is queryable, redacted evidence that helps operators classify failures, replay safely, and explain decisions.
+```mermaid
+flowchart LR
+    Worker[Worker execution] --> Events[Run events]
+    Worker --> Traces[Trace and request ids]
+    Worker --> Artifacts[Artifacts and checksums]
+    Control[Control plane actions] --> Audit[Audit records]
+    Events --> Console[Console and API readers]
+    Traces --> Console
+    Artifacts --> Console
+    Audit --> Console
+```
+
+Runtime observability separates events, traces, artifacts, metrics, and audit
+records. The target is queryable, redacted evidence that helps operators
+classify failures, replay safely, and explain decisions.
 

@@ -1,6 +1,8 @@
 # Getting Started
 
-This guide explains the intended first successful runtime path. Some steps depend on environment verification that is still marked partial in [Production Readiness Scorecard](../readiness/scorecard.md).
+This guide explains the intended first successful runtime path. The goal is not
+to prove external production readiness; it is to get one real agent through the
+publish, deploy, submit, inspect cycle with honest caveats.
 
 ## Prerequisites
 
@@ -31,6 +33,16 @@ The intended evaluator path is:
 
 This path is the product activation target. It is not yet fully proven by clean-machine Compose evidence.
 
+## Evaluation Checkpoints
+
+After the happy path, verify these before moving on:
+
+- the deployment is visible in Console
+- the run reaches a terminal state
+- events and attempt data are readable
+- the agent version and deployment IDs are visible in run detail
+- current caveats in [Current Maturity](../readiness/current-maturity.md) still match what you observed
+
 ## Local Development Path
 
 Working directory: repository root.
@@ -54,6 +66,14 @@ docker compose up --build
 ```
 
 Use this path for the product happy path once Compose smoke evidence is attached to the readiness scorecard.
+
+## API And SDK Path
+
+If you want scriptable evaluation instead of manual API calls, use:
+
+- Python SDK for validate, publish, create deployment, submit task, replay
+- CLI for run watch and deployment task submission
+- Console for visual inspection and operator workflows
 
 ## Where To Verify Status
 

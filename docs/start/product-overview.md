@@ -2,7 +2,10 @@
 
 ## What DimooRun Is
 
-DimooRun is a runtime control plane for production-shaped agent systems. It wraps agent code with runtime APIs, durable task execution, deployment controls, governance, audit evidence, observability, replay, quality loops, and operator workflows.
+DimooRun is a runtime control plane for production-shaped agent systems. It
+wraps existing agent code with runtime APIs, durable task execution, deployment
+controls, governance, audit evidence, observability, replay, and operator
+workflows.
 
 The core boundary is:
 
@@ -24,6 +27,16 @@ Generic agent frameworks help build agents. Production teams still need answers 
 - What evidence proves a replay, approval, incident, or restore decision?
 
 DimooRun exists to make those runtime and governance answers explicit.
+
+## Where It Fits
+
+DimooRun sits around agent code, not inside the business logic itself:
+
+- Framework layer: LangGraph, LangChain Agent, DeepAgents, or compatible code
+- Runtime layer: package validation, versioning, deployment, task execution,
+  replay, worker coordination, evidence capture
+- Operator layer: Console, API, CLI, and SDK workflows for deployment and run
+  control
 
 ## Core Workflows
 
@@ -48,5 +61,15 @@ DimooRun is not:
 
 ## Current Maturity
 
-The project has broad architecture and implementation foundations, but many product workflows remain partial. Use [Current Maturity](../readiness/current-maturity.md) and [Production Readiness Scorecard](../readiness/scorecard.md) before making deployment claims.
+The current product stance is deliberately modest:
+
+- Enough exists to evaluate the runtime model and the local happy path.
+- The project has broad architecture and implementation foundations, but many
+  product workflows remain partial.
+- Not enough proof exists yet to call the platform externally ready for
+  production use.
+
+Use [Current Maturity](../readiness/current-maturity.md) and
+[Production Readiness Scorecard](../readiness/scorecard.md) before making
+deployment claims.
 

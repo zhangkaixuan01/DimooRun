@@ -10,7 +10,10 @@ Agent frameworks help teams build agents, but production operation requires runt
 
 ## Decision
 
-DimooRun will be an adapter-first runtime control plane. Users bring agent code. DimooRun provides the APIs, worker runtime, deployment controls, policy/audit path, observability evidence, replay, quality loop, Console workflows, and compatibility surface needed to operate that code safely.
+DimooRun will be an adapter-first runtime control plane. Users bring agent
+code. DimooRun provides the APIs, worker runtime, deployment controls,
+policy/audit path, observability evidence, replay, quality loop, Console
+workflows, and compatibility surface needed to operate that code safely.
 
 The architecture keeps four surfaces:
 
@@ -18,6 +21,12 @@ The architecture keeps four surfaces:
 - Runtime Plane for tasks, runs, attempts, events, leases, workers, replay, and cancellation.
 - Agent Plane for adapter-loaded user code.
 - Console for operator workflows backed by typed APIs and aggregate read models.
+
+## Why This Decision
+
+- It preserves framework choice.
+- It makes runtime evidence a first-class product concern.
+- It lets governance and deployment controls evolve without forcing agent code rewrites.
 
 ## Consequences
 

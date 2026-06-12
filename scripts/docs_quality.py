@@ -26,30 +26,67 @@ REQUIRED_DOCS = [
 ]
 
 REQUIRED_SECTIONS = {
+    "README.md": [
+        "# DimooRun",
+        "## Why Teams Use DimooRun",
+        "## First 15 Minutes",
+        "## Architecture Signal",
+        "## Screenshots",
+        "## Supported Modes",
+        "## Current Maturity",
+        "## What DimooRun Is Not",
+    ],
     "docs/README.md": [
         "# DimooRun Documentation",
         "## Start Here",
+        "## Evaluation Path",
         "## Product",
+        "## API And SDK",
         "## Readiness",
+        "## Known Gaps",
         "## Directory Map",
     ],
-    "docs/start/product-overview.md": ["# Product Overview", "## What DimooRun Is", "## Non-Goals"],
+    "docs/start/product-overview.md": [
+        "# Product Overview",
+        "## What DimooRun Is",
+        "## Where It Fits",
+        "## Core Workflows",
+        "## Non-Goals",
+    ],
     "docs/start/getting-started.md": [
         "# Getting Started",
         "## Prerequisites",
         "## First Runtime Path",
+        "## Evaluation Checkpoints",
     ],
-    "docs/reference/concepts.md": ["# Concepts", "## Resource Model", "## Runtime Evidence"],
-    "docs/architecture/overview.md": ["# Architecture", "## Planes", "## Runtime Flow"],
+    "docs/reference/concepts.md": [
+        "# Concepts",
+        "## Resource Model",
+        "## Control Plane And Runtime Plane",
+        "## Runtime Evidence",
+        "## Compatibility Boundary",
+    ],
+    "docs/architecture/overview.md": [
+        "# Architecture",
+        "## Control Plane",
+        "## Runtime Plane",
+        "## Agent Plane",
+        "## Worker Loop",
+        "## Governance Decision Path",
+        "## Compatibility Path",
+        "## Observability Path",
+    ],
     "docs/start/quickstart.md": ["# Quickstart", "## Working Directory", "## Verify The Run"],
     "docs/readiness/current-maturity.md": [
         "# Current Maturity",
         "## Current Status",
+        "## What You Can Evaluate Today",
         "## Known Gaps",
     ],
     "docs/readiness/screenshots.md": [
         "# Screenshots",
         "## Required Screenshots",
+        "## Placeholder Gallery",
         "## Current State",
     ],
     "docs/readiness/compose-smoke-report.md": [
@@ -93,6 +130,12 @@ REQUIRED_PHASES = [
 ALLOWED_STATUSES = {"complete", "partial", "missing", "blocked"}
 SHELL_FENCES = {"bash", "sh", "shell", "powershell", "ps1", "pwsh"}
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+MARKDOWN_IMAGE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
+UNSUPPORTED_MATURITY_PHRASES = [
+    "production-ready",
+    "fully production ready",
+    "perfect production-grade",
+]
 
 
 @dataclass(frozen=True)
@@ -125,17 +168,15 @@ def validate_docs_quality(root: Path) -> DocsQualityResult:
 
     readme_path = root / "README.md"
     if readme_path.exists():
-        readme = readme_path.read_text(encoding="utf-8").lower()
-        unsupported_phrases = [
-            "production-ready",
-            "fully production ready",
-            "perfect production-grade",
-        ]
-        for phrase in unsupported_phrases:
-            if phrase in readme:
-                errors.append(f"README.md contains unsupported maturity claim: {phrase}")
+        errors.extend(_validate_unsupported_claims(readme_path, root))
+
+    for relative_path in REQUIRED_SECTIONS:
+        doc_path = root / relative_path
+        if doc_path.exists() and relative_path != "README.md":
+            errors.extend(_validate_unsupported_claims(doc_path, root))
 
     errors.extend(_validate_internal_links(root))
+    errors.extend(_validate_image_refs(root))
     errors.extend(_validate_command_blocks(root))
 
     return DocsQualityResult(errors=errors)
@@ -229,6 +270,62 @@ def _validate_command_blocks(root: Path) -> list[str]:
                     "directory nearby."
                 )
     return errors
+
+
+def _validate_image_refs(root: Path) -> list[str]:
+    errors: list[str] = []
+    for markdown_path in _markdown_files(root):
+        text = markdown_path.read_text(encoding="utf-8")
+        for match in MARKDOWN_IMAGE.finditer(text):
+            target = match.group(1).split("#", 1)[0].strip()
+            if not target or _is_external_or_special_link(target):
+                continue
+            target_path = (markdown_path.parent / target).resolve()
+            try:
+                target_path.relative_to(root.resolve())
+            except ValueError:
+                errors.append(
+                    f"Image reference in {_relative(markdown_path, root)} points outside repo: "
+                    f"{target}"
+                )
+                continue
+            if not target_path.exists():
+                errors.append(
+                    "Broken image reference in "
+                    f"{_relative(markdown_path, root)}: {target}"
+                )
+    return errors
+
+
+def _validate_unsupported_claims(markdown_path: Path, root: Path) -> list[str]:
+    errors: list[str] = []
+    for line in markdown_path.read_text(encoding="utf-8").splitlines():
+        normalized = line.lower()
+        for phrase in UNSUPPORTED_MATURITY_PHRASES:
+            if phrase not in normalized:
+                continue
+            if _line_is_negated_claim(normalized, phrase):
+                continue
+            errors.append(
+                f"{_relative(markdown_path, root)} contains unsupported maturity claim: {phrase}"
+            )
+    return errors
+
+
+def _line_is_negated_claim(line: str, phrase: str) -> bool:
+    prefix = line.split(phrase, 1)[0]
+    negation_markers = (
+        "not ",
+        "do not ",
+        "must not ",
+        "should not ",
+        "is not ",
+        "are not ",
+        "isn't ",
+        "aren't ",
+        "without ",
+    )
+    return any(marker in prefix for marker in negation_markers)
 
 
 def _markdown_files(root: Path) -> list[Path]:

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#f6f1e8"/>
+  <rect x="48" y="48" width="1184" height="624" rx="28" fill="#fffdf9" stroke="#744c2d" stroke-width="4"/>
+  <text x="88" y="130" fill="#744c2d" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700">Deployment Workflow Placeholder</text>
+  <text x="88" y="182" fill="#94674a" font-family="Segoe UI, Arial, sans-serif" font-size="24">Promote, pause, resume, restart, and rollback states</text>
+  <rect x="88" y="244" width="180" height="88" rx="18" fill="#eed7c4"/>
+  <rect x="320" y="244" width="180" height="88" rx="18" fill="#d9e9da"/>
+  <rect x="552" y="244" width="180" height="88" rx="18" fill="#d7e3f3"/>
+  <rect x="784" y="244" width="180" height="88" rx="18" fill="#f0e3b8"/>
+  <rect x="1016" y="244" width="144" height="88" rx="18" fill="#e5d4ef"/>
+  <rect x="88" y="388" width="1072" height="188" rx="22" fill="#edf2f5"/>
+</svg>
