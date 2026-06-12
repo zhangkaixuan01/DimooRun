@@ -1,0 +1,30 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dimoorun.fullname" . }}
+  labels:
+{{ include "dimoorun.labels" . | indent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+{{ include "dimoorun.selectorLabels" . | indent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+  egress:
+    - to:
+        - namespaceSelector: {}
+    {{- if .Values.networkPolicy.allowDns }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+{{- end }}

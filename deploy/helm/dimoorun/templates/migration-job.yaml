@@ -1,30 +1,36 @@
-apiVersion: apps/v1
-kind: Deployment
+{{- if .Values.migrationJob.enabled }}
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: {{ include "dimoorun.fullname" . }}-worker
+  name: {{ include "dimoorun.fullname" . }}-migration
   labels:
 {{ include "dimoorun.labels" . | indent 4 }}
-{{ include "dimoorun.workerLabels" . | indent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
-  replicas: {{ .Values.worker.replicas }}
-  selector:
-    matchLabels:
-{{ include "dimoorun.workerLabels" . | indent 6 }}
+  backoffLimit: {{ .Values.migrationJob.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrationJob.ttlSecondsAfterFinished }}
   template:
     metadata:
       labels:
 {{ include "dimoorun.labels" . | indent 8 }}
-{{ include "dimoorun.workerLabels" . | indent 8 }}
+        app.kubernetes.io/component: migration
     spec:
+      restartPolicy: OnFailure
       serviceAccountName: {{ include "dimoorun.fullname" . }}
       containers:
-        - name: worker
-          image: "{{ .Values.image.repository }}-worker:{{ .Values.image.tag }}"
+        - name: migration
+          image: "{{ .Values.image.repository }}-server:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "dimoo_run.ops.init_db"]
           envFrom:
             - configMapRef:
                 name: {{ include "dimoorun.fullname" . }}-config
           env:
+            - name: DIMOORUN_SKIP_DB_INIT
+              value: "false"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -46,4 +52,5 @@ spec:
                   name: {{ .Values.objectStore.external.secretRef }}
                   key: secretKey
           resources:
-{{ toYaml (mergeOverwrite (deepCopy .Values.resources.defaults) .Values.worker.resources) | indent 12 }}
+{{ toYaml (mergeOverwrite (deepCopy .Values.resources.defaults) .Values.migrationJob.resources) | indent 12 }}
+{{- end }}

@@ -22,6 +22,7 @@ Authoritative status:
 - Production-path package execution now enforces validated `ready` agent versions at worker runtime, rejects unsafe local/file package URIs outside `dev`, and resolves execution profile, sandbox, model gateway, tool gateway, container pool, and secret-ref bindings into runtime config before adapter load.
 - Governance now reaches the durable worker path: runtime execution can consume injected secret, model gateway, and tool governance services that enforce DB-backed policy, write audit logs, persist model usage, and create approval-backed human tasks.
 - Production startup guards now fail closed on SQLite, in-memory runtime store, dev CORS origins, default object-store credentials, missing secret provider config, and dev API key mode.
+- Deployment assets now include startup-ordered Compose migration flow, backup/restore runtime smoke, and Helm production guards for migration hooks, NetworkPolicy, PodDisruptionBudget, ServiceMonitor, and resource defaults, with a dedicated hosted integration workflow contract.
 - Console route and API coverage for many product areas, now backed by a 58-test local browser suite that covers workflow interactions, critical accessibility checks, and responsive screenshot evidence.
 - Shared Console control-plane primitives now centralize drawers, dense tables, skeleton loading states, and runtime chart accessibility semantics across the largest operator pages.
 - Docker, Helm, OpenAPI, CLI, and SDK foundations.
@@ -30,7 +31,7 @@ Authoritative status:
 
 - Many Console pages remain partial product workflows rather than complete operator tools.
 - Hosted/default-browser proof is still incomplete even though the local browser suite now covers 58 workflow, accessibility, and responsive tests plus a focused 9-test Phase 7 accessibility verifier.
-- Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete.
+- Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete, even though the runtime and Helm smoke scripts plus `integration.yml` contract are now in place.
 - Hosted Prometheus/OTel exporter proof and live monitoring-stack verification are not complete yet, even though the Phase 5 observability API and Console surfaces are now implemented and locally verified.
 - OCI package retrieval and live production package execution proof are not complete yet, even though the runtime now blocks unsafe package paths, validates runtime bindings before worker execution, and injects enforced governance services into the durable worker path.
 - SDKs, release workflow, trust/security docs, examples, and screenshots are incomplete.

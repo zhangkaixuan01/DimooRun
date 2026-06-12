@@ -40,6 +40,26 @@ def test_playwright_config_uses_browser_installed_by_ci() -> None:
     assert 'channel: "chrome"' not in config_text
 
 
+def test_integration_workflow_runs_live_compose_and_kind_smoke() -> None:
+    workflow_path = Path(".github/workflows/integration.yml")
+
+    assert workflow_path.exists(), "Missing GitHub Actions integration workflow."
+
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    workflow_on = workflow.get("on", workflow.get(True))
+
+    assert workflow_on is not None
+    assert "workflow_dispatch" in workflow_on
+    assert {"compose-runtime", "kind-smoke"} <= set(workflow["jobs"])
+    assert "docker compose down --remove-orphans --volumes" in workflow_text
+    assert "uv run python scripts/compose_runtime_smoke.py" in workflow_text
+    assert "helm version" in workflow_text
+    assert "kubectl version --client" in workflow_text
+    assert "kind version" in workflow_text
+    assert "uv run python scripts/helm_smoke.py --cluster-runtime kind" in workflow_text
+
+
 def test_ci_runs_phase_0h_browser_workflow_with_managed_chromium_report() -> None:
     workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     package_text = Path("apps/console/package.json").read_text(encoding="utf-8")

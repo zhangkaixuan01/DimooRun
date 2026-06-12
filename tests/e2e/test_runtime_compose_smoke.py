@@ -21,6 +21,7 @@ class FakeRunner:
         self.probe_failures = probe_failures
         self.commands: list[list[str]] = []
         self.probed: list[str] = []
+        self.requests: list[tuple[str, dict[str, object]]] = []
 
     def run(self, command: list[str], timeout_seconds: int) -> None:
         _ = timeout_seconds
@@ -34,6 +35,18 @@ class FakeRunner:
         if self.probe_failures > 0:
             self.probe_failures -= 1
             raise RuntimeError(f"{url} not ready yet")
+
+    def request_json(
+        self,
+        url: str,
+        *,
+        payload: dict[str, object],
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> dict[str, object]:
+        _ = headers, timeout_seconds
+        self.requests.append((url, payload))
+        return {"status": "ready"}
 
 
 def test_runtime_compose_smoke_runs_compose_and_probes_server_and_console() -> None:
@@ -50,11 +63,37 @@ def test_runtime_compose_smoke_runs_compose_and_probes_server_and_console() -> N
     assert runner.commands == [
         ["docker", "compose", "config", "--quiet"],
         ["docker", "compose", "up", "--build", "--detach"],
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "pg_isready",
+            "-U",
+            "dimoorun",
+            "-d",
+            "dimoorun",
+        ],
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "minio",
+            "sh",
+            "-c",
+            (
+                "mc alias set local http://localhost:9000 "
+                "$MINIO_ROOT_USER $MINIO_ROOT_PASSWORD >/dev/null 2>&1 && mc ls local"
+            ),
+        ],
         ["docker", "compose", "ps"],
         ["docker", "compose", "down", "--remove-orphans"],
     ]
     assert SERVER_HEALTH_URL in runner.probed
     assert CONSOLE_URL in runner.probed
+    assert len(runner.requests) == 2
 
 
 def test_runtime_compose_smoke_records_failure_and_still_tears_down() -> None:

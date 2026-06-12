@@ -2,11 +2,16 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "dimoorun.fullname" . }}-config
+  labels:
+{{ include "dimoorun.labels" . | indent 4 }}
 data:
-  DIMOORUN_RUNTIME_MODE: "enterprise"
+  DIMOORUN_RUNTIME_MODE: "production"
+  DIMOORUN_SKIP_DB_INIT: "true"
+  DIMOORUN_NATIVE_RUNTIME_STORE: "sqlalchemy"
   OBJECT_STORE_BACKEND: "minio"
   OBJECT_STORE_ENDPOINT_URL: "{{ .Values.objectStore.external.endpointUrl }}"
   OBJECT_STORE_BUCKET: "{{ .Values.objectStore.external.bucket }}"
+  DIMOORUN_SECRET_PROVIDER: "{{ .Values.secretProvider.mode }}"
   DIMOORUN_SANDBOX_MODE: "{{ .Values.sandbox.mode }}"
   DIMOORUN_SANDBOX_CPU_LIMIT: "{{ .Values.sandbox.cpuLimit }}"
   DIMOORUN_SANDBOX_MEMORY_LIMIT: "{{ .Values.sandbox.memoryLimit }}"

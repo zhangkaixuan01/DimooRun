@@ -13,6 +13,7 @@ class FakeRunner:
     def __init__(self) -> None:
         self.commands: list[list[str]] = []
         self.urls: list[str] = []
+        self.requests: list[tuple[str, dict[str, object]]] = []
 
     def run(self, command: list[str], timeout_seconds: int) -> None:
         self.commands.append(command)
@@ -20,17 +21,32 @@ class FakeRunner:
     def probe_url(self, url: str, timeout_seconds: int) -> None:
         self.urls.append(url)
 
+    def request_json(
+        self,
+        url: str,
+        *,
+        payload: dict[str, object],
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> dict[str, object]:
+        _ = headers, timeout_seconds
+        self.requests.append((url, payload))
+        return {"status": "ready"}
+
 
 def test_compose_declares_production_foundation_services() -> None:
     compose_path = Path("docker-compose.yml")
     compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
 
-    assert {"server", "worker", "console", "postgres", "redis", "minio"} <= set(
+    assert {"migrator", "server", "worker", "console", "postgres", "redis", "minio"} <= set(
         compose["services"]
     )
+    assert compose["services"]["migrator"]["command"] == ["python", "-m", "dimoo_run.ops.init_db"]
     assert compose["services"]["server"]["env_file"] == ".env"
     assert compose["services"]["worker"]["env_file"] == ".env"
     assert compose["services"]["console"]["env_file"] == ".env"
+    assert compose["services"]["server"]["environment"]["DIMOORUN_SKIP_DB_INIT"] == "true"
+    assert compose["services"]["worker"]["environment"]["DIMOORUN_SKIP_DB_INIT"] == "true"
     assert compose["services"]["server"]["environment"]["DATABASE_URL"].startswith(
         "postgresql+psycopg://"
     )
@@ -105,6 +121,7 @@ def test_compose_smoke_contract_covers_core_runtime_stack() -> None:
 
     assert result.errors == []
     assert result.checked_services == [
+        "migrator",
         "server",
         "worker",
         "console",
@@ -123,10 +140,56 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
     assert runner.commands == [
         ["docker", "compose", "config", "--quiet"],
         ["docker", "compose", "up", "--build", "--detach"],
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "pg_isready",
+            "-U",
+            "dimoorun",
+            "-d",
+            "dimoorun",
+        ],
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "minio",
+            "sh",
+            "-c",
+            (
+                "mc alias set local http://localhost:9000 "
+                "$MINIO_ROOT_USER $MINIO_ROOT_PASSWORD >/dev/null 2>&1 && mc ls local"
+            ),
+        ],
         ["docker", "compose", "ps"],
         ["docker", "compose", "down", "--remove-orphans"],
     ]
     assert runner.urls == [
         "http://127.0.0.1:8000/healthz",
         "http://127.0.0.1:5173/",
+    ]
+    assert runner.requests == [
+        (
+            "http://127.0.0.1:8000/v1/backups/dry-run",
+            {
+                "plan_id": 1,
+                "scope": "project",
+                "targets": ["database", "artifacts"],
+                "storage_ref": "minio://dimoorun-backups/local",
+            },
+        ),
+        (
+            "http://127.0.0.1:8000/v1/backups/restore-dry-run",
+            {
+                "backup_ref": "backup://2026-06-12/project",
+                "restore_scope": "project",
+                "targets": ["database", "artifacts"],
+                "destructive": True,
+                "confirmation": "restore project from backup",
+            },
+        ),
     ]

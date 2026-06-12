@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-REQUIRED_SERVICES = ["server", "worker", "console", "postgres", "redis", "minio"]
+REQUIRED_SERVICES = ["migrator", "server", "worker", "console", "postgres", "redis", "minio"]
 RUNTIME_ENV = {
     "DATABASE_URL": "postgresql+psycopg://",
     "REDIS_URL": "redis://redis:6379/0",
@@ -42,6 +42,7 @@ def validate_compose_smoke(root: Path) -> ComposeSmokeResult:
         return ComposeSmokeResult(errors=errors, checked_services=[])
 
     _validate_core_dependencies(services, errors)
+    _validate_migrator(services["migrator"], errors)
     _validate_runtime_service("server", services["server"], errors)
     _validate_runtime_service("worker", services["worker"], errors)
     _validate_console(services["console"], errors)
@@ -58,16 +59,41 @@ def validate_compose_smoke(root: Path) -> ComposeSmokeResult:
 
 
 def _validate_core_dependencies(services: dict[str, Any], errors: list[str]) -> None:
+    migrator_depends = services["migrator"].get("depends_on", {})
+    for dependency in ["postgres", "redis", "minio"]:
+        condition = migrator_depends.get(dependency, {}).get("condition")
+        if condition != "service_healthy":
+            errors.append(f"migrator must wait for healthy {dependency}.")
+
     server_depends = services["server"].get("depends_on", {})
+    if server_depends.get("migrator", {}).get("condition") != "service_completed_successfully":
+        errors.append("server must wait for completed migrator job.")
     for dependency in ["postgres", "redis", "minio"]:
         condition = server_depends.get(dependency, {}).get("condition")
         if condition != "service_healthy":
             errors.append(f"server must wait for healthy {dependency}.")
 
-    for service in ["worker", "console"]:
-        condition = services[service].get("depends_on", {}).get("server", {}).get("condition")
-        if condition != "service_healthy":
-            errors.append(f"{service} must wait for healthy server.")
+    worker_depends = services["worker"].get("depends_on", {})
+    if worker_depends.get("migrator", {}).get("condition") != "service_completed_successfully":
+        errors.append("worker must wait for completed migrator job.")
+    if worker_depends.get("server", {}).get("condition") != "service_healthy":
+        errors.append("worker must wait for healthy server.")
+
+    if (
+        services["console"].get("depends_on", {}).get("server", {}).get("condition")
+        != "service_healthy"
+    ):
+        errors.append("console must wait for healthy server.")
+
+
+def _validate_migrator(service: dict[str, Any], errors: list[str]) -> None:
+    if service.get("env_file") != ".env":
+        errors.append("migrator must load .env.")
+    if service.get("command") != ["python", "-m", "dimoo_run.ops.init_db"]:
+        errors.append("migrator must run python -m dimoo_run.ops.init_db.")
+    environment = service.get("environment", {})
+    if environment.get("DIMOORUN_SKIP_DB_INIT") != "false":
+        errors.append("migrator must run with DIMOORUN_SKIP_DB_INIT=false.")
 
 
 def _validate_runtime_service(name: str, service: dict[str, Any], errors: list[str]) -> None:
@@ -79,6 +105,8 @@ def _validate_runtime_service(name: str, service: dict[str, Any], errors: list[s
         actual = environment.get(key)
         if actual != expected and not str(actual).startswith(expected):
             errors.append(f"{name} environment {key} must point to Compose dependency.")
+    if environment.get("DIMOORUN_SKIP_DB_INIT") != "true":
+        errors.append(f"{name} must skip inline DB init when migrator is enabled.")
 
     if name == "server":
         _require_healthcheck(name, service, errors)

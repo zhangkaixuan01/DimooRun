@@ -1,4 +1,27 @@
 services:
+  migrator:
+    build:
+      context: .
+      dockerfile: deploy/docker/server.Dockerfile
+    env_file: .env
+    environment:
+      DIMOORUN_RUNTIME_MODE: dev
+      DATABASE_URL: postgresql+psycopg://dimoorun:dimoorun@postgres:5432/dimoorun
+      REDIS_URL: redis://redis:6379/0
+      OBJECT_STORE_ENDPOINT_URL: http://minio:9000
+      DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
+      DIMOORUN_SECRET_PROVIDER: memory
+      DIMOORUN_SKIP_DB_INIT: "false"
+    command: ["python", "-m", "dimoo_run.ops.init_db"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: "no"
+
   server:
     build:
       context: .
@@ -11,9 +34,12 @@ services:
       OBJECT_STORE_ENDPOINT_URL: http://minio:9000
       DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
       DIMOORUN_SECRET_PROVIDER: memory
+      DIMOORUN_SKIP_DB_INIT: "true"
     ports:
       - "8000:8000"
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -38,7 +64,10 @@ services:
       OBJECT_STORE_ENDPOINT_URL: http://minio:9000
       DIMOORUN_NATIVE_RUNTIME_STORE: sqlalchemy
       DIMOORUN_SECRET_PROVIDER: memory
+      DIMOORUN_SKIP_DB_INIT: "true"
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       server:
         condition: service_healthy
 

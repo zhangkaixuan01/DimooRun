@@ -1733,11 +1733,11 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add migration Job and startup ordering.
-- [ ] Add NetworkPolicy, PodDisruptionBudget, ServiceMonitor, and resource default templates.
-- [ ] Add KinD/K3d smoke script.
-- [ ] Add Compose smoke to CI.
-- [ ] Add backup/restore smoke against Postgres and MinIO.
+- [x] Add migration Job and startup ordering.
+- [x] Add NetworkPolicy, PodDisruptionBudget, ServiceMonitor, and resource default templates.
+- [x] Add KinD/K3d smoke script.
+- [x] Add Compose smoke to CI.
+- [x] Add backup/restore smoke against Postgres and MinIO.
 - [ ] Commit as `feat(deploy): add production smoke and kubernetes guards`.
 
 Acceptance:

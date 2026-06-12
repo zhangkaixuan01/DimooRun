@@ -1,0 +1,72 @@
+name: Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  compose-runtime:
+    name: Compose Runtime Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Start Compose runtime smoke
+        run: uv run python scripts/compose_runtime_smoke.py
+
+      - name: Tear down Compose volumes
+        if: always()
+        run: docker compose down --remove-orphans --volumes
+
+  kind-smoke:
+    name: Helm Kind Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install KinD
+        uses: helm/kind-action@v1.12.0
+        with:
+          install_only: true
+
+      - name: Verify Kubernetes toolchain
+        run: |
+          helm version
+          kubectl version --client
+          kind version
+
+      - name: Run Helm KinD smoke
+        run: uv run python scripts/helm_smoke.py --cluster-runtime kind

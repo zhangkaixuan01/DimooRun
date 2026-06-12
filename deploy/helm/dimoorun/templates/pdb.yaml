@@ -1,0 +1,29 @@
+{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.server.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "dimoorun.fullname" . }}-server
+  labels:
+{{ include "dimoorun.labels" . | indent 4 }}
+{{ include "dimoorun.serverLabels" . | indent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+{{ include "dimoorun.serverLabels" . | indent 6 }}
+---
+{{- end }}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.worker.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "dimoorun.fullname" . }}-worker
+  labels:
+{{ include "dimoorun.labels" . | indent 4 }}
+{{ include "dimoorun.workerLabels" . | indent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+{{ include "dimoorun.workerLabels" . | indent 6 }}
+{{- end }}
