@@ -955,7 +955,7 @@ Tasks:
 - [x] Add backend impact preview: affected deployment, current desired/runtime status, active runs, queued tasks, candidate validation status, and rollback path.
 - [x] Add Console workflow with pre-action impact, confirmation, audit reason, progress state, success feedback, and rollback affordance.
 - [x] Add browser tests for promote, rollback, pause/resume, policy denied action, and stale deployment conflict.
-- [ ] Commit as `feat(product): add deployment promotion workflow`.
+- [x] Commit as `feat(product): add deployment promotion workflow`.
 
 Acceptance:
 

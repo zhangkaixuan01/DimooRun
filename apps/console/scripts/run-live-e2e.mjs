@@ -13,6 +13,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
+import { runDeploymentPromotionLiveSmoke } from "./deployment-promotion-live-smoke.mjs";
 import { runPackageVersionLiveSmoke } from "./package-version-live-smoke.mjs";
 import { runPublishedSurfaceLiveSmoke } from "./published-surface-live-smoke.mjs";
 
@@ -409,6 +410,11 @@ try {
     apiBaseUrl: liveApiBaseUrl,
   });
   logStatus("Package validation live smoke completed: validated package promoted to ready version and accepted a deployment task");
+  await runDeploymentPromotionLiveSmoke({
+    frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
+    apiBaseUrl: liveApiBaseUrl,
+  });
+  logStatus("Deployment promotion live smoke completed: pause/resume, impact preview, promote, rollback, and drain were verified");
   await runPublishedSurfaceLiveSmoke({
     frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
     apiBaseUrl: liveApiBaseUrl,

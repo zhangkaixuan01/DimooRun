@@ -89,6 +89,11 @@ jobs:
         env:
           PLAYWRIGHT_HTML_REPORT: playwright-report-0a
 
+      - name: Run Console Phase 0B browser workflow
+        run: npm run test:e2e:0b
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-0b
+
       - name: Run Console Phase 0H browser workflow
         run: npm run test:e2e:0h
         env:
@@ -136,6 +141,14 @@ jobs:
         with:
           name: console-playwright-0a-report
           path: apps/console/playwright-report-0a
+          if-no-files-found: ignore
+
+      - name: Upload Phase 0B Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-0b-report
+          path: apps/console/playwright-report-0b
           if-no-files-found: ignore
 
       - name: Upload Phase 0H Playwright report

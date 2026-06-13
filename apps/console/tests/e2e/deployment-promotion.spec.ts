@@ -10,6 +10,7 @@ test("previews promotion impact, promotes a candidate, and rolls back", async ({
   await page.goto("/deployments");
 
   await expect(page.getByRole("heading", { name: "Deployments", exact: true })).toBeVisible();
+  await page.locator(".deployments-table").getByText("10", { exact: true }).click();
   await page.getByRole("tab", { name: "Promotion" }).click();
   await page.getByLabel("Candidate version").selectOption("12");
   await page.getByRole("button", { name: "Preview promotion" }).click();
@@ -39,6 +40,7 @@ test("confirms pause and resume controls with audit impact", async ({ page }) =>
 
   await page.goto("/deployments");
 
+  await page.locator(".deployments-table").getByText("10", { exact: true }).click();
   await page.getByRole("button", { name: "暂停", exact: true }).click();
   await expect(page.getByText("AuditLog", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "确认" }).click();
@@ -58,6 +60,7 @@ test("surfaces policy denial and stale deployment conflicts during promotion", a
   await page.goto("/deployments");
 
   await expect(page.getByRole("heading", { name: "Deployments", exact: true })).toBeVisible();
+  await page.locator(".deployments-table").getByText("10", { exact: true }).click();
   await page.getByRole("tab", { name: "Promotion" }).click();
   await page.getByLabel("Candidate version").selectOption("12");
   await page.getByRole("button", { name: "Preview promotion" }).click();

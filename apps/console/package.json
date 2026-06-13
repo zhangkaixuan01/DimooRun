@@ -11,6 +11,7 @@
     "build:e2e": "vue-tsc --noEmit && vite build --mode e2e",
     "test:e2e": "npm run check:e2e-browser && npm run build:e2e && playwright test",
     "test:e2e:0a": "node scripts/run-phase-e2e.mjs tests/e2e/package-version-workflow.spec.ts --project=chrome --output test-results-0a",
+    "test:e2e:0b": "npm run check:e2e-browser && npx playwright test tests/e2e/deployment-promotion.spec.ts --project=chrome --workers=1 --output test-results-0b-ci-proof",
     "test:e2e:0h": "node scripts/run-phase-e2e.mjs tests/e2e/published-surfaces.spec.ts --project=chrome --output test-results-0h",
     "test:e2e:0i": "node scripts/run-phase-e2e.mjs tests/e2e/compatibility-explorer.spec.ts --project=chrome --output test-results-0i",
     "test:e2e:0j": "node scripts/run-phase-e2e.mjs tests/e2e/runtime-capacity.spec.ts --project=chrome --workers=1 --output test-results-0j",

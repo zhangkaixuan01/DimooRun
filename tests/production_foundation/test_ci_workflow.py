@@ -92,6 +92,22 @@ def test_ci_runs_phase_0a_browser_workflow_with_managed_chromium_report() -> Non
     assert "apps/console/playwright-report-0a" in workflow_text
 
 
+def test_ci_runs_phase_0b_browser_workflow_with_managed_chromium_report() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
+
+    assert '"test:e2e:0b"' in package_text
+    assert "tests/e2e/deployment-promotion.spec.ts" in package_text
+    assert "--project=chrome" in package_text
+    assert "--workers=1" in package_text
+    assert "--output test-results-0b-ci-proof" in package_text
+    assert "npm run test:e2e:0b" in workflow_text
+    assert "PLAYWRIGHT_HTML_REPORT: playwright-report-0b" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
+    assert "console-playwright-0b-report" in workflow_text
+    assert "apps/console/playwright-report-0b" in workflow_text
+
+
 def test_ci_runs_phase_0i_browser_workflow_with_managed_chromium_report() -> None:
     workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
