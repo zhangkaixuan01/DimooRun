@@ -892,9 +892,23 @@ function mapPolicySimulation(result: Record<string, unknown>): PolicySimulation 
 
 function mapPolicyActivation(result: Record<string, unknown>): PolicyActivation {
   const rollbackTarget = isRecord(result.rollback_target) ? result.rollback_target : {};
+  const comparison = isRecord(result.comparison) ? result.comparison : {};
+  const changedFields = Array.isArray(comparison.changed_fields) ? comparison.changed_fields : [];
   return {
     item: isRecord(result.item) ? result.item : {},
     version: Number(result.version || 0),
+    comparison: {
+      fromVersion:
+        comparison.from_version === null || comparison.from_version === undefined
+          ? null
+          : Number(comparison.from_version),
+      toVersion: Number(comparison.to_version || result.version || 0),
+      changedFields: changedFields.filter(isRecord).map((field) => ({
+        field: String(field.field || ""),
+        before: field.before,
+        after: field.after,
+      })),
+    },
     audit: isRecord(result.audit) ? result.audit : {},
     rollbackTarget: {
       policyId: Number(rollbackTarget.policy_id || 0),
@@ -1576,17 +1590,26 @@ export const liveConsoleClient = {
     );
     return mapPolicySimulation(payload as Record<string, unknown>);
   },
-  async activatePolicy(draftPolicy: PolicyDraft, auditReason: string): Promise<PolicyActivation> {
+  async activatePolicy(
+    draftPolicy: PolicyDraft,
+    auditReason: string,
+    expectedVersion?: number | null,
+  ): Promise<PolicyActivation> {
     const payload = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
       "/v1/policies/activate",
-      { draft_policy: draftPolicy, audit_reason: auditReason },
+      { draft_policy: draftPolicy, audit_reason: auditReason, expected_version: expectedVersion ?? undefined },
     );
     return mapPolicyActivation(payload as Record<string, unknown>);
   },
-  async rollbackPolicy(policyId: ResourceId, targetVersion: number, auditReason: string): Promise<PolicyActivation> {
+  async rollbackPolicy(
+    policyId: ResourceId,
+    targetVersion: number,
+    auditReason: string,
+    expectedVersion?: number | null,
+  ): Promise<PolicyActivation> {
     const payload = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
       `/v1/policies/${policyId}/rollback`,
-      { target_version: targetVersion, audit_reason: auditReason },
+      { target_version: targetVersion, audit_reason: auditReason, expected_version: expectedVersion ?? undefined },
     );
     return mapPolicyActivation(payload as Record<string, unknown>);
   },

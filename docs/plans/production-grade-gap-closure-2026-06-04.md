@@ -1006,7 +1006,7 @@ Tasks:
 - [x] Add activation API with version, audit reason, rollback target, and conflict detection.
 - [x] Expand Human Tasks with assignment, decision context, requester, risk reason, diff, approve/reject/comment, and resume outcome.
 - [x] Add browser tests for simulate, activate, rollback, approve, reject, policy denied, and approval resume visibility.
-- [ ] Commit as `feat(governance): add policy and approval workbench`.
+- [x] Commit as `feat(governance): add policy and approval workbench`.
 
 Acceptance:
 

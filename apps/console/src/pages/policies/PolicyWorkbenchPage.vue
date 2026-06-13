@@ -107,6 +107,22 @@
             <p>{{ t("activatedVersion") }} {{ activation.version }}</p>
             <p>{{ t("rollbackTarget") }}: {{ t("version").toLowerCase() }} {{ activation.rollbackTarget.version }}</p>
           </div>
+          <div v-if="activation" class="result-list">
+            <h3>Audit comparison</h3>
+            <p>
+              Version
+              {{ activation.comparison.fromVersion === null ? "draft" : activation.comparison.fromVersion }}
+              ->
+              {{ activation.comparison.toVersion }}
+            </p>
+            <p
+              v-for="field in activation.comparison.changedFields"
+              :key="field.field"
+              class="comparison-line"
+            >
+              {{ field.field }}: {{ formatComparisonValue(field.before) }} -> {{ formatComparisonValue(field.after) }}
+            </p>
+          </div>
           <p v-if="rollbackMessage" class="notice">{{ rollbackMessage }}</p>
         </div>
       </section>
@@ -194,7 +210,11 @@ async function simulate() {
 
 async function activate() {
   await runWithState(async () => {
-    activation.value = await consoleClient.activatePolicy(draftPolicy(), form.auditReason);
+    activation.value = await consoleClient.activatePolicy(
+      draftPolicy(),
+      form.auditReason,
+      activation.value?.version ?? null,
+    );
   });
 }
 
@@ -206,7 +226,9 @@ async function rollback() {
       currentActivation.rollbackTarget.policyId,
       currentActivation.rollbackTarget.version,
       form.auditReason,
+      currentActivation.version,
     );
+    activation.value = result;
     rollbackMessage.value = `${t("rolledBackToVersion")} ${result.rollbackTarget.version}`;
   });
 }
@@ -220,6 +242,14 @@ async function simulateDenied() {
 
 function formatRecord(value: Record<string, unknown>): string {
   return JSON.stringify(value, null, 2);
+}
+
+function formatComparisonValue(value: unknown): string {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value);
 }
 </script>
 
@@ -271,6 +301,10 @@ label span {
 .result-list p {
   display: grid;
   gap: 3px;
+}
+
+.comparison-line {
+  font-family: var(--font-mono, monospace);
 }
 
 .notice {

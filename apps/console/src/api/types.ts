@@ -499,6 +499,15 @@ export type PolicySimulation = {
 export type PolicyActivation = {
   item: Record<string, unknown>;
   version: number;
+  comparison: {
+    fromVersion: number | null;
+    toVersion: number;
+    changedFields: Array<{
+      field: string;
+      before: unknown;
+      after: unknown;
+    }>;
+  };
   audit: Record<string, unknown>;
   rollbackTarget: {
     policyId: ResourceId;

@@ -74,6 +74,15 @@ async function loadHumanTasks() {
 }
 
 async function decide(taskId: number, decision: "approve" | "reject") {
+  if (!(comments.value[taskId] || "").trim()) {
+    error.value = {
+      errorCode: "decision_comment_required",
+      message: "Decision comment is required before approving or rejecting a human task.",
+      requestId: null,
+      details: { taskId },
+    };
+    return;
+  }
   pendingTask.value = taskId;
   error.value = null;
   try {

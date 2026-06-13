@@ -197,6 +197,34 @@ def _snapshot(policy: Policy) -> dict[str, Any]:
     }
 
 
+def _compare_snapshots(
+    previous: dict[str, Any] | None,
+    current: dict[str, Any],
+    *,
+    from_version: int | None,
+    to_version: int,
+) -> dict[str, Any]:
+    previous_snapshot = previous or {}
+    changed_fields: list[dict[str, Any]] = []
+    for key in sorted(set(previous_snapshot) | set(current)):
+        before = previous_snapshot.get(key)
+        after = current.get(key)
+        if before == after:
+            continue
+        changed_fields.append(
+            {
+                "field": key,
+                "before": before,
+                "after": after,
+            }
+        )
+    return {
+        "from_version": from_version,
+        "to_version": to_version,
+        "changed_fields": changed_fields,
+    }
+
+
 def _apply_draft(
     policy: Policy,
     draft: dict[str, Any],
@@ -315,6 +343,7 @@ def activate_policy(
     data = payload or {}
     draft = _draft(data)
     audit_reason = str(data.get("audit_reason") or "")
+    expected_version = data.get("expected_version")
     reason_error = _require_audit_reason(
         audit_reason=audit_reason,
         response=response,
@@ -336,6 +365,8 @@ def activate_policy(
             (policy for policy in policies if _policy_name(policy) == draft.get("name")),
             None,
         )
+        current_snapshot: dict[str, Any] | None = None
+        current_version = 0
         if active is None:
             active = Policy(
                 tenant_id=x_tenant_id,
@@ -350,9 +381,23 @@ def activate_policy(
             )
             session.add(active)
             session.flush()
+        else:
+            current_snapshot = _snapshot(active)
+            current_version = _version_from_metadata(dict(active.metadata_json or {}))
+            if expected_version is not None and int(expected_version) != current_version:
+                response.status_code = 409
+                return {
+                    "error_code": "policy_version_conflict",
+                    "message": "Policy changed since the current review context was loaded.",
+                    "request_id": x_request_id,
+                    "details": {
+                        "policy_id": active.id,
+                        "expected_version": int(expected_version),
+                        "current_version": current_version,
+                    },
+                }
         history = _history_from_metadata(dict(active.metadata_json or {}))
         if active.id is not None and active.created_at is not None:
-            current_version = _version_from_metadata(dict(active.metadata_json or {}))
             if current_version > 0:
                 history.append({"version": current_version, "snapshot": _snapshot(active)})
         _apply_draft(
@@ -372,6 +417,12 @@ def activate_policy(
         return {
             "item": _serialize_policy(active),
             "version": version,
+            "comparison": _compare_snapshots(
+                current_snapshot,
+                _snapshot(active),
+                from_version=current_version or None,
+                to_version=version,
+            ),
             "audit": {
                 "action": "policy.activate",
                 "reason": audit_reason,
@@ -402,6 +453,7 @@ def rollback_policy(
     data = payload or {}
     target_version = int(data.get("target_version") or 0)
     audit_reason = str(data.get("audit_reason") or "")
+    expected_version = data.get("expected_version")
     reason_error = _require_audit_reason(
         audit_reason=audit_reason,
         response=response,
@@ -428,6 +480,20 @@ def rollback_policy(
             }
         metadata = dict(policy.metadata_json or {})
         history = _history_from_metadata(metadata)
+        current_snapshot = _snapshot(policy)
+        current_version = _version_from_metadata(metadata)
+        if expected_version is not None and int(expected_version) != current_version:
+            response.status_code = 409
+            return {
+                "error_code": "policy_version_conflict",
+                "message": "Policy changed since the current review context was loaded.",
+                "request_id": x_request_id,
+                "details": {
+                    "policy_id": policy.id,
+                    "expected_version": int(expected_version),
+                    "current_version": current_version,
+                },
+            }
         target = next(
             (entry for entry in history if int(entry.get("version") or 0) == target_version),
             None,
@@ -440,7 +506,6 @@ def rollback_policy(
                 "request_id": x_request_id,
                 "details": {"target_version": target_version},
             }
-        current_version = _version_from_metadata(metadata)
         if current_version > 0:
             history.append({"version": current_version, "snapshot": _snapshot(policy)})
         snapshot = dict(target.get("snapshot") or {})
@@ -464,6 +529,12 @@ def rollback_policy(
         return {
             "item": _serialize_policy(policy),
             "version": next_version,
+            "comparison": _compare_snapshots(
+                current_snapshot,
+                _snapshot(policy),
+                from_version=current_version or None,
+                to_version=next_version,
+            ),
             "audit": {
                 "action": "policy.rollback",
                 "reason": audit_reason,

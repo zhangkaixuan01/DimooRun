@@ -1111,6 +1111,17 @@ function policyActivationResponse(route: Route, policyId: number, version: numbe
       decision: String(draft.decision || "deny"),
     },
     version,
+    comparison: {
+      from_version: rollback ? 2 : version === 1 ? null : version - 1,
+      to_version: version,
+      changed_fields: [
+        {
+          field: "decision",
+          before: rollback ? "require_approval" : null,
+          after: String(draft.decision || (rollback ? "deny" : "deny")),
+        },
+      ],
+    },
     audit: {
       action: rollback ? "policy.rollback" : "policy.activate",
       reason: String(body.audit_reason || ""),
@@ -1748,6 +1759,14 @@ function humanTaskDecisionResponse(route: Route, api: DashboardApiFixture, taskI
     : {};
   const task = api.humanTasks.items.find((item) => Number(item.id) === taskId);
   if (!task) return makeAdminCollection([]);
+  if (!String(decisionPayload.comment || "").trim()) {
+    return {
+      error_code: "decision_comment_required",
+      message: "Approval comment is required for human task decisions.",
+      request_id: "e2e-error-request",
+      details: { field: "decision_payload.comment", task_id: taskId },
+    };
+  }
   task.status = decision === "approve" ? "approved" : "rejected";
   task.decision = {
     comment: String(decisionPayload.comment || ""),

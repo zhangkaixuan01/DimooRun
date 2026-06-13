@@ -115,7 +115,7 @@ def test_high_risk_admin_action_marks_audit_required() -> None:
     response = client.post(
         "/v1/human-tasks/1/approve",
         headers=admin_headers("req_approve"),
-        json={"decision_payload": {"approved": True}},
+        json={"decision_payload": {"approved": True, "comment": "Reviewed and approved."}},
     )
 
     assert response.status_code == 200
@@ -293,7 +293,7 @@ def test_human_task_decision_actions_update_persisted_admin_record(tmp_path, mon
     created = client.post(
         "/v1/human-tasks/1/approve",
         headers=scoped_admin_headers("req_human_task_approve"),
-        json={"decision_payload": {"approved": True}},
+        json={"decision_payload": {"approved": True, "comment": "Reviewed and approved."}},
     )
     listed = client.get("/v1/human-tasks", headers=scoped_admin_headers("req_human_task_list"))
 

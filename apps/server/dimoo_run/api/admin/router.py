@@ -1891,6 +1891,16 @@ def _record_human_decision(
                 or not _db_record_in_scope(task, tenant_id, project_id, environment)
             ):
                 return _resource_not_found("human_tasks", task_id, request_id, response)
+            decision_payload = dict((payload or {}).get("decision_payload") or {})
+            comment = str(decision_payload.get("comment") or "").strip()
+            if not comment:
+                response.status_code = 400
+                return {
+                    "error_code": "decision_comment_required",
+                    "message": "Approval comment is required for human task decisions.",
+                    "request_id": request_id,
+                    "details": {"field": "decision_payload.comment", "task_id": task_id},
+                }
             if task is None:
                 task = spec.model(
                     tenant_id=tenant_id,
@@ -1901,14 +1911,24 @@ def _record_human_decision(
                 )
                 session.add(task)
             else:
+                if task.status != "pending":
+                    response.status_code = 409
+                    return {
+                        "error_code": "human_task_decision_conflict",
+                        "message": (
+                            "Human task was already decided and must be reloaded "
+                            "before acting again."
+                        ),
+                        "request_id": request_id,
+                        "details": {"task_id": task_id, "current_status": task.status},
+                    }
                 task.status = decision
                 task.decision_ref = "inline:decision"
             session.commit()
-            decision_payload = dict((payload or {}).get("decision_payload") or {})
             context = dict(_HUMAN_TASK_CONTEXT.get(task_id) or {})
             context["decision"] = {
                 "status": decision,
-                "comment": decision_payload.get("comment"),
+                "comment": comment,
                 "decided_by": decision_payload.get("decided_by"),
                 "payload": decision_payload,
             }

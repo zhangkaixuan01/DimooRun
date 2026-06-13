@@ -139,6 +139,86 @@ def test_policy_activation_versions_policy_and_rolls_back() -> None:
     assert rollback_body["version"] == 3
     assert rollback_body["rollback_target"]["version"] == 1
     assert rollback_body["audit"]["reason"] == "Restore deny while approval queue is reviewed."
+    assert rollback_body["comparison"]["from_version"] == 2
+    assert rollback_body["comparison"]["to_version"] == 3
+    assert rollback_body["comparison"]["changed_fields"]
+
+
+def test_policy_activation_rejects_stale_expected_version() -> None:
+    client = TestClient(create_app())
+
+    activated = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers("req_policy_activate_initial"),
+        json={
+            "draft_policy": draft_policy(name="protect-prod-delete", decision="deny"),
+            "audit_reason": "Initial governance decision.",
+        },
+    )
+    assert activated.status_code == 201
+
+    updated = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers("req_policy_activate_second"),
+        json={
+            "draft_policy": draft_policy(name="protect-prod-delete", decision="require_approval"),
+            "audit_reason": "Escalate to approval queue.",
+            "expected_version": 1,
+        },
+    )
+    assert updated.status_code == 201
+
+    stale = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers("req_policy_activate_stale"),
+        json={
+            "draft_policy": draft_policy(name="protect-prod-delete", decision="allow"),
+            "audit_reason": "Stale browser tab should not win.",
+            "expected_version": 1,
+        },
+    )
+
+    assert stale.status_code == 409
+    assert stale.json()["error_code"] == "policy_version_conflict"
+    assert stale.json()["details"]["expected_version"] == 1
+    assert stale.json()["details"]["current_version"] == 2
+
+
+def test_policy_rollback_rejects_stale_expected_version() -> None:
+    client = TestClient(create_app())
+    activated = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers("req_policy_activate_rollback_stale"),
+        json={
+            "draft_policy": draft_policy(name="protect-prod-delete", decision="deny"),
+            "audit_reason": "Initial governance decision.",
+        },
+    )
+    assert activated.status_code == 201
+    updated = client.post(
+        "/v1/policies/activate",
+        headers=admin_headers("req_policy_activate_rollback_stale_v2"),
+        json={
+            "draft_policy": draft_policy(name="protect-prod-delete", decision="require_approval"),
+            "audit_reason": "Escalate to approval queue.",
+            "expected_version": 1,
+        },
+    )
+    assert updated.status_code == 201
+
+    stale = client.post(
+        f"/v1/policies/{activated.json()['item']['id']}/rollback",
+        headers=admin_headers("req_policy_rollback_stale"),
+        json={
+            "target_version": 1,
+            "audit_reason": "Stale rollback should be rejected.",
+            "expected_version": 1,
+        },
+    )
+
+    assert stale.status_code == 409
+    assert stale.json()["error_code"] == "policy_version_conflict"
+    assert stale.json()["details"]["current_version"] == 2
 
 
 def test_policy_activation_requires_audit_reason() -> None:
@@ -219,3 +299,66 @@ def test_human_task_decision_preserves_context_comment_and_resume_outcome() -> N
     assert item["decision"]["comment"] == "Candidate version has a replay regression."
     assert item["resume_outcome"]["status"] == "blocked"
     assert item["resume_outcome"]["task_id"] == task_id
+
+
+def test_human_task_decision_requires_comment() -> None:
+    client = TestClient(create_app())
+    created = client.post(
+        "/v1/human-tasks",
+        headers=admin_headers("req_human_task_create_for_comment"),
+        json={
+            "name": "run-approval-88",
+            "source": "deployment.promote",
+            "risk": "critical",
+            "status": "pending",
+            "assignee": "platform-approver",
+            "requester": "deploy-bot",
+        },
+    )
+    assert created.status_code == 201
+    task_id = created.json()["item"]["id"]
+
+    decided = client.post(
+        f"/v1/human-tasks/{task_id}/approve",
+        headers=admin_headers("req_human_task_approve_without_comment"),
+        json={"decision_payload": {"comment": "   "}},
+    )
+
+    assert decided.status_code == 400
+    assert decided.json()["error_code"] == "decision_comment_required"
+    assert decided.json()["details"]["field"] == "decision_payload.comment"
+
+
+def test_human_task_decision_rejects_stale_second_decision() -> None:
+    client = TestClient(create_app())
+    created = client.post(
+        "/v1/human-tasks",
+        headers=admin_headers("req_human_task_create_for_stale"),
+        json={
+            "name": "run-approval-99",
+            "source": "deployment.promote",
+            "risk": "critical",
+            "status": "pending",
+            "assignee": "platform-approver",
+            "requester": "deploy-bot",
+        },
+    )
+    assert created.status_code == 201
+    task_id = created.json()["item"]["id"]
+
+    approved = client.post(
+        f"/v1/human-tasks/{task_id}/approve",
+        headers=admin_headers("req_human_task_first_decision"),
+        json={"decision_payload": {"comment": "Looks safe.", "decided_by": "ops@example.com"}},
+    )
+    assert approved.status_code == 200
+
+    stale = client.post(
+        f"/v1/human-tasks/{task_id}/reject",
+        headers=admin_headers("req_human_task_second_decision"),
+        json={"decision_payload": {"comment": "Too late.", "decided_by": "ops@example.com"}},
+    )
+
+    assert stale.status_code == 409
+    assert stale.json()["error_code"] == "human_task_decision_conflict"
+    assert stale.json()["details"]["current_status"] == "approved"
