@@ -501,6 +501,9 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.doesNotMatch(liveLocalRunner, /RedirectStandardOutput/);
     assert.match(liveReportVerifier, /Live backend ready on http:\/\/127\.0\.0\.1:4180\/docs/);
     assert.match(liveReportVerifier, /Live frontend ready on http:\/\/127\.0\.0\.1:4174/);
+    assert.match(liveReportVerifier, /Live smoke step: triage opened/);
+    assert.match(liveReportVerifier, /Live smoke step: replay comparison evidence captured/);
+    assert.match(liveReportVerifier, /Run triage live smoke completed/);
     assert.match(liveReportVerifier, /Published surface live smoke completed/);
     assert.match(liveReportVerifier, /Live smoke step: route test completed/);
     assert.match(liveReportVerifier, /Live smoke step: request log opened/);

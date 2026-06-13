@@ -8,6 +8,9 @@ const defaultLogPath = join(tmpdir(), "dimoorun-console-live-e2e", "run-live-e2e
 export const requiredMarkers = [
   "Live backend ready on http://127.0.0.1:4180/docs",
   "Live frontend ready on http://127.0.0.1:4174",
+  "Live smoke step: triage opened",
+  "Live smoke step: replay comparison evidence captured",
+  "Run triage live smoke completed",
   "Live smoke step: route test completed",
   "Live smoke step: request log opened",
   "Live smoke step: traffic split applied",

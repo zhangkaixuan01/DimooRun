@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { runDeploymentPromotionLiveSmoke } from "./deployment-promotion-live-smoke.mjs";
 import { runPackageVersionLiveSmoke } from "./package-version-live-smoke.mjs";
 import { runPublishedSurfaceLiveSmoke } from "./published-surface-live-smoke.mjs";
+import { runRunTriageLiveSmoke } from "./run-triage-live-smoke.mjs";
 
 const consoleRoot = process.cwd();
 const logDir = join(tmpdir(), "dimoorun-console-live-e2e");
@@ -415,6 +416,11 @@ try {
     apiBaseUrl: liveApiBaseUrl,
   });
   logStatus("Deployment promotion live smoke completed: pause/resume, impact preview, promote, rollback, and drain were verified");
+  await runRunTriageLiveSmoke({
+    frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
+    apiBaseUrl: liveApiBaseUrl,
+  });
+  logStatus("Run triage live smoke completed: failed-run triage, replay comparison, and dataset evidence capture were verified");
   await runPublishedSurfaceLiveSmoke({
     frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
     apiBaseUrl: liveApiBaseUrl,

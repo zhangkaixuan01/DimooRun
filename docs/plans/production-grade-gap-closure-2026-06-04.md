@@ -981,7 +981,7 @@ Tasks:
 - [x] Build Run Triage page that combines input/output/error/events/attempts/artifacts/audit in one incident-style view.
 - [x] Build Replay Comparison page with source/candidate comparison, diff states, save-to-dataset action, and regression signal.
 - [x] Add browser tests for failed run triage, replay creation, comparison, dataset capture, and immutable historical run behavior.
-- [ ] Commit as `feat(product): add run triage and replay comparison`.
+- [x] Commit as `feat(product): add run triage and replay comparison`.
 
 Acceptance:
 
