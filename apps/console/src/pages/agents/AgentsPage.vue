@@ -189,13 +189,7 @@
                     <span>{{ t("framework") }}</span>
                     <button class="field-help-button" type="button" :title="t('frameworkFieldHelp')" :aria-label="t('frameworkFieldHelp')">?</button>
                   </span>
-                  <select
-                    v-model="versionForm.framework"
-                    class="input"
-                    :disabled="Boolean(readyVersionSource)"
-                    required
-                    @change="syncCreateRuntimeAdapter"
-                  >
+                  <select v-model="versionForm.framework" class="input" :disabled="Boolean(readyVersionSource)" required @change="syncCreateRuntimeAdapter">
                     <option v-for="runtime in supportedAgentRuntimes" :key="runtime.adapter" :value="runtime.framework">
                       {{ runtime.label }}
                     </option>
@@ -206,13 +200,7 @@
                     <span>{{ t("adapter") }}</span>
                     <button class="field-help-button" type="button" :title="t('adapterFieldHelp')" :aria-label="t('adapterFieldHelp')">?</button>
                   </span>
-                  <select
-                    v-model="versionForm.adapter"
-                    class="input"
-                    :disabled="Boolean(readyVersionSource)"
-                    required
-                    @change="syncCreateRuntimeFramework"
-                  >
+                  <select v-model="versionForm.adapter" class="input" :disabled="Boolean(readyVersionSource)" required @change="syncCreateRuntimeFramework">
                     <option v-for="runtime in supportedAgentRuntimes" :key="runtime.adapter" :value="runtime.adapter">
                       {{ runtime.adapter }}
                     </option>
