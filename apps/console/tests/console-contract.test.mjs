@@ -401,6 +401,7 @@ test("defines a live-backend published surface browser proof path", () => {
     const liveSpecPath = "tests/e2e-live/published-surfaces-live.spec.ts";
     const liveRunnerPath = "scripts/run-live-e2e.mjs";
     const liveSmokePath = "scripts/published-surface-live-smoke.mjs";
+    const enterpriseOpsLiveSmokePath = "scripts/enterprise-ops-live-smoke.mjs";
     const liveCleanupPath = "scripts/cleanup-live-e2e.mjs";
     const liveLocalRunnerPath = "scripts/run-live-e2e-local.ps1";
     const liveReportVerifierPath = "scripts/verify-live-e2e-report.mjs";
@@ -408,6 +409,7 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.equal(existsSync(join(root, liveSpecPath)), true);
     assert.equal(existsSync(join(root, liveRunnerPath)), true);
     assert.equal(existsSync(join(root, liveSmokePath)), true);
+    assert.equal(existsSync(join(root, enterpriseOpsLiveSmokePath)), true);
     assert.equal(existsSync(join(root, liveCleanupPath)), true);
     assert.equal(existsSync(join(root, liveLocalRunnerPath)), true);
     assert.equal(existsSync(join(root, liveReportVerifierPath)), true);
@@ -416,6 +418,7 @@ test("defines a live-backend published surface browser proof path", () => {
     const liveSpec = read(liveSpecPath);
     const liveRunner = read(liveRunnerPath);
     const liveSmoke = read(liveSmokePath);
+    const enterpriseOpsLiveSmoke = read(enterpriseOpsLiveSmokePath);
     const liveCleanup = read(liveCleanupPath);
     const liveLocalRunner = read(liveLocalRunnerPath);
     const liveReportVerifier = read(liveReportVerifierPath);
@@ -441,7 +444,9 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveRunner, /dist/);
     assert.doesNotMatch(liveRunner, /node_modules", "@playwright", "test", "cli\.js/);
     assert.match(liveRunner, /runPublishedSurfaceLiveSmoke/);
+    assert.match(liveRunner, /runEnterpriseOpsLiveSmoke/);
     assert.match(liveRunner, /Published surface live smoke completed/);
+    assert.match(liveRunner, /Enterprise ops live smoke completed/);
     assert.match(liveSmoke, /export async function runPublishedSurfaceLiveSmoke/);
     assert.match(liveSmoke, /chromium\.launch/);
     assert.match(liveSmoke, /DIMOORUN_PLAYWRIGHT_CHROME/);
@@ -480,6 +485,15 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveSmoke, /fetchSurfaceDetail/);
     assert.match(liveSmoke, /rollout_history\.at\(-1\)\?\.rollback_to_version/);
     assert.match(liveSmoke, /logStep\("rollback completed"\)/);
+    assert.match(enterpriseOpsLiveSmoke, /export async function runEnterpriseOpsLiveSmoke/);
+    assert.match(enterpriseOpsLiveSmoke, /Incident Triage/);
+    assert.match(enterpriseOpsLiveSmoke, /Backup And Restore/);
+    assert.match(enterpriseOpsLiveSmoke, /logStep\("incident acknowledge captured audit evidence and delivery attempts"\)/);
+    assert.match(enterpriseOpsLiveSmoke, /logStep\("incident resolve preserved resolution summary and audit timeline"\)/);
+    assert.match(enterpriseOpsLiveSmoke, /logStep\("notification probe exposed a visible delivery attempt"\)/);
+    assert.match(enterpriseOpsLiveSmoke, /logStep\("backup dry-run surfaced scope proof and validation state"\)/);
+    assert.match(enterpriseOpsLiveSmoke, /logStep\("restore dry-run blocked destructive recovery without exact confirmation"\)/);
+    assert.match(enterpriseOpsLiveSmoke, /logStep\("restore dry-run accepted scope-matched recovery after confirmation"\)/);
     assert.match(liveCleanup, /live-backend-pids\.json/);
     assert.match(liveCleanup, /process\.kill\(pid/);
     assert.match(liveCleanup, /backendPort = 4180/);
@@ -509,6 +523,13 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveReportVerifier, /Live smoke step: quality gate preview linked experiment evidence to promotion eligibility/);
     assert.match(liveReportVerifier, /Live smoke step: deployment promotion preview required visible quality evidence/);
     assert.match(liveReportVerifier, /Quality loop live smoke completed/);
+    assert.match(liveReportVerifier, /Live smoke step: incident acknowledge captured audit evidence and delivery attempts/);
+    assert.match(liveReportVerifier, /Live smoke step: incident resolve preserved resolution summary and audit timeline/);
+    assert.match(liveReportVerifier, /Live smoke step: notification probe exposed a visible delivery attempt/);
+    assert.match(liveReportVerifier, /Live smoke step: backup dry-run surfaced scope proof and validation state/);
+    assert.match(liveReportVerifier, /Live smoke step: restore dry-run blocked destructive recovery without exact confirmation/);
+    assert.match(liveReportVerifier, /Live smoke step: restore dry-run accepted scope-matched recovery after confirmation/);
+    assert.match(liveReportVerifier, /Enterprise ops live smoke completed/);
     assert.match(liveReportVerifier, /Live smoke step: policy workbench simulated activation and rollback/);
     assert.match(liveReportVerifier, /Live smoke step: human approval decisions captured with resume outcomes/);
     assert.match(liveReportVerifier, /Policy approval live smoke completed/);
@@ -528,6 +549,19 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveSpec, /\/v1\/ingress\/support\/triage/);
     assert.match(liveSpec, /Exposure health: ready/);
     assert.match(liveSpec, /published_surface\.revoke/);
+});
+
+test("defines a dedicated enterprise ops browser workflow for hosted proof", () => {
+    const packageJson = read("package.json");
+    const workflow = read("../../.github/workflows/ci.yml");
+
+    assert.match(packageJson, /"test:e2e:0g"/);
+    assert.match(packageJson, /tests\/e2e\/enterprise-ops\.spec\.ts/);
+    assert.match(packageJson, /--workers=1/);
+    assert.match(packageJson, /--output test-results-0g-ci-proof/);
+    assert.match(workflow, /npm run test:e2e:0g/);
+    assert.match(workflow, /PLAYWRIGHT_HTML_REPORT: playwright-report-0g/);
+    assert.match(workflow, /console-playwright-0g-report/);
 });
 
 test("cleans up live-backend child process trees on Windows", () => {

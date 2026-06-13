@@ -14,6 +14,7 @@ import { createServer } from "node:net";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { runDeploymentPromotionLiveSmoke } from "./deployment-promotion-live-smoke.mjs";
+import { runEnterpriseOpsLiveSmoke } from "./enterprise-ops-live-smoke.mjs";
 import { runGatewayGovernanceLiveSmoke } from "./gateway-governance-live-smoke.mjs";
 import { runPackageVersionLiveSmoke } from "./package-version-live-smoke.mjs";
 import { runPolicyApprovalLiveSmoke } from "./policy-approval-live-smoke.mjs";
@@ -429,6 +430,11 @@ try {
     apiBaseUrl: liveApiBaseUrl,
   });
   logStatus("Quality loop live smoke completed: dataset capture, experiment run, quality gate preview, and promotion evidence were verified");
+  await runEnterpriseOpsLiveSmoke({
+    frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
+    apiBaseUrl: liveApiBaseUrl,
+  });
+  logStatus("Enterprise ops live smoke completed: incident response, notification probe, backup preview, and restore guardrails were verified");
   await runPolicyApprovalLiveSmoke({
     frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
     apiBaseUrl: liveApiBaseUrl,

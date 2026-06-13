@@ -37,6 +37,10 @@ async function expectVisible(page, text) {
 }
 
 async function fillLoginForm(page) {
+  await page.locator('input[autocomplete="username"]').waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator('input[autocomplete="username"]').fill(
+    process.env.DIMOORUN_BOOTSTRAP_ADMIN_EMAIL || "admin@local.dimoorun",
+  );
   await page.locator('input[autocomplete="current-password"]').fill(
     process.env.DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD || "admin12345",
   );

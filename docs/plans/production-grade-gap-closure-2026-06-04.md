@@ -1097,6 +1097,12 @@ Acceptance:
 
 - Operators can respond to incidents and recovery actions with evidence, audit, and guardrails.
 
+Completion notes:
+
+- Phase 0G is satisfied when incident response and recovery actions are operator workflows with visible audit evidence and destructive guardrails, not only backend dry-run routes.
+- The implemented boundary is: incident acknowledge/resolve, notification probe, backup dry-run, and restore dry-run now have dedicated mocked browser proof, CI workflow wiring, and shared live-backend browser proof in one bounded operator path.
+- Later phases still own provider-backed notification delivery, executable backup/restore beyond dry-run, embedded runbooks, and durable evidence-bundle lifecycle.
+
 ### Phase 0H: Published Surface, Ingress, And Agent Gateway Workflow
 
 **Goal:** Make external runtime exposure a governed product workflow, not a generic published-surface record.
