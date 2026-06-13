@@ -507,6 +507,10 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveReportVerifier, /Live smoke step: policy workbench simulated activation and rollback/);
     assert.match(liveReportVerifier, /Live smoke step: human approval decisions captured with resume outcomes/);
     assert.match(liveReportVerifier, /Policy approval live smoke completed/);
+    assert.match(liveReportVerifier, /Live smoke step: model gateway validation surfaced health budget fallback and blocked plaintext credentials/);
+    assert.match(liveReportVerifier, /Live smoke step: tool dry-run surfaced schema risk approval and audit context/);
+    assert.match(liveReportVerifier, /Live smoke step: secret validation and rotation preserved audit visibility without exposing values/);
+    assert.match(liveReportVerifier, /Gateway governance live smoke completed/);
     assert.match(liveReportVerifier, /Published surface live smoke completed/);
     assert.match(liveReportVerifier, /Live smoke step: route test completed/);
     assert.match(liveReportVerifier, /Live smoke step: request log opened/);

@@ -1033,7 +1033,7 @@ Tasks:
 - [x] Add tool dry-run API: schema validation, risk classification, policy preview, approval requirement, and usage-history link.
 - [x] Add secret validation and rotation API without exposing values, including last-used metadata and access audit.
 - [x] Build Console workbench pages with field-level validation, dry-run results, disabled action reasons, and audit notes.
-- [ ] Commit as `feat(governance): add gateway and secret workflows`.
+- [x] Commit as `feat(governance): add gateway and secret workflows`.
 
 Acceptance:
 

@@ -14,6 +14,7 @@ import { createServer } from "node:net";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { runDeploymentPromotionLiveSmoke } from "./deployment-promotion-live-smoke.mjs";
+import { runGatewayGovernanceLiveSmoke } from "./gateway-governance-live-smoke.mjs";
 import { runPackageVersionLiveSmoke } from "./package-version-live-smoke.mjs";
 import { runPolicyApprovalLiveSmoke } from "./policy-approval-live-smoke.mjs";
 import { runPublishedSurfaceLiveSmoke } from "./published-surface-live-smoke.mjs";
@@ -427,6 +428,11 @@ try {
     apiBaseUrl: liveApiBaseUrl,
   });
   logStatus("Policy approval live smoke completed: simulate, activate, rollback, approve, and reject were verified");
+  await runGatewayGovernanceLiveSmoke({
+    frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
+    apiBaseUrl: liveApiBaseUrl,
+  });
+  logStatus("Gateway governance live smoke completed: model gateway, tool, and secret workflows were verified");
   await runPublishedSurfaceLiveSmoke({
     frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
     apiBaseUrl: liveApiBaseUrl,
