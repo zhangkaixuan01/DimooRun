@@ -37,18 +37,33 @@ async function expectVisible(page, text) {
 }
 
 async function fillLoginForm(page) {
-  await page.locator('input[autocomplete="username"]').waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator('input[autocomplete="username"]').fill(
+  const emailField = page.locator('input[autocomplete="username"]');
+  const passwordField = page.locator('input[autocomplete="current-password"]');
+  const submitButton = page.locator("form.login-form button[type='submit']");
+
+  await emailField.waitFor({ state: "visible", timeout: 10_000 });
+  await emailField.fill(
     process.env.DIMOORUN_BOOTSTRAP_ADMIN_EMAIL || "admin@local.dimoorun",
   );
-  await page.locator('input[autocomplete="current-password"]').fill(
+  await passwordField.fill(
     process.env.DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD || "admin12345",
   );
-  await page.locator("form.login-form button[type='submit']").click();
+  await submitButton.waitFor({ state: "visible", timeout: 10_000 });
+  await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().includes("/v1/auth/login") && response.request().method() === "POST",
+      { timeout: 10_000 },
+    ),
+    submitButton.click(),
+  ]);
 }
 
 async function waitForDashboard(page) {
-  await page.waitForFunction(() => window.location.pathname === "/dashboard", undefined, { timeout: 10_000 });
+  await page.waitForFunction(
+    () => window.location.pathname === "/dashboard" || document.body.innerText.includes("Dashboard"),
+    undefined,
+    { timeout: 10_000 },
+  );
   await page.getByRole("heading", { name: "Dashboard" }).waitFor({ state: "visible", timeout: 10_000 });
 }
 

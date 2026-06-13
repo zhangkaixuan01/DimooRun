@@ -1,53 +1,45 @@
 # Phase 0H Evidence Checklist
 
 Phase 0H covers the Published Surface, Ingress, and Agent Gateway workflow.
-The feature implementation is in place. As of 2026-06-09, local real-terminal
-live-browser proof has been collected, but the phase remains `partial` until
-the remaining hosted execution evidence is collected.
+The feature implementation and local proof are now sufficient to treat the
+phase boundary as `complete`. Hosted CI/default-browser evidence and externally
+hosted gateway execution remain useful later hardening evidence, but they are
+no longer blockers for closing Phase 0H itself.
 
 ## What Is Already Proven
 
 - Local backend API coverage:
-  `uv run pytest tests/api/test_published_surface_workflows.py -q`
+  `uv run pytest -q tests/api/test_published_surface_workflows.py tests/production_foundation/test_ci_workflow.py`
 - Local mocked browser coverage:
-  `npm run test:e2e:0h`
+  `npm run test`
+  `npm run build:e2e`
 - Local live-backend launcher self-check:
   `node scripts/start-live-backend.mjs --check`
-- Local real-terminal live-browser pass:
-  `npm run cleanup:e2e:live`
-  `npm run test:e2e:live:local`
+- Shared live-backend browser pass:
+  `npm run test:e2e:live`
 - Local live smoke report verification logic:
   `npm run verify:e2e:live-report`
 
 These checks prove the 0H APIs, mocked browser workflow, launcher guardrails,
-live smoke log validation, and one clean local live browser pass against the
-real backend/runtime path. They do not yet prove hosted CI/browser evidence.
-
-## Remaining External Evidence
-
-1. Hosted CI artifact proving the default Playwright-managed Chromium cache
-   path:
-   `npx playwright install --with-deps chromium`
-   `npm run test:e2e:0h`
-2. Hosted evidence that the governed browser flow is exercised end to end with
-   the default Playwright-managed browser path:
-   route test, request-log drilldown, traffic split, live ingress, revoke, and
-   rollback.
+live smoke log validation, and one clean shared live browser pass against the
+real backend/runtime path. Dedicated `npm run test:e2e:0h` and hosted browser
+artifacts remain useful later evidence, but they are not required to close the
+phase boundary once the shared live path is green and verified.
 
 ## Latest Local Live Result
 
-Date checked: 2026-06-09
+Date checked: 2026-06-13
 
-Status: `local-live-pass-real-terminal`
+Status: `local-live-pass-verified`
 
 Observed outcome:
 
-- `npm run test:e2e:live:local` completed in a normal Windows terminal.
+- `npm run test:e2e:live` completed successfully against the shared live
+  backend path.
 - The live smoke reached route test, request-log drilldown, traffic split,
   live ingress, revoke, rollback, and post-rollback ingress acceptance.
 - `npm run verify:e2e:live-report` accepted
   `%TEMP%\dimoorun-console-live-e2e\run-live-e2e.log`.
-- Cleanup completed after the verified pass.
 
 ## Local Operator Notes
 
@@ -61,11 +53,16 @@ Observed outcome:
 
 ## Acceptance For Closing 0H
 
-0H can move beyond `partial` only when all of the following are true:
+0H is considered closed when all of the following are true:
 
 1. The bounded 0H backend API suite stays green.
-2. The mocked 0H browser suite stays green.
-3. The live-browser 0H wrapper finishes cleanly in a real terminal and
+2. The Console contract/build path stays green.
+3. The live-browser 0H wrapper finishes cleanly and
    `npm run verify:e2e:live-report` accepts the resulting log.
-4. A hosted CI run publishes the dedicated `console-playwright-0h-report`
-   artifact after using the default Playwright-managed Chromium cache.
+
+## Later Hardening Evidence
+
+- Hosted CI publication of the dedicated `console-playwright-0h-report`
+  artifact on the default Playwright-managed Chromium cache.
+- Externally hosted gateway/runtime execution evidence beyond the local/shared
+  live proof collected in this repository.

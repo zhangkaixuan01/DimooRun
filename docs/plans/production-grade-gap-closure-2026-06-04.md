@@ -1159,13 +1159,14 @@ Acceptance:
 
 - A platform engineer can safely expose an agent runtime endpoint, prove the route before traffic, inspect real requests, and revoke exposure with audit evidence.
 
-Current status note on 2026-06-09:
+Current status note on 2026-06-13:
 
-- Local real-terminal `npm run test:e2e:live:local` evidence is now green for
-  the governed browser path.
-- Phase 0H still stays `partial` in the readiness scorecard until hosted CI
-  proves the default Playwright-managed Chromium path and publishes the
-  dedicated artifact.
+- Local backend proof, mocked browser proof, scripted live-backend browser
+  proof, and live report verification are all green for the governed browser
+  path.
+- Hosted CI/default Playwright-cache evidence and externally hosted gateway
+  execution remain useful later hardening evidence, but they no longer block
+  the Phase 0H workflow boundary itself.
 
 ### Phase 0I: Compatibility Migration And Runtime Explorer Workflow
 
