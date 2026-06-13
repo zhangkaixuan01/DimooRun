@@ -54,11 +54,13 @@ class DeploymentPromotionPreviewRead(BaseModel):
     can_promote: bool
     blocked_reason: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    quality_gate: dict[str, Any] | None = None
 
 
 class DeploymentPromotePayload(BaseModel):
     candidate_version_id: int
     expected_current_version_id: int
+    experiment_run_id: int
     rollout_reason: str = Field(min_length=1)
 
 
@@ -81,6 +83,7 @@ def preview_deployment_promotion(
     candidate_version_id: Annotated[int, Query()],
     service: DeploymentControlDep,
     runtime: NativeRuntimeDep,
+    experiment_run_id: Annotated[int | None, Query()] = None,
     x_tenant_id: TenantIdHeader = None,
     x_project_id: ProjectIdHeader = None,
     x_request_id: RequestIdHeader = None,
@@ -107,6 +110,7 @@ def preview_deployment_promotion(
     return _promotion_preview(
         deployment=deployment,
         candidate_version_id=candidate_version_id,
+        experiment_run_id=experiment_run_id,
         runtime=runtime,
         tenant_id=x_tenant_id,
         project_id=x_project_id,
@@ -167,6 +171,14 @@ def promote_deployment(
     )
     if candidate_error is not None:
         return candidate_error
+    quality_gate_error = _quality_gate_error(
+        deployment=deployment,
+        candidate_version_id=payload.candidate_version_id,
+        experiment_run_id=payload.experiment_run_id,
+        request_id=x_request_id,
+    )
+    if quality_gate_error is not None:
+        return quality_gate_error
     policy_error = _policy_error(
         service=service,
         deployment=deployment,
@@ -184,6 +196,12 @@ def promote_deployment(
         "promotion": {
             "previous_agent_version_id": previous_version_id,
             "current_agent_version_id": payload.candidate_version_id,
+            "experiment_run_id": payload.experiment_run_id,
+            "quality_gate": _quality_gate_for_candidate(
+                deployment_id=deployment.id,
+                candidate_agent_version_id=payload.candidate_version_id,
+                experiment_run_id=payload.experiment_run_id,
+            ),
             "rollout_reason": payload.rollout_reason,
             "idempotency_key": idempotency_key,
         },
@@ -200,6 +218,7 @@ def promote_deployment(
         metadata={
             "previous_agent_version_id": str(previous_version_id),
             "candidate_agent_version_id": str(payload.candidate_version_id),
+            "experiment_run_id": str(payload.experiment_run_id),
             "rollout_reason": payload.rollout_reason,
             "idempotency_key": idempotency_key or "",
         },
@@ -358,6 +377,7 @@ def _promotion_preview(
     *,
     deployment: DeploymentRecord,
     candidate_version_id: int,
+    experiment_run_id: int | None,
     runtime: NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
     tenant_id: int | None,
     project_id: int | None,
@@ -380,6 +400,13 @@ def _promotion_preview(
         warnings.append("active_runs_will_continue_on_current_version")
     if queued_tasks > 0:
         warnings.append("queued_tasks_will_use_current_version")
+    quality_gate = _quality_gate_for_candidate(
+        deployment_id=deployment.id,
+        candidate_agent_version_id=candidate_version_id,
+        experiment_run_id=experiment_run_id,
+    )
+    if quality_gate["promotion_allowed"] is not True:
+        blocked_reason = str(quality_gate.get("blocked_reason") or blocked_reason)
     return DeploymentPromotionPreviewRead(
         deployment_id=deployment.id,
         environment=deployment.environment,
@@ -396,6 +423,7 @@ def _promotion_preview(
         can_promote=blocked_reason is None,
         blocked_reason=blocked_reason,
         warnings=warnings,
+        quality_gate=quality_gate,
     )
 
 
@@ -482,6 +510,38 @@ def _candidate_version_error(
     return None
 
 
+def _quality_gate_error(
+    *,
+    deployment: DeploymentRecord,
+    candidate_version_id: int,
+    experiment_run_id: int,
+    request_id: str | None,
+) -> JSONResponse | None:
+    gate = _quality_gate_for_candidate(
+        deployment_id=deployment.id,
+        candidate_agent_version_id=candidate_version_id,
+        experiment_run_id=experiment_run_id,
+    )
+    if gate["promotion_allowed"] is True:
+        return None
+    blocked_reason = str(gate.get("blocked_reason") or "quality_gate_failed")
+    return error_response(
+        status_code=409,
+        error_code=blocked_reason,
+        message=(
+            "Deployment promotion requires a passing quality gate preview "
+            "for the candidate version."
+        ),
+        request_id=request_id,
+        details={
+            "deployment_id": deployment.id,
+            "candidate_version_id": candidate_version_id,
+            "experiment_run_id": experiment_run_id,
+            "quality_gate": gate,
+        },
+    )
+
+
 def _policy_error(
     *,
     service: Any,
@@ -515,6 +575,21 @@ def _policy_error(
         message=exc.reason,
         request_id=request_id,
         details={"deployment_id": deployment.id},
+    )
+
+
+def _quality_gate_for_candidate(
+    *,
+    deployment_id: int | None,
+    candidate_agent_version_id: int | None,
+    experiment_run_id: int | None,
+) -> dict[str, Any]:
+    from dimoo_run.api.admin.experiments import quality_gate_for_candidate
+
+    return quality_gate_for_candidate(
+        deployment_id=deployment_id,
+        candidate_agent_version_id=candidate_agent_version_id,
+        experiment_run_id=experiment_run_id,
     )
 
 

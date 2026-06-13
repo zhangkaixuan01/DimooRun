@@ -101,11 +101,13 @@ export type DeploymentPromotionPreviewRead = {
   can_promote: boolean;
   blocked_reason: string | null;
   warnings: string[];
+  quality_gate?: Record<string, unknown> | null;
 };
 
 export type DeploymentPromotePayload = {
   candidate_version_id: ResourceId;
   expected_current_version_id: ResourceId;
+  experiment_run_id: ResourceId;
   rollout_reason: string;
 };
 
@@ -472,10 +474,14 @@ export function createDimooRunClient(options: ClientOptions) {
       request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}/${operation}`, {
         method: "POST",
       }),
-    getDeploymentPromotionPreview: (deploymentId: ResourceId, candidateVersionId: ResourceId) =>
+    getDeploymentPromotionPreview: (
+      deploymentId: ResourceId,
+      candidateVersionId: ResourceId,
+      experimentRunId?: ResourceId | null,
+    ) =>
       request<DeploymentPromotionPreviewRead>(
         options,
-        `/v1/deployments/${deploymentId}/promotion-preview?candidate_version_id=${candidateVersionId}`,
+        `/v1/deployments/${deploymentId}/promotion-preview?candidate_version_id=${candidateVersionId}${experimentRunId ? `&experiment_run_id=${experimentRunId}` : ""}`,
       ),
     promoteDeployment: (deploymentId: ResourceId, payload: DeploymentPromotePayload) =>
       request<NativeDeploymentRead>(options, `/v1/deployments/${deploymentId}/promote`, {

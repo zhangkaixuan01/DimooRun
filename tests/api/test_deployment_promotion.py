@@ -55,6 +55,16 @@ def auth_headers(api_key: str, *, idempotency_key: str | None = None) -> dict[st
     return headers
 
 
+def admin_headers() -> dict[str, str]:
+    return {
+        "Authorization": "Bearer dev-local-key",
+        "X-Request-Id": "req_promotion_quality",
+        "X-Tenant-Id": "1",
+        "X-Project-Id": "1",
+        "X-Environment": "local",
+    }
+
+
 def validated_manifest(
     *,
     package_uri: str,
@@ -143,21 +153,63 @@ def create_deployment_fixture(
     return agent_id, current, candidate, cast(dict[str, object], deployment.json())
 
 
+def create_quality_gate_evidence(
+    client: TestClient,
+    *,
+    agent_id: int,
+    candidate_version_id: int,
+    source_run_id: int,
+    minimum_score: float = 0.8,
+) -> int:
+    capture = client.post(
+        "/v1/datasets/capture-run",
+        headers=admin_headers(),
+        json={
+            "dataset_name": "promotion-quality",
+            "source_run_id": source_run_id,
+            "label": "pre-promotion",
+        },
+    )
+    assert capture.status_code == 201
+    experiment = client.post(
+        "/v1/experiments/run",
+        headers=admin_headers(),
+        json={
+            "name": "promotion-quality",
+            "agent_id": agent_id,
+            "candidate_agent_version_id": candidate_version_id,
+            "dataset_id": capture.json()["dataset_id"],
+            "evaluator_config": {"min_score": minimum_score, "evaluators": ["exact_match"]},
+        },
+    )
+    assert experiment.status_code == 201
+    return cast(int, experiment.json()["run"]["id"])
+
+
 def test_deployment_promotion_preview_reports_impact_and_rollback_context() -> None:
     client = TestClient(create_app())
     key, _ = create_api_key()
-    _, current, candidate, deployment = create_deployment_fixture(client, key)
+    agent_id, current, candidate, deployment = create_deployment_fixture(client, key)
     task = client.post(
         f"/v1/deployments/{deployment['id']}/tasks",
         headers=auth_headers(key),
         json={"input": {"message": "queued before promotion"}},
     )
     assert task.status_code == 202
+    experiment_run_id = create_quality_gate_evidence(
+        client,
+        agent_id=agent_id,
+        candidate_version_id=cast(int, candidate["id"]),
+        source_run_id=task.json()["run_id"],
+    )
 
     preview = client.get(
         f"/v1/deployments/{deployment['id']}/promotion-preview",
         headers=auth_headers(key),
-        params={"candidate_version_id": cast(int, candidate["id"])},
+        params={
+            "candidate_version_id": cast(int, candidate["id"]),
+            "experiment_run_id": experiment_run_id,
+        },
     )
 
     assert preview.status_code == 200
@@ -175,6 +227,8 @@ def test_deployment_promotion_preview_reports_impact_and_rollback_context() -> N
     assert body["audit_required"] is True
     assert body["can_promote"] is True
     assert body["blocked_reason"] is None
+    assert body["quality_gate"]["status"] == "passed"
+    assert body["quality_gate"]["evidence"]["experiment_run_id"] == experiment_run_id
     assert "active_runs_will_continue_on_current_version" in body["warnings"]
     assert "queued_tasks_will_use_current_version" in body["warnings"]
 
@@ -182,7 +236,19 @@ def test_deployment_promotion_preview_reports_impact_and_rollback_context() -> N
 def test_deployment_promote_and_rollback_persist_audit_context() -> None:
     client = TestClient(create_app())
     key, _ = create_api_key()
-    _, current, candidate, deployment = create_deployment_fixture(client, key)
+    agent_id, current, candidate, deployment = create_deployment_fixture(client, key)
+    task = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "promotion quality evidence"}},
+    )
+    assert task.status_code == 202
+    experiment_run_id = create_quality_gate_evidence(
+        client,
+        agent_id=agent_id,
+        candidate_version_id=cast(int, candidate["id"]),
+        source_run_id=task.json()["run_id"],
+    )
 
     promoted = client.post(
         f"/v1/deployments/{deployment['id']}/promote",
@@ -190,6 +256,7 @@ def test_deployment_promote_and_rollback_persist_audit_context() -> None:
         json={
             "candidate_version_id": candidate["id"],
             "expected_current_version_id": current["id"],
+            "experiment_run_id": experiment_run_id,
             "rollout_reason": "ship validated support improvements",
         },
     )
@@ -202,6 +269,8 @@ def test_deployment_promote_and_rollback_persist_audit_context() -> None:
         promoted_body["config"]["promotion"]["rollout_reason"]
         == "ship validated support improvements"
     )
+    assert promoted_body["config"]["promotion"]["experiment_run_id"] == experiment_run_id
+    assert promoted_body["config"]["promotion"]["quality_gate"]["status"] == "passed"
 
     rollback = client.post(
         f"/v1/deployments/{deployment['id']}/rollback",
@@ -224,7 +293,19 @@ def test_deployment_promote_and_rollback_persist_audit_context() -> None:
 def test_deployment_promote_rejects_stale_expected_version() -> None:
     client = TestClient(create_app())
     key, _ = create_api_key()
-    _, _current, candidate, deployment = create_deployment_fixture(client, key)
+    agent_id, _current, candidate, deployment = create_deployment_fixture(client, key)
+    task = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "promotion quality evidence"}},
+    )
+    assert task.status_code == 202
+    experiment_run_id = create_quality_gate_evidence(
+        client,
+        agent_id=agent_id,
+        candidate_version_id=cast(int, candidate["id"]),
+        source_run_id=task.json()["run_id"],
+    )
 
     stale = client.post(
         f"/v1/deployments/{deployment['id']}/promote",
@@ -232,6 +313,7 @@ def test_deployment_promote_rejects_stale_expected_version() -> None:
         json={
             "candidate_version_id": candidate["id"],
             "expected_current_version_id": 999_999,
+            "experiment_run_id": experiment_run_id,
             "rollout_reason": "stale operator tab",
         },
     )
@@ -243,10 +325,22 @@ def test_deployment_promote_rejects_stale_expected_version() -> None:
 def test_deployment_promote_respects_policy_denial() -> None:
     client = TestClient(create_app())
     key, _ = create_api_key()
-    _, current, candidate, deployment = create_deployment_fixture(client, key)
+    agent_id, current, candidate, deployment = create_deployment_fixture(client, key)
     default_deployment_control().policy_engine = StaticPolicyEngine(
         allowed=False,
         reason="production freeze",
+    )
+    task = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "promotion quality evidence"}},
+    )
+    assert task.status_code == 202
+    experiment_run_id = create_quality_gate_evidence(
+        client,
+        agent_id=agent_id,
+        candidate_version_id=cast(int, candidate["id"]),
+        source_run_id=task.json()["run_id"],
     )
 
     denied = client.post(
@@ -255,6 +349,7 @@ def test_deployment_promote_respects_policy_denial() -> None:
         json={
             "candidate_version_id": candidate["id"],
             "expected_current_version_id": current["id"],
+            "experiment_run_id": experiment_run_id,
             "rollout_reason": "blocked during freeze",
         },
     )
@@ -262,3 +357,49 @@ def test_deployment_promote_respects_policy_denial() -> None:
     assert denied.status_code == 403
     assert denied.json()["error_code"] == "policy_denied"
     assert denied.json()["message"] == "production freeze"
+
+
+def test_deployment_promote_rejects_missing_or_failed_quality_evidence() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, current, candidate, deployment = create_deployment_fixture(client, key)
+    task = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "promotion quality evidence"}},
+    )
+    assert task.status_code == 202
+    failed_experiment_run_id = create_quality_gate_evidence(
+        client,
+        agent_id=agent_id,
+        candidate_version_id=cast(int, candidate["id"]),
+        source_run_id=task.json()["run_id"],
+        minimum_score=1.1,
+    )
+
+    missing = client.post(
+        f"/v1/deployments/{deployment['id']}/promote",
+        headers=auth_headers(key),
+        json={
+            "candidate_version_id": candidate["id"],
+            "expected_current_version_id": current["id"],
+            "experiment_run_id": 0,
+            "rollout_reason": "no evidence",
+        },
+    )
+    assert missing.status_code == 409
+    assert missing.json()["error_code"] == "quality_evidence_required"
+
+    failed = client.post(
+        f"/v1/deployments/{deployment['id']}/promote",
+        headers=auth_headers(key),
+        json={
+            "candidate_version_id": candidate["id"],
+            "expected_current_version_id": current["id"],
+            "experiment_run_id": failed_experiment_run_id,
+            "rollout_reason": "failed evidence",
+        },
+    )
+
+    assert failed.status_code == 409
+    assert failed.json()["error_code"] == "quality_gate_failed"

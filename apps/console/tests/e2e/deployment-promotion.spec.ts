@@ -13,6 +13,7 @@ test("previews promotion impact, promotes a candidate, and rolls back", async ({
   await page.locator(".deployments-table").getByText("10", { exact: true }).click();
   await page.getByRole("tab", { name: "Promotion" }).click();
   await page.getByLabel("Candidate version").selectOption("12");
+  await page.getByLabel("Experiment run").fill("401");
   await page.getByRole("button", { name: "Preview promotion" }).click();
 
   await expect(page.getByRole("heading", { name: "Impact preview" })).toBeVisible();
@@ -63,6 +64,7 @@ test("surfaces policy denial and stale deployment conflicts during promotion", a
   await page.locator(".deployments-table").getByText("10", { exact: true }).click();
   await page.getByRole("tab", { name: "Promotion" }).click();
   await page.getByLabel("Candidate version").selectOption("12");
+  await page.getByLabel("Experiment run").fill("401");
   await page.getByRole("button", { name: "Preview promotion" }).click();
 
   await page.getByLabel("Rollout reason").fill("policy freeze");

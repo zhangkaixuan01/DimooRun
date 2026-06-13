@@ -1256,6 +1256,10 @@
             "title": "Expected Current Version Id",
             "type": "integer"
           },
+          "experiment_run_id": {
+            "title": "Experiment Run Id",
+            "type": "integer"
+          },
           "rollout_reason": {
             "minLength": 1,
             "title": "Rollout Reason",
@@ -1265,6 +1269,7 @@
         "required": [
           "candidate_version_id",
           "expected_current_version_id",
+          "experiment_run_id",
           "rollout_reason"
         ],
         "title": "DeploymentPromotePayload",
@@ -1318,6 +1323,18 @@
           "environment": {
             "title": "Environment",
             "type": "string"
+          },
+          "quality_gate": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Gate"
           },
           "queued_tasks": {
             "title": "Queued Tasks",
@@ -20243,6 +20260,22 @@
             "schema": {
               "title": "Candidate Version Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "experiment_run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Experiment Run Id"
             }
           },
           {

@@ -630,6 +630,7 @@ function mapDeploymentPromotionPreview(result: DeploymentPromotionPreviewRead): 
     canPromote: result.can_promote,
     blockedReason: result.blocked_reason,
     warnings: result.warnings,
+    qualityGate: isRecord(result.quality_gate) ? result.quality_gate : null,
   };
 }
 
@@ -1282,9 +1283,17 @@ export const liveConsoleClient = {
     const payload = await nativeClient(crypto.randomUUID(), undefined, options).controlDeployment(deploymentId, operation);
     return mapNativeDeployment(payload);
   },
-  async getDeploymentPromotionPreview(deploymentId: ResourceId, candidateVersionId: ResourceId): Promise<DeploymentPromotionPreview> {
+  async getDeploymentPromotionPreview(
+    deploymentId: ResourceId,
+    candidateVersionId: ResourceId,
+    experimentRunId?: ResourceId | null,
+  ): Promise<DeploymentPromotionPreview> {
     return mapDeploymentPromotionPreview(
-      await nativeClient().getDeploymentPromotionPreview(deploymentId, candidateVersionId),
+      await nativeClient().getDeploymentPromotionPreview(
+        deploymentId,
+        candidateVersionId,
+        experimentRunId,
+      ),
     );
   },
   async promoteDeployment(deploymentId: ResourceId, payload: DeploymentPromotePayload, options: ConsoleWriteOptions = {}): Promise<Deployment> {

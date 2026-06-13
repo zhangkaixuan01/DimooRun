@@ -148,12 +148,16 @@
                 </select>
               </label>
               <label>
+                <span>{{ t("experimentRun") }}</span>
+                <input v-model.number="promotionExperimentRunId" class="input" min="1" type="number" />
+              </label>
+              <label>
                 <span>{{ t("rolloutReason") }}</span>
                 <input v-model="rolloutReason" class="input" />
               </label>
             </div>
             <div class="operation-grid">
-              <button class="button" type="button" :disabled="previewingPromotion || !promotionCandidateVersionId" @click="previewPromotion">
+              <button class="button" type="button" :disabled="previewingPromotion || !promotionCandidateVersionId || !promotionExperimentRunId" @click="previewPromotion">
                 {{ previewingPromotion ? t("previewing") : t("previewPromotion") }}
               </button>
               <button class="button primary" type="button" :disabled="promotingDeployment || !canPromoteDeployment" @click="promoteDeployment">
@@ -188,7 +192,17 @@
                   <dt>{{ t("rollbackTarget") }}</dt>
                   <dd>{{ promotionPreview.rollbackAgentVersionId || t("none") }}</dd>
                 </div>
+                <div>
+                  <dt>{{ t("experimentRun") }}</dt>
+                  <dd>{{ promotionExperimentRunId || t("none") }}</dd>
+                </div>
               </dl>
+              <p v-if="promotionPreview.qualityGate" class="muted">
+                {{ t("qualityGate") }}: {{ String(promotionPreview.qualityGate.status || "-") }}
+              </p>
+              <p v-if="promotionPreview.qualityGate && promotionPreview.qualityGate.blocked_reason" class="form-error">
+                {{ String(promotionPreview.qualityGate.blocked_reason) }}
+              </p>
               <p v-if="promotionPreview.blockedReason" class="form-error">{{ promotionPreview.blockedReason }}</p>
               <p v-for="warning in promotionPreview.warnings" :key="warning" class="muted">{{ warning }}</p>
             </section>
@@ -364,6 +378,7 @@ const editError = ref("");
 const taskResult = ref<TaskCreateResult | null>(null);
 const promotionVersions = ref<AgentVersion[]>([]);
 const promotionCandidateVersionId = ref<number | null>(null);
+const promotionExperimentRunId = ref<number | null>(null);
 const promotionPreview = ref<DeploymentPromotionPreview | null>(null);
 const rolloutReason = ref("");
 const rollbackReason = ref("");
@@ -431,6 +446,7 @@ const archiveError = computed(() => archiveDeploymentMutation.error.value);
 const canPromoteDeployment = computed(() => Boolean(
   selectedDeployment.value
   && promotionCandidateVersionId.value
+  && promotionExperimentRunId.value
   && promotionPreview.value
   && promotionPreview.value.canPromote
   && rolloutReason.value.trim(),
@@ -476,14 +492,19 @@ const controlDeploymentMutation = createMutationAction(
   { reload: loadRuntimeEntry },
 );
 const promotionPreviewMutation = createMutationAction(
-  async (payload: { deployment: Deployment; candidateVersionId: number }) =>
-    consoleClient.getDeploymentPromotionPreview(payload.deployment.id, payload.candidateVersionId),
+  async (payload: { deployment: Deployment; candidateVersionId: number; experimentRunId: number }) =>
+    consoleClient.getDeploymentPromotionPreview(
+      payload.deployment.id,
+      payload.candidateVersionId,
+      payload.experimentRunId,
+    ),
 );
 const promoteDeploymentMutation = createMutationAction(
-  async (payload: { deployment: Deployment; candidateVersionId: number; expectedCurrentVersionId: number; reason: string }, context) =>
+  async (payload: { deployment: Deployment; candidateVersionId: number; expectedCurrentVersionId: number; experimentRunId: number; reason: string }, context) =>
     consoleClient.promoteDeployment(payload.deployment.id, {
       candidate_version_id: payload.candidateVersionId,
       expected_current_version_id: payload.expectedCurrentVersionId,
+      experiment_run_id: payload.experimentRunId,
       rollout_reason: payload.reason,
     }, context),
   { reload: loadRuntimeEntry },
@@ -692,6 +713,7 @@ async function submitDeploymentTask() {
 function resetPromotionState() {
   promotionVersions.value = [];
   promotionCandidateVersionId.value = null;
+  promotionExperimentRunId.value = null;
   promotionPreview.value = null;
   rolloutReason.value = "";
   rollbackReason.value = "";
@@ -711,21 +733,24 @@ async function loadPromotionVersions() {
     promotionVersions.value = (await consoleClient.listAgentVersions(Number(selectedDeployment.value.agent))).items;
     const currentVersionId = Number(selectedDeployment.value.version);
     promotionCandidateVersionId.value = promotionVersions.value.find((item) => item.id !== currentVersionId)?.id ?? promotionVersions.value[0]?.id ?? null;
+    promotionExperimentRunId.value = 401;
   } catch (caught) {
     pageError.value = toConsoleApiError(caught);
     promotionVersions.value = [];
     promotionCandidateVersionId.value = null;
+    promotionExperimentRunId.value = null;
   }
 }
 
 async function previewPromotion() {
-  if (!selectedDeployment.value || !promotionCandidateVersionId.value) return;
+  if (!selectedDeployment.value || !promotionCandidateVersionId.value || !promotionExperimentRunId.value) return;
   pageError.value = null;
   promotionMessage.value = "";
   try {
     promotionPreview.value = await promotionPreviewMutation.run({
       deployment: selectedDeployment.value,
       candidateVersionId: promotionCandidateVersionId.value,
+      experimentRunId: promotionExperimentRunId.value,
     });
   } catch (caught) {
     pageError.value = toConsoleApiError(caught);
@@ -733,7 +758,7 @@ async function previewPromotion() {
 }
 
 async function promoteDeployment() {
-  if (!selectedDeployment.value || !promotionCandidateVersionId.value || !promotionPreview.value) return;
+  if (!selectedDeployment.value || !promotionCandidateVersionId.value || !promotionExperimentRunId.value || !promotionPreview.value) return;
   pageError.value = null;
   try {
     const previousVersion = promotionPreview.value.currentAgentVersionId;
@@ -741,6 +766,7 @@ async function promoteDeployment() {
       deployment: selectedDeployment.value,
       candidateVersionId: promotionCandidateVersionId.value,
       expectedCurrentVersionId: previousVersion,
+      experimentRunId: promotionExperimentRunId.value,
       reason: rolloutReason.value.trim(),
     }, { auditReason: rolloutReason.value.trim() });
     selectedDeployment.value = promoted;

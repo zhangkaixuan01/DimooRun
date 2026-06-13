@@ -878,7 +878,15 @@ export async function installConsoleApiMocks(
     }
     const promotionPreviewMatch = path.match(/^\/v1\/deployments\/(\d+)\/promotion-preview$/);
     if (promotionPreviewMatch && route.request().method() === "GET") {
-      return fulfillJson(route, promotionPreviewResponse(api, Number(promotionPreviewMatch[1]), Number(url.searchParams.get("candidate_version_id"))));
+      return fulfillJson(
+        route,
+        promotionPreviewResponse(
+          api,
+          Number(promotionPreviewMatch[1]),
+          Number(url.searchParams.get("candidate_version_id")),
+          Number(url.searchParams.get("experiment_run_id")),
+        ),
+      );
     }
     const promoteMatch = path.match(/^\/v1\/deployments\/(\d+)\/promote$/);
     if (promoteMatch && route.request().method() === "POST") {
@@ -2757,10 +2765,27 @@ function serviceSafeClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function promotionPreviewResponse(api: DashboardApiFixture, deploymentId: number, candidateVersionId: number): unknown {
+function promotionPreviewResponse(
+  api: DashboardApiFixture,
+  deploymentId: number,
+  candidateVersionId: number,
+  experimentRunId: number,
+): unknown {
   const deployment = api.deployments.find((item) => item.id === deploymentId);
   if (!deployment) return makeAdminCollection([]);
   const activeRuns = api.runs.filter((item) => item.deployment_id === deploymentId).length;
+  const qualityGate = {
+    status: experimentRunId === 401 ? "passed" : "failed",
+    promotion_allowed: experimentRunId === 401,
+    blocked_reason: experimentRunId === 401 ? null : "quality_gate_failed",
+    required_evidence: ["experiment_run", "evaluation_results"],
+    evidence: {
+      experiment_run_id: experimentRunId,
+      candidate_agent_version_id: candidateVersionId,
+      average_score: experimentRunId === 401 ? 1 : 0,
+      min_score: 0.8,
+    },
+  };
   return {
     deployment_id: deployment.id,
     environment: deployment.environment,
@@ -2774,9 +2799,10 @@ function promotionPreviewResponse(api: DashboardApiFixture, deploymentId: number
     rollback_agent_version_id: deployment.agent_version_id,
     required_permissions: ["agent:deploy"],
     audit_required: true,
-    can_promote: true,
-    blocked_reason: null,
+    can_promote: qualityGate.promotion_allowed,
+    blocked_reason: qualityGate.blocked_reason,
     warnings: ["active_runs_will_continue_on_current_version", "queued_tasks_will_use_current_version"],
+    quality_gate: qualityGate,
   };
 }
 
@@ -2811,6 +2837,23 @@ function fulfillPromotion(route: Route, api: DashboardApiFixture, deploymentId: 
       },
     });
   }
+  if (Number(body.experiment_run_id || 0) !== 401) {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "quality_gate_failed",
+          message: "Deployment promotion requires a passing quality gate preview for the candidate version.",
+          request_id: "e2e-error-request",
+          details: {
+            deployment_id: deploymentId,
+            experiment_run_id: Number(body.experiment_run_id || 0),
+          },
+        },
+      },
+    });
+  }
   const deployment = api.deployments.find((item) => item.id === deploymentId);
   if (!deployment) return fulfillError(route);
   const previousVersionId = deployment.agent_version_id;
@@ -2820,6 +2863,15 @@ function fulfillPromotion(route: Route, api: DashboardApiFixture, deploymentId: 
     promotion: {
       previous_agent_version_id: previousVersionId,
       current_agent_version_id: deployment.agent_version_id,
+      experiment_run_id: Number(body.experiment_run_id || 0),
+      quality_gate: {
+        status: "passed",
+        promotion_allowed: true,
+        evidence: {
+          experiment_run_id: Number(body.experiment_run_id || 0),
+          candidate_agent_version_id: deployment.agent_version_id,
+        },
+      },
       rollout_reason: reason,
     },
   };

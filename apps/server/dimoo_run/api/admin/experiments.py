@@ -88,6 +88,59 @@ def _gate(
     }
 
 
+def quality_gate_for_candidate(
+    *,
+    deployment_id: int | None,
+    candidate_agent_version_id: int | None,
+    experiment_run_id: int | None,
+) -> dict[str, Any]:
+    _sync_state()
+    if experiment_run_id is None or experiment_run_id <= 0:
+        return {
+            "status": "failed",
+            "promotion_allowed": False,
+            "blocked_reason": "quality_evidence_required",
+            "required_evidence": ["experiment_run", "evaluation_results"],
+            "evidence": {
+                "deployment_id": deployment_id,
+                "candidate_agent_version_id": candidate_agent_version_id,
+                "experiment_run_id": experiment_run_id,
+            },
+        }
+
+    experiment = _EXPERIMENT_RUNS.get(experiment_run_id)
+    if experiment is None:
+        return {
+            "status": "failed",
+            "promotion_allowed": False,
+            "blocked_reason": "experiment_run_not_found",
+            "required_evidence": ["experiment_run", "evaluation_results"],
+            "evidence": {
+                "deployment_id": deployment_id,
+                "candidate_agent_version_id": candidate_agent_version_id,
+                "experiment_run_id": experiment_run_id,
+            },
+        }
+
+    gate = dict(experiment["quality_gate"])
+    evidence = dict(gate.get("evidence") or {})
+    evidence_candidate_id = evidence.get("candidate_agent_version_id")
+    if (
+        candidate_agent_version_id is not None
+        and evidence_candidate_id is not None
+        and int(candidate_agent_version_id) != int(evidence_candidate_id)
+    ):
+        evidence["requested_candidate_agent_version_id"] = candidate_agent_version_id
+        return {
+            **gate,
+            "status": "failed",
+            "promotion_allowed": False,
+            "blocked_reason": "candidate_evidence_mismatch",
+            "evidence": evidence,
+        }
+    return {**gate, "evidence": evidence}
+
+
 @router.post("/v1/experiments/run", status_code=status.HTTP_201_CREATED)
 def run_experiment(
     payload: AdminPayload = None,
@@ -201,37 +254,15 @@ def preview_quality_gate(
     x_project_id: ProjectIdHeader = None,
     x_environment: EnvironmentHeader = None,
 ) -> Any:
-    _sync_state()
     data = payload or {}
+    gate = quality_gate_for_candidate(
+        deployment_id=int(data.get("deployment_id") or 0) or None,
+        candidate_agent_version_id=(
+            int(data.get("candidate_agent_version_id") or 0) or None
+        ),
+        experiment_run_id=int(data.get("experiment_run_id") or 0) or None,
+    )
     experiment_run_id = int(data.get("experiment_run_id") or 0)
-    experiment = _EXPERIMENT_RUNS.get(experiment_run_id)
-    if experiment is None:
-        gate = _gate(
-            experiment_run_id=experiment_run_id,
-            average_score=0.0,
-            min_score=1.0,
-            dataset_id=0,
-            result_count=0,
-            candidate_agent_version_id=None,
-        )
-    else:
-        gate = dict(experiment["quality_gate"])
-        evidence = dict(gate.get("evidence") or {})
-        requested_candidate_id = data.get("candidate_agent_version_id")
-        evidence_candidate_id = evidence.get("candidate_agent_version_id")
-        if (
-            requested_candidate_id is not None
-            and evidence_candidate_id is not None
-            and int(requested_candidate_id) != int(evidence_candidate_id)
-        ):
-            evidence["requested_candidate_agent_version_id"] = requested_candidate_id
-            gate = {
-                **gate,
-                "status": "failed",
-                "promotion_allowed": False,
-                "blocked_reason": "candidate_evidence_mismatch",
-                "evidence": evidence,
-            }
     return {
         **gate,
         "deployment_id": data.get("deployment_id"),

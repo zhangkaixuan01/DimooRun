@@ -44,7 +44,7 @@ async function fillLoginForm(page) {
 }
 
 async function waitForDashboard(page) {
-  await page.waitForURL(/\/dashboard(?:\?|#|$)/, { timeout: 10_000 });
+  await page.waitForFunction(() => window.location.pathname === "/dashboard", undefined, { timeout: 10_000 });
   await page.getByRole("heading", { name: "Dashboard" }).waitFor({ state: "visible", timeout: 10_000 });
 }
 

@@ -18,6 +18,7 @@ import { runGatewayGovernanceLiveSmoke } from "./gateway-governance-live-smoke.m
 import { runPackageVersionLiveSmoke } from "./package-version-live-smoke.mjs";
 import { runPolicyApprovalLiveSmoke } from "./policy-approval-live-smoke.mjs";
 import { runPublishedSurfaceLiveSmoke } from "./published-surface-live-smoke.mjs";
+import { runQualityLoopLiveSmoke } from "./quality-loop-live-smoke.mjs";
 import { runRunTriageLiveSmoke } from "./run-triage-live-smoke.mjs";
 
 const consoleRoot = process.cwd();
@@ -423,6 +424,11 @@ try {
     apiBaseUrl: liveApiBaseUrl,
   });
   logStatus("Run triage live smoke completed: failed-run triage, replay comparison, and dataset evidence capture were verified");
+  await runQualityLoopLiveSmoke({
+    frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
+    apiBaseUrl: liveApiBaseUrl,
+  });
+  logStatus("Quality loop live smoke completed: dataset capture, experiment run, quality gate preview, and promotion evidence were verified");
   await runPolicyApprovalLiveSmoke({
     frontendBaseUrl: `http://${frontendHost}:${frontendPort}`,
     apiBaseUrl: liveApiBaseUrl,

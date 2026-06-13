@@ -504,6 +504,11 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveReportVerifier, /Live smoke step: triage opened/);
     assert.match(liveReportVerifier, /Live smoke step: replay comparison evidence captured/);
     assert.match(liveReportVerifier, /Run triage live smoke completed/);
+    assert.match(liveReportVerifier, /Live smoke step: dataset capture preserved provenance and redaction preview/);
+    assert.match(liveReportVerifier, /Live smoke step: experiment run produced a passing quality gate for the candidate/);
+    assert.match(liveReportVerifier, /Live smoke step: quality gate preview linked experiment evidence to promotion eligibility/);
+    assert.match(liveReportVerifier, /Live smoke step: deployment promotion preview required visible quality evidence/);
+    assert.match(liveReportVerifier, /Quality loop live smoke completed/);
     assert.match(liveReportVerifier, /Live smoke step: policy workbench simulated activation and rollback/);
     assert.match(liveReportVerifier, /Live smoke step: human approval decisions captured with resume outcomes/);
     assert.match(liveReportVerifier, /Policy approval live smoke completed/);

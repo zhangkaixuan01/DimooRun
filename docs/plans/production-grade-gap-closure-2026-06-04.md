@@ -1065,6 +1065,12 @@ Acceptance:
 
 - Promotion can depend on visible quality evidence instead of manual inspection.
 
+Completion notes:
+
+- Phase 0F is satisfied when deployment promotion is hard-bound to quality evidence rather than only rendering a standalone quality summary.
+- The implemented boundary is: run-to-dataset capture, experiment execution, quality-gate preview, and deployment promotion now share the same candidate/evidence contract through `experiment_run_id`, with browser proof on both mocked and live-backend paths.
+- Later phases still own broader dataset item curation, durable evidence-bundle lifecycle, and non-synthetic evaluator execution.
+
 ### Phase 0G: Incident, Notification, Backup, And Restore Workflow
 
 **Goal:** Make enterprise operations usable from runbooks and workflow screens, not generic resource tables.

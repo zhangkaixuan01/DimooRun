@@ -99,6 +99,16 @@ function resolveLiveFixture() {
   return promotion;
 }
 
+function resolveReplayFixture() {
+  const fixturePath = process.env.DIMOORUN_LIVE_GATEWAY_FIXTURE_FILE
+    || join(tmpdir(), "dimoorun-console-live-e2e", "live-gateway-fixture.json");
+  assert.equal(existsSync(fixturePath), true, `Missing live workflow fixture file: ${fixturePath}`);
+  const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
+  const replay = fixture.replay_triage;
+  assert.equal(typeof replay?.source_run_id, "number", JSON.stringify(fixture));
+  return replay;
+}
+
 async function createQueuedTask(apiBaseUrl, token, deploymentId) {
   const created = await postJson(`${apiBaseUrl}/v1/deployments/${deploymentId}/tasks`, {
     headers: scopedHeaders(token, "req_live_phase0b_task"),
@@ -110,13 +120,37 @@ async function createQueuedTask(apiBaseUrl, token, deploymentId) {
   return created.body;
 }
 
-async function fetchPromotionPreview(apiBaseUrl, token, deploymentId, candidateVersionId) {
+async function fetchPromotionPreview(apiBaseUrl, token, deploymentId, candidateVersionId, experimentRunId) {
   const preview = await getJson(
-    `${apiBaseUrl}/v1/deployments/${deploymentId}/promotion-preview?candidate_version_id=${candidateVersionId}`,
+    `${apiBaseUrl}/v1/deployments/${deploymentId}/promotion-preview?candidate_version_id=${candidateVersionId}&experiment_run_id=${experimentRunId}`,
     { headers: scopedHeaders(token, "req_live_phase0b_preview") },
   );
   assert.equal(preview.response.status, 200, JSON.stringify(preview.body));
   return preview.body;
+}
+
+async function createExperimentRun(apiBaseUrl, token, agentId, candidateVersionId, sourceRunId) {
+  const capture = await postJson(`${apiBaseUrl}/v1/datasets/capture-run`, {
+    headers: scopedHeaders(token, "req_live_phase0f_capture_for_promotion"),
+    data: {
+      dataset_name: "live-promotion-quality",
+      source_run_id: sourceRunId,
+      label: "live-promotion",
+    },
+  });
+  assert.equal(capture.response.status, 201, JSON.stringify(capture.body));
+  const experiment = await postJson(`${apiBaseUrl}/v1/experiments/run`, {
+    headers: scopedHeaders(token, "req_live_phase0f_experiment_for_promotion"),
+    data: {
+      name: "live-promotion-quality",
+      agent_id: agentId,
+      candidate_agent_version_id: candidateVersionId,
+      dataset_id: capture.body.dataset_id,
+      evaluator_config: { min_score: 0.8, evaluators: ["exact_match"] },
+    },
+  });
+  assert.equal(experiment.response.status, 201, JSON.stringify(experiment.body));
+  return experiment.body.run.id;
 }
 
 async function fetchDeployment(apiBaseUrl, token, deploymentId) {
@@ -148,12 +182,21 @@ export async function runDeploymentPromotionLiveSmoke({
   const launchOptions = configuredChrome ? { executablePath: configuredChrome } : {};
   const token = await login(apiBaseUrl);
   const fixture = resolveLiveFixture();
+  const replayFixture = resolveReplayFixture();
   await createQueuedTask(apiBaseUrl, token, fixture.deployment_id);
+  const experimentRunId = await createExperimentRun(
+    apiBaseUrl,
+    token,
+    fixture.agent_id,
+    fixture.candidate_agent_version_id,
+    replayFixture.source_run_id,
+  );
   const preview = await fetchPromotionPreview(
     apiBaseUrl,
     token,
     fixture.deployment_id,
     fixture.candidate_agent_version_id,
+    experimentRunId,
   );
   const browser = await chromium.launch(launchOptions);
 
@@ -181,6 +224,7 @@ export async function runDeploymentPromotionLiveSmoke({
 
     await page.getByRole("tab", { name: "Promotion" }).click();
     await page.getByLabel("Candidate version").selectOption(String(fixture.candidate_agent_version_id));
+    await page.getByLabel("Experiment run").fill(String(experimentRunId));
     await page.getByRole("button", { name: "Preview promotion" }).click();
     await page.getByRole("heading", { name: "Impact preview" }).waitFor({ state: "visible", timeout: 10_000 });
     await page.locator(".impact-preview").getByText(

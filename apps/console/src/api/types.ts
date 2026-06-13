@@ -132,6 +132,7 @@ export type DeploymentPromotionPreview = {
   canPromote: boolean;
   blockedReason: string | null;
   warnings: string[];
+  qualityGate: Record<string, unknown> | null;
 };
 
 export type ReplayValueDiff = {
