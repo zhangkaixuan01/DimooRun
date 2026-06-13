@@ -55,10 +55,13 @@ def test_integration_workflow_runs_live_compose_and_kind_smoke() -> None:
     assert "cp .env.example .env" in workflow_text
     assert "docker compose down --remove-orphans --volumes" in workflow_text
     assert "uv run python scripts/compose_runtime_smoke.py" in workflow_text
+    assert "compose-runtime-smoke" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
     assert "helm version" in workflow_text
     assert "kubectl version --client" in workflow_text
     assert "kind version" in workflow_text
     assert "uv run python scripts/helm_smoke.py --cluster-runtime kind" in workflow_text
+    assert "kind-smoke" in workflow_text
 
 
 def test_ci_runs_phase_0h_browser_workflow_with_managed_chromium_report() -> None:

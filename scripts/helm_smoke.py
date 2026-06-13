@@ -54,6 +54,12 @@ LIVE_SMOKE_HELM_SET_ARGS = [
     "migrationJob.enabled=false",
     "--set",
     "autoscaling.enabled=false",
+    "--set",
+    "server.replicas=0",
+    "--set",
+    "worker.replicas=0",
+    "--set",
+    "console.replicas=0",
 ]
 
 
@@ -163,6 +169,54 @@ def _cluster_smoke_commands(
     return [
         ("cluster-create", cluster_create, 300),
         (
+            "namespace-create",
+            ["kubectl", "create", "namespace", HELM_NAMESPACE],
+            60,
+        ),
+        (
+            "seed-postgres-secret",
+            [
+                "kubectl",
+                "create",
+                "secret",
+                "generic",
+                "dimoorun-postgres-url",
+                "--namespace",
+                HELM_NAMESPACE,
+                "--from-literal=url=postgresql+psycopg://dimoorun:dimoorun@postgres:5432/dimoorun",
+            ],
+            60,
+        ),
+        (
+            "seed-redis-secret",
+            [
+                "kubectl",
+                "create",
+                "secret",
+                "generic",
+                "dimoorun-redis-url",
+                "--namespace",
+                HELM_NAMESPACE,
+                "--from-literal=url=redis://redis:6379/0",
+            ],
+            60,
+        ),
+        (
+            "seed-object-store-secret",
+            [
+                "kubectl",
+                "create",
+                "secret",
+                "generic",
+                "dimoorun-object-store",
+                "--namespace",
+                HELM_NAMESPACE,
+                "--from-literal=accessKey=dimoorun",
+                "--from-literal=secretKey=dimoorun-dev-secret",
+            ],
+            60,
+        ),
+        (
             "helm-template",
             [
                 "helm",
@@ -188,6 +242,9 @@ def _cluster_smoke_commands(
                 "--namespace",
                 HELM_NAMESPACE,
                 "--create-namespace",
+                "--wait",
+                "--timeout",
+                HELM_TIMEOUT,
                 "-f",
                 str(values_path),
                 *LIVE_SMOKE_HELM_SET_ARGS,
@@ -210,7 +267,7 @@ def _cluster_smoke_commands(
             [
                 "kubectl",
                 "get",
-                "deployment,service,configmap,serviceaccount,networkpolicy",
+                "deployment,service,configmap,serviceaccount,networkpolicy,poddisruptionbudget",
                 "--namespace",
                 HELM_NAMESPACE,
             ],

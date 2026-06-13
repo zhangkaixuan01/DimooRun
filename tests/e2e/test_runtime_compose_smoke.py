@@ -62,7 +62,7 @@ def test_runtime_compose_smoke_runs_compose_and_probes_server_and_console() -> N
     assert result.ok is True
     assert runner.commands == [
         ["docker", "compose", "config", "--quiet"],
-        ["docker", "compose", "up", "--build", "--detach"],
+        ["docker", "compose", "up", "--build", "--detach", "--wait"],
         [
             "docker",
             "compose",
@@ -89,11 +89,12 @@ def test_runtime_compose_smoke_runs_compose_and_probes_server_and_console() -> N
             ),
         ],
         ["docker", "compose", "ps"],
-        ["docker", "compose", "down", "--remove-orphans"],
+        ["docker", "compose", "down", "--remove-orphans", "--volumes"],
     ]
     assert SERVER_HEALTH_URL in runner.probed
     assert CONSOLE_URL in runner.probed
     assert len(runner.requests) == 2
+    assert runner.requests[0][1]["plan_id"] == 9
     assert runner.requests[0][1]["targets"] == ["runs", "datasets", "audit_logs"]
     assert runner.requests[1][1]["confirmation"] == "RESTORE PROJECT 1"
 
@@ -105,4 +106,4 @@ def test_runtime_compose_smoke_records_failure_and_still_tears_down() -> None:
 
     assert result.ok is False
     assert "compose up failed" in result.errors[0]
-    assert runner.commands[-1] == ["docker", "compose", "down", "--remove-orphans"]
+    assert runner.commands[-1] == ["docker", "compose", "down", "--remove-orphans", "--volumes"]

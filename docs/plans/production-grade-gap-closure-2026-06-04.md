@@ -1765,6 +1765,13 @@ Acceptance:
 
 - Production deploy assets are verified by executable smoke tests, not only static inspection.
 
+Implemented evidence:
+
+- `scripts/compose_runtime_smoke.py` now auto-prepares a temporary `.env` from `.env.example`, uses `docker compose up --build --detach --wait`, probes server and Console HTTP readiness, checks Postgres and MinIO health, exercises backup/restore dry-run APIs, and tears the stack down with `down --remove-orphans --volumes`.
+- `scripts/helm_smoke.py` now supports a production-shaped live install plan that seeds external secret references, installs the chart with zero application replicas so migration and policy resources can be verified deterministically, and asserts deployment, service, configmap, serviceaccount, NetworkPolicy, and PodDisruptionBudget resources.
+- `.github/workflows/integration.yml` now runs hosted Compose runtime smoke and KinD smoke paths and uploads diagnostics artifacts for both jobs.
+- Local verification now includes `uv run python scripts/compose_smoke.py`, `uv run python scripts/helm_smoke.py`, `uv run pytest -q tests/enterprise/test_cloud_native_manifests.py tests/production_foundation/test_compose_assets.py tests/production_foundation/test_ci_workflow.py tests/e2e/test_runtime_compose_smoke.py`, `uv run mypy scripts tests`, and targeted `uv run ruff check` over the deployment smoke files.
+
 ### Phase 11: SDK, CLI, And Release Engineering
 
 **Goal:** Make DimooRun scriptable, integrable, and releasable by external teams.

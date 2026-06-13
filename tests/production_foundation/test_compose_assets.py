@@ -139,7 +139,7 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
     assert result.errors == []
     assert runner.commands == [
         ["docker", "compose", "config", "--quiet"],
-        ["docker", "compose", "up", "--build", "--detach"],
+        ["docker", "compose", "up", "--build", "--detach", "--wait"],
         [
             "docker",
             "compose",
@@ -166,7 +166,7 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
             ),
         ],
         ["docker", "compose", "ps"],
-        ["docker", "compose", "down", "--remove-orphans"],
+        ["docker", "compose", "down", "--remove-orphans", "--volumes"],
     ]
     assert runner.urls == [
         "http://127.0.0.1:8000/healthz",
@@ -176,7 +176,7 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
         (
             "http://127.0.0.1:8000/v1/backups/dry-run",
             {
-                "plan_id": 1,
+                "plan_id": 9,
                 "scope": "project",
                 "targets": ["runs", "datasets", "audit_logs"],
                 "storage_ref": "minio://dimoorun-backups/local",
@@ -193,3 +193,14 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
             },
         ),
     ]
+
+
+def test_compose_runtime_smoke_creates_and_removes_env_from_example(tmp_path: Path) -> None:
+    (tmp_path / ".env.example").write_text("DIMOORUN_DEV_API_KEY=dev-local-key\n", encoding="utf-8")
+    runner = FakeRunner()
+
+    result = run_compose_runtime_smoke(tmp_path, runner=runner, retries=1)
+
+    assert result.errors == []
+    assert "env-file" in result.checked_steps
+    assert not (tmp_path / ".env").exists()

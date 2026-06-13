@@ -23,9 +23,9 @@ docker version
 
 Status: `blocked-by-local-docker-daemon`
 
-Date checked: 2026-06-05
+Date checked: 2026-06-13
 
-`docker compose version` succeeds with Docker Compose `v5.1.3`, but `docker version` cannot connect to the Docker Desktop Linux engine. The live Compose smoke therefore cannot prove that the server, worker, Console, Postgres, Redis, and MinIO containers start and pass health checks in this environment.
+`docker compose version` succeeds with Docker Compose `v5.1.3`, but `docker version` cannot connect to the Docker Desktop Linux engine. The live Compose smoke script now auto-prepares `.env` from `.env.example`, waits for health checks, and probes runtime backup/restore dry-runs, but this environment still cannot prove that the server, worker, Console, Postgres, Redis, and MinIO containers start successfully.
 
 ## Evidence
 
@@ -38,8 +38,9 @@ failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
 Observed live smoke failure:
 
 ```text
-Compose runtime smoke failed: Command '['docker', 'compose', 'up', '--build', '--detach']' returned non-zero exit status 1.
-Compose runtime smoke failed: teardown failed: Command '['docker', 'compose', 'down', '--remove-orphans']' returned non-zero exit status 1.
+Compose runtime smoke failed: Command '['docker', 'compose', 'up', '--build', '--detach', '--wait']' returned non-zero exit status 1.
+unable to get image 'dimoorun-migrator': failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+Compose runtime smoke failed: teardown failed: Command '['docker', 'compose', 'down', '--remove-orphans', '--volumes']' returned non-zero exit status 1.
 ```
 
 Static contract evidence still passes:
@@ -53,7 +54,7 @@ uv run python scripts/compose_smoke.py
 Expected static output:
 
 ```text
-Compose smoke contract passed for services: server, worker, console, postgres, redis, minio
+Compose smoke contract passed for services: migrator, server, worker, console, postgres, redis, minio
 ```
 
 ## Next Action

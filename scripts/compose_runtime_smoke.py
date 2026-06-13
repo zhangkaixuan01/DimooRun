@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,10 +65,14 @@ class ComposeRuntimeRunner:
             headers=headers,
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            if response.status >= 400:
-                raise RuntimeError(f"{url} returned HTTP {response.status}")
-            return cast(dict[str, Any], json.loads(response.read().decode("utf-8")))
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"{url} returned HTTP {response.status}")
+                return cast(dict[str, Any], json.loads(response.read().decode("utf-8")))
+        except urllib.error.HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"{url} returned HTTP {exc.code}: {error_body}") from exc
 
 
 class RuntimeSmokeRunner(Protocol):
@@ -94,11 +100,15 @@ def run_compose_runtime_smoke(
     active_runner = runner or ComposeRuntimeRunner(root)
     errors: list[str] = []
     checked_steps: list[str] = []
+    created_env_file = False
 
     try:
+        created_env_file = _ensure_compose_env(root)
+        if created_env_file:
+            checked_steps.append("env-file")
         active_runner.run(["docker", "compose", "config", "--quiet"], 60)
         checked_steps.append("compose-config")
-        active_runner.run(["docker", "compose", "up", "--build", "--detach"], 900)
+        active_runner.run(["docker", "compose", "up", "--build", "--detach", "--wait"], 900)
         checked_steps.append("compose-up")
         _wait_for_url(active_runner, SERVER_HEALTH_URL, retries, probe_delay_seconds)
         checked_steps.append("server-health")
@@ -145,16 +155,31 @@ def run_compose_runtime_smoke(
         errors.append(str(exc))
     finally:
         try:
-            active_runner.run(["docker", "compose", "down", "--remove-orphans"], 300)
+            active_runner.run(["docker", "compose", "down", "--remove-orphans", "--volumes"], 300)
         except Exception as exc:
             errors.append(f"teardown failed: {exc}")
+        if created_env_file:
+            env_path = root / ".env"
+            if env_path.exists():
+                env_path.unlink()
 
     return ComposeRuntimeSmokeResult(errors=errors, checked_steps=checked_steps)
 
 
+def _ensure_compose_env(root: Path) -> bool:
+    env_path = root / ".env"
+    if env_path.exists():
+        return False
+    example_path = root / ".env.example"
+    if not example_path.exists():
+        raise RuntimeError("Compose smoke requires .env or .env.example at the repository root.")
+    shutil.copyfile(example_path, env_path)
+    return True
+
+
 def _backup_restore_smoke(runner: RuntimeSmokeRunner) -> None:
     backup_payload = {
-        "plan_id": 1,
+        "plan_id": 9,
         "scope": "project",
         "targets": ["runs", "datasets", "audit_logs"],
         "storage_ref": "minio://dimoorun-backups/local",
