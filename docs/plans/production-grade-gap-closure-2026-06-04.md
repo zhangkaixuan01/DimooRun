@@ -1798,6 +1798,13 @@ Acceptance:
 
 - A new user can automate the production workflow through SDK or CLI, and maintainers can cut a reproducible release with traceable artifacts.
 
+Implemented evidence:
+
+- `packages/sdk-python/dimoorun/client.py` now covers validate, publish, deployment create, task submit, run lookup, run events, task lookup, and replay against the stable Native API surface, with integration-style proof in `tests/sdk/test_python_sdk.py`.
+- `packages/sdk-js/src/client.ts` and `packages/sdk-js/src/types.ts` now expose the same typed runtime workflow surface and build cleanly through `npm run build`, giving the release workflow a real TypeScript package contract instead of a placeholder source tree.
+- `apps/server/dimoo_run/cli/main.py` now exposes `package validate`, `agent publish`, `deployment create`, `deployment task submit`, `run watch`, `run replay`, and `doctor production`, with command coverage in `tests/cli/test_project_config_cli.py`.
+- `.github/workflows/release.yml` and `scripts/release_check.py` now enforce version consistency, OpenAPI drift, SDK surface checks, changelog presence, migration baseline, docs-link guardrails, package builds, SBOM generation, vulnerability scanning, provenance attestation, publish steps, and release-note generation, with local verification via `uv run python scripts/release_check.py` and `tests/production_foundation/test_release_workflow.py`.
+
 ### Phase 12A: Product Narrative Baseline
 
 **Goal:** Give early users and contributors a truthful product entry point before the full trust/documentation suite is complete.

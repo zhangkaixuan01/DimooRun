@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import dimoo_run.cli.main as cli_main
+import dimoo_run.core.config as core_config
 from dimoo_run.config.project import load_project_config, validate_project_workspace
 
 run_cli = cli_main.run_cli
@@ -63,6 +64,51 @@ def test_doctor_reports_fixed_langchain_ecosystem_matrix(capsys: Any) -> None:
     assert "langgraph==1.2.1" in captured.out
     assert "deepagents==0.6.3" in captured.out
     assert "langsmith==0.8.5" in captured.out
+
+
+def test_doctor_production_reports_invalid_runtime_settings(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(core_config, "_find_dotenv", lambda: None)
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./data/dimoorun.db")
+    monkeypatch.setenv("DIMOORUN_NATIVE_RUNTIME_STORE", "memory")
+    monkeypatch.setenv("OBJECT_STORE_BACKEND", "local")
+    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY", "dimoorun")
+    monkeypatch.setenv("OBJECT_STORE_SECRET_KEY", "dimoorun-dev-secret")
+    monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "http://localhost:5173")
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "memory")
+    monkeypatch.setenv("DIMOORUN_DEV_API_KEY", "dev-key")
+
+    exit_code = run_cli(["doctor", "production"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Production mode cannot use SQLite." in captured.out
+    assert "Production mode requires a configured secret provider." in captured.out
+
+
+def test_doctor_production_accepts_safe_runtime_settings(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(core_config, "_find_dotenv", lambda: None)
+    monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://db.example/dimoorun")
+    monkeypatch.setenv("DIMOORUN_NATIVE_RUNTIME_STORE", "sqlalchemy")
+    monkeypatch.setenv("OBJECT_STORE_BACKEND", "s3")
+    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY", "prod-access")
+    monkeypatch.setenv("OBJECT_STORE_SECRET_KEY", "prod-secret")
+    monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "https://console.example.com")
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.delenv("DIMOORUN_DEV_API_KEY", raising=False)
+
+    exit_code = run_cli(["doctor", "production"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Production settings are valid" in captured.out
 
 
 def test_compose_commands_support_dry_run(capsys: Any) -> None:
@@ -159,6 +205,14 @@ class FakeNativeAPIClient:
     def create_agent_version(self, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(("create_agent_version", kwargs))
         return {"id": 21, "status": "ready"}
+
+    def create_deployment(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(("create_deployment", kwargs))
+        return {
+            "id": 24,
+            "desired_status": kwargs["desired_status"],
+            "environment": kwargs["environment"],
+        }
 
     def submit_deployment_task(self, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(("submit_deployment_task", kwargs))
@@ -345,3 +399,56 @@ def test_cli_deployment_task_submit_watch_and_replay_commands(
     assert '"task_id": 41' in captured.out
     assert '"status": "succeeded"' in captured.out
     assert '"id": 99' in captured.out
+
+
+def test_cli_deployment_create_calls_native_api_client(
+    monkeypatch: Any,
+    tmp_path: Path,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(cli_main, "NativeAPIClient", FakeNativeAPIClient)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"traffic": "stable"}), encoding="utf-8")
+
+    exit_code = run_cli(
+        [
+            "deployment",
+            "create",
+            "--base-url",
+            "https://api.example.test",
+            "--api-key",
+            "test-key",
+            "--tenant-id",
+            "1",
+            "--project-id",
+            "2",
+            "--agent-id",
+            "11",
+            "--agent-version-id",
+            "21",
+            "--target-environment",
+            "production",
+            "--desired-status",
+            "active",
+            "--replicas",
+            "3",
+            "--config-file",
+            str(config_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"desired_status": "active"' in captured.out
+    assert FakeNativeAPIClient.last_instance is not None
+    assert FakeNativeAPIClient.last_instance.calls[0] == (
+        "create_deployment",
+        {
+            "agent_id": 11,
+            "agent_version_id": 21,
+            "environment": "production",
+            "desired_status": "active",
+            "replicas": 3,
+            "config": {"traffic": "stable"},
+        },
+    )

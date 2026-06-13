@@ -38,6 +38,7 @@ Authoritative status:
 - Console route and API coverage for many product areas, now backed by a 58-test local browser suite that covers workflow interactions, critical accessibility checks, and responsive screenshot evidence.
 - Shared Console control-plane primitives now centralize drawers, dense tables, skeleton loading states, and runtime chart accessibility semantics across the largest operator pages.
 - Docker, Helm, OpenAPI, SDK, CLI, and release-contract foundations now cover package validation, publish, deployment task submission, run replay/watch, and reproducible release checks.
+- The production CLI path now also covers deployment creation and `doctor production`, so release-oriented operator workflows can be preflighted and scripted without reaching into page-local Console flows.
 
 ## Known Gaps
 

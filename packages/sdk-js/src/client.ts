@@ -54,7 +54,7 @@ export class DimooRunClient {
     manifest?: JsonObject;
     requiredSecretRefs?: string[];
   }): Promise<PackageValidationResult> {
-    return this.request("POST", "/v1/packages/validate", {
+    return this.requestObject<PackageValidationResult>("POST", "/v1/packages/validate", {
       package_uri: params.packageUri,
       framework: params.framework,
       adapter: params.adapter,
@@ -65,11 +65,11 @@ export class DimooRunClient {
   }
 
   createAgent(payload: AgentCreateRequest): Promise<JsonObject> {
-    return this.request("POST", "/v1/agents", payload);
+    return this.requestObject("POST", "/v1/agents", payload);
   }
 
   createAgentVersion(agentId: number, payload: AgentVersionCreateRequest): Promise<JsonObject> {
-    return this.request("POST", `/v1/agents/${agentId}/versions`, {
+    return this.requestObject("POST", `/v1/agents/${agentId}/versions`, {
       capabilities: {},
       manifest: {},
       status: "draft",
@@ -78,7 +78,7 @@ export class DimooRunClient {
   }
 
   createDeployment(payload: DeploymentCreateRequest): Promise<JsonObject> {
-    return this.request("POST", "/v1/deployments", {
+    return this.requestObject("POST", "/v1/deployments", {
       desired_status: "draft",
       replicas: 1,
       config: {},
@@ -87,7 +87,7 @@ export class DimooRunClient {
   }
 
   createRun(agentId: number, payload: TaskSubmitRequest, idempotencyKey?: string): Promise<JsonObject> {
-    return this.request("POST", `/v1/agents/${agentId}/tasks`, payload, idempotencyKey);
+    return this.requestObject("POST", `/v1/agents/${agentId}/tasks`, payload, idempotencyKey);
   }
 
   submitDeploymentTask(
@@ -95,7 +95,7 @@ export class DimooRunClient {
     payload: TaskSubmitRequest,
     idempotencyKey?: string,
   ): Promise<JsonObject> {
-    return this.request(
+    return this.requestObject(
       "POST",
       `/v1/deployments/${deploymentId}/tasks`,
       payload,
@@ -104,30 +104,29 @@ export class DimooRunClient {
   }
 
   getRun(runId: number): Promise<JsonObject> {
-    return this.request("GET", `/v1/runs/${runId}`);
+    return this.requestObject("GET", `/v1/runs/${runId}`);
   }
 
   listRunEvents(runId: number): Promise<JsonObject[]> {
-    return this.request("GET", `/v1/runs/${runId}/events`, undefined, undefined, true);
+    return this.requestList("GET", `/v1/runs/${runId}/events`);
   }
 
   replayRun(runId: number, agentVersionId?: number): Promise<JsonObject> {
-    return this.request("POST", `/v1/runs/${runId}/replay`, {
+    return this.requestObject("POST", `/v1/runs/${runId}/replay`, {
       ...(agentVersionId === undefined ? {} : { agent_version_id: agentVersionId }),
     });
   }
 
   getTask(taskId: number): Promise<JsonObject> {
-    return this.request("GET", `/v1/tasks/${taskId}`);
+    return this.requestObject("GET", `/v1/tasks/${taskId}`);
   }
 
-  private async request(
+  private async requestObject<T extends JsonObject = JsonObject>(
     method: string,
     path: string,
     payload?: JsonObject,
     idempotencyKey?: string,
-    expectList = false,
-  ): Promise<JsonObject | JsonObject[]> {
+  ): Promise<T> {
     const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
       method,
       headers: this.headers(idempotencyKey),
@@ -143,18 +142,33 @@ export class DimooRunClient {
         details,
       });
     }
-    if (expectList) {
-      if (!Array.isArray(raw)) {
-        throw new DimooRunAPIError({
-          errorCode: "invalid_response",
-          message: "Expected a JSON array response.",
-          requestId: null,
-          details: {},
-        });
-      }
-      return raw.map(ensureRecord);
+    return ensureRecord(raw) as T;
+  }
+
+  private async requestList(method: string, path: string): Promise<JsonObject[]> {
+    const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+      method,
+      headers: this.headers(),
+    });
+    const raw = await response.json();
+    if (!response.ok) {
+      const details = isRecord(raw.details) ? raw.details : {};
+      throw new DimooRunAPIError({
+        errorCode: String(raw.error_code ?? "unknown"),
+        message: String(raw.message ?? response.statusText),
+        requestId: typeof raw.request_id === "string" ? raw.request_id : null,
+        details,
+      });
     }
-    return ensureRecord(raw);
+    if (!Array.isArray(raw)) {
+      throw new DimooRunAPIError({
+        errorCode: "invalid_response",
+        message: "Expected a JSON array response.",
+        requestId: null,
+        details: {},
+      });
+    }
+    return raw.map(ensureRecord);
   }
 
   private headers(idempotencyKey?: string): HeadersInit {

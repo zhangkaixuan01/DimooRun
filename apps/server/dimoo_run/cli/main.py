@@ -13,6 +13,8 @@ import httpx
 from dimoo_run.cli.compose import run_compose
 from dimoo_run.cli.dev import run_dev
 from dimoo_run.config.project import validate_project_workspace, write_default_workspace
+from dimoo_run.core.config import Settings
+from dimoo_run.core.startup_checks import validate_production_settings
 from dimoo_run.migration.aegra import migrate_aegra_project
 from dimoo_run.migration.langgraph import migrate_langgraph_project
 from dimoo_run.migration.langgraph_platform import migrate_langgraph_platform_project
@@ -115,6 +117,29 @@ class NativeAPIClient:
             },
         )
 
+    def create_deployment(
+        self,
+        *,
+        agent_id: int,
+        agent_version_id: int,
+        environment: str,
+        desired_status: str,
+        replicas: int,
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        return self._request_object(
+            "POST",
+            "/v1/deployments",
+            {
+                "agent_id": agent_id,
+                "agent_version_id": agent_version_id,
+                "environment": environment,
+                "desired_status": desired_status,
+                "replicas": replicas,
+                "config": config,
+            },
+        )
+
     def submit_deployment_task(
         self,
         *,
@@ -211,7 +236,9 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--path", default=".")
 
-    subparsers.add_parser("doctor")
+    doctor_parser = subparsers.add_parser("doctor")
+    doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command")
+    doctor_subparsers.add_parser("production")
     dev_parser = subparsers.add_parser("dev")
     dev_parser.add_argument("--dry-run", action="store_true")
     worker_parser = subparsers.add_parser("worker")
@@ -259,6 +286,14 @@ def build_parser() -> argparse.ArgumentParser:
         dest="deployment_command",
         required=True,
     )
+    deployment_create_parser = deployment_subparsers.add_parser("create")
+    _add_api_connection_args(deployment_create_parser)
+    deployment_create_parser.add_argument("--agent-id", type=int, required=True)
+    deployment_create_parser.add_argument("--agent-version-id", type=int, required=True)
+    deployment_create_parser.add_argument("--target-environment", required=True)
+    deployment_create_parser.add_argument("--desired-status", default="draft")
+    deployment_create_parser.add_argument("--replicas", type=int, default=1)
+    deployment_create_parser.add_argument("--config-file")
     deployment_task_parser = deployment_subparsers.add_parser("task")
     deployment_task_subparsers = deployment_task_parser.add_subparsers(
         dest="deployment_task_command",
@@ -421,6 +456,23 @@ def _run_deployment_task_submit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_deployment_create(args: argparse.Namespace) -> int:
+    client = _make_api_client(args)
+    try:
+        result = client.create_deployment(
+            agent_id=args.agent_id,
+            agent_version_id=args.agent_version_id,
+            environment=args.target_environment,
+            desired_status=args.desired_status,
+            replicas=args.replicas,
+            config=_load_json_file(args.config_file),
+        )
+    finally:
+        client.close()
+    print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
 def _run_watch(args: argparse.Namespace) -> int:
     client = _make_api_client(args)
     seen_sequences: set[int] = set()
@@ -493,6 +545,14 @@ def _run_cli(args: argparse.Namespace) -> int:
         print("DimooRun workspace is valid")
         return 0
     if args.command == "doctor":
+        if args.doctor_command == "production":
+            errors = validate_production_settings(Settings.from_env())
+            if errors:
+                for error in errors:
+                    print(error)
+                return 1
+            print("Production settings are valid")
+            return 0
         print("DimooRun doctor")
         for package_name, expected in LANGCHAIN_VERSION_MATRIX.items():
             print(f"{package_name}=={expected} installed={_installed_version(package_name)}")
@@ -526,6 +586,8 @@ def _run_cli(args: argparse.Namespace) -> int:
         return _run_package_validate(args)
     if args.command == "agent" and args.agent_command == "publish":
         return _run_agent_publish(args)
+    if args.command == "deployment" and args.deployment_command == "create":
+        return _run_deployment_create(args)
     if (
         args.command == "deployment"
         and args.deployment_command == "task"

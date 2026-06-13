@@ -14,12 +14,12 @@ export interface PackageValidationResult extends JsonObject {
   validation_token?: string | null;
 }
 
-export interface AgentCreateRequest {
+export interface AgentCreateRequest extends JsonObject {
   name: string;
   description?: string | null;
 }
 
-export interface AgentVersionCreateRequest {
+export interface AgentVersionCreateRequest extends JsonObject {
   version: string;
   package_uri: string;
   framework: string;
@@ -30,7 +30,7 @@ export interface AgentVersionCreateRequest {
   status?: string;
 }
 
-export interface DeploymentCreateRequest {
+export interface DeploymentCreateRequest extends JsonObject {
   agent_id: number;
   agent_version_id: number;
   environment: string;
@@ -39,7 +39,7 @@ export interface DeploymentCreateRequest {
   config?: JsonObject;
 }
 
-export interface TaskSubmitRequest {
+export interface TaskSubmitRequest extends JsonObject {
   input: JsonObject;
   thread_id?: string | null;
 }
