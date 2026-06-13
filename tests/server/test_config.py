@@ -19,6 +19,8 @@ def test_settings_defaults_to_dev_mode() -> None:
     assert settings.console.cors_origins == ["http://127.0.0.1:5173", "http://localhost:5173"]
     assert settings.object_store.bucket == "dimoorun-artifacts"
     assert settings.observability.tracing is False
+    assert settings.packages.cache_root == "./data/package-cache"
+    assert settings.packages.oci_roots == ["./data/packages/oci"]
 
 
 def test_settings_loads_repository_dotenv_defaults(
@@ -49,6 +51,11 @@ def test_settings_loads_production_foundation_environment(
     monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "http://localhost:5173,http://localhost:8080")
     monkeypatch.setenv("OBJECT_STORE_BUCKET", "artifacts")
     monkeypatch.setenv("DIMOORUN_TRACING_ENABLED", "true")
+    monkeypatch.setenv(
+        "DIMOORUN_OCI_PACKAGE_ROOTS",
+        "/var/lib/dimoorun/packages,/srv/dimoorun/packages",
+    )
+    monkeypatch.setenv("DIMOORUN_PACKAGE_CACHE_ROOT", "/var/cache/dimoorun-packages")
 
     settings = Settings.from_env()
 
@@ -59,6 +66,11 @@ def test_settings_loads_production_foundation_environment(
     assert settings.console.cors_origins == ["http://localhost:5173", "http://localhost:8080"]
     assert settings.object_store.bucket == "artifacts"
     assert settings.observability.tracing is True
+    assert settings.packages.cache_root == "/var/cache/dimoorun-packages"
+    assert settings.packages.oci_roots == [
+        "/var/lib/dimoorun/packages",
+        "/srv/dimoorun/packages",
+    ]
 
 
 def test_settings_always_allows_localhost_and_loopback_console_origins(

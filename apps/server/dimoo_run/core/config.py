@@ -46,6 +46,11 @@ class SandboxConfig(BaseModel):
     memory_limit: str = "1Gi"
 
 
+class PackageConfig(BaseModel):
+    cache_root: str = "./data/package-cache"
+    oci_roots: list[str] = Field(default_factory=lambda: ["./data/packages/oci"])
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -56,6 +61,7 @@ class Settings(BaseModel):
     object_store: ObjectStoreConfig = Field(default_factory=ObjectStoreConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
+    packages: PackageConfig = Field(default_factory=PackageConfig)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -102,6 +108,19 @@ class Settings(BaseModel):
                     "DIMOORUN_SANDBOX_MEMORY_LIMIT",
                     SandboxConfig().memory_limit,
                 ),
+            ),
+            packages=PackageConfig(
+                cache_root=os.getenv(
+                    "DIMOORUN_PACKAGE_CACHE_ROOT",
+                    PackageConfig().cache_root,
+                ),
+                oci_roots=_split_csv(
+                    os.getenv(
+                        "DIMOORUN_OCI_PACKAGE_ROOTS",
+                        ",".join(PackageConfig().oci_roots),
+                    )
+                )
+                or list(PackageConfig().oci_roots),
             ),
         )
 

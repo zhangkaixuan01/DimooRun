@@ -17,6 +17,10 @@ from dimoo_run.domain.models import (
     SandboxPolicy,
     Tool,
 )
+from dimoo_run.packages.materializer import (
+    OciPackageMaterializer,
+    PackageMaterializationError,
+)
 from dimoo_run.packages.validation import (
     manifest_has_valid_token,
     package_uri_allowed_in_runtime,
@@ -43,9 +47,12 @@ class AgentRuntimeRegistry:
         *,
         session: Session,
         runtime_mode: str | None = None,
+        oci_materializer: OciPackageMaterializer | None = None,
     ) -> None:
         self.session = session
-        self.runtime_mode = runtime_mode or Settings.from_env().runtime.mode
+        settings = Settings.from_env()
+        self.runtime_mode = runtime_mode or settings.runtime.mode
+        self.oci_materializer = oci_materializer or OciPackageMaterializer.from_settings(settings)
 
     def resolve_for_run(
         self,
@@ -70,13 +77,14 @@ class AgentRuntimeRegistry:
             tenant_id=tenant_id,
             project_id=project_id,
         )
+        resolved_package_uri, package_metadata = self._resolved_package_uri(version.package_uri)
         return AgentRuntimeSpec(
             adapter=version.adapter,
-            package_uri=_normalize_package_uri(version.package_uri),
+            package_uri=resolved_package_uri,
             manifest=version.manifest_json or {},
             runtime_config=bindings.config,
             secrets=bindings.secrets,
-            metadata=bindings.metadata,
+            metadata={**bindings.metadata, **package_metadata},
         )
 
     def _deployment(
@@ -185,6 +193,20 @@ class AgentRuntimeRegistry:
             secrets=secrets,
             metadata={key: value for key, value in metadata.items() if value is not None},
         )
+
+    def _resolved_package_uri(self, package_uri: str) -> tuple[str, dict[str, Any]]:
+        normalized = _normalize_package_uri(package_uri)
+        if not package_uri.startswith("oci://"):
+            return normalized, {"source_package_uri": package_uri}
+        try:
+            materialized = self.oci_materializer.materialize(package_uri)
+        except PackageMaterializationError as exc:
+            raise PackageRegistryError(exc.error_code) from exc
+        return materialized.load_path, {
+            "source_package_uri": materialized.source_uri,
+            "materialized_package_path": materialized.load_path,
+            "materialized_package_source": materialized.source_path,
+        }
 
     def _execution_profile(
         self,

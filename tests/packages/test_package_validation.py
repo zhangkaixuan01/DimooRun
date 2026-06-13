@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import tarfile
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,6 +15,7 @@ from dimoo_run.domain.models import (
     SandboxPolicy,
     Tool,
 )
+from dimoo_run.packages.materializer import OciPackageMaterializer
 from dimoo_run.packages.registry import AgentRuntimeRegistry, PackageRegistryError
 from dimoo_run.packages.validation import validation_token
 from dimoo_run.persistence.database import Base
@@ -54,6 +57,24 @@ def ready_manifest(
             manifest=manifest,
         ),
     }
+
+
+def write_oci_bundle(
+    tmp_path: Path,
+    *,
+    package_uri: str,
+    source_dir: Path,
+) -> tuple[Path, Path]:
+    oci_root = tmp_path / "oci-root"
+    cache_root = tmp_path / "package-cache"
+    reference = package_uri.removeprefix("oci://")
+    name, tag = reference.rsplit(":", maxsplit=1)
+    registry, repository = name.split("/", maxsplit=1)
+    bundle_path = oci_root / registry / repository / f"{tag}.tar.gz"
+    bundle_path.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(bundle_path, "w:gz") as archive:
+        archive.add(source_dir, arcname=source_dir.name)
+    return oci_root, cache_root
 
 
 def test_runtime_registry_rejects_unsafe_local_package_uris_in_production() -> None:
@@ -124,7 +145,9 @@ def test_runtime_registry_requires_validated_ready_agent_versions() -> None:
         )
 
 
-def test_runtime_registry_resolves_execution_profile_gateway_tool_and_sandbox_bindings() -> None:
+def test_runtime_registry_resolves_execution_profile_gateway_tool_and_sandbox_bindings(
+    tmp_path: Path,
+) -> None:
     session = make_session()
     agent = Agent(tenant_id=1, project_id=1, name="support-agent", status="active")
     session.add(agent)
@@ -236,7 +259,21 @@ def test_runtime_registry_resolves_execution_profile_gateway_tool_and_sandbox_bi
     )
     session.flush()
 
-    registry = AgentRuntimeRegistry(session=session, runtime_mode="production")
+    package_uri = "oci://registry.local/support-agent:1.0.0"
+    source_dir = Path("examples/langchain-agent/support-agent").resolve()
+    oci_root, cache_root = write_oci_bundle(
+        tmp_path,
+        package_uri=package_uri,
+        source_dir=source_dir,
+    )
+    registry = AgentRuntimeRegistry(
+        session=session,
+        runtime_mode="production",
+        oci_materializer=OciPackageMaterializer(
+            cache_root=cache_root,
+            oci_roots=[oci_root],
+        ),
+    )
     spec = registry.resolve_for_run(
         agent_version_id=version.id,
         deployment_id=deployment.id,
@@ -244,7 +281,10 @@ def test_runtime_registry_resolves_execution_profile_gateway_tool_and_sandbox_bi
         project_id=1,
     )
 
-    assert spec.package_uri == "oci://registry.local/support-agent:1.0.0"
+    metadata = spec.metadata or {}
+    assert spec.package_uri.endswith("support-agent")
+    assert metadata["source_package_uri"] == "oci://registry.local/support-agent:1.0.0"
+    assert Path(str(metadata["materialized_package_path"])).exists()
     assert spec.secrets == {"OPENAI_API_KEY": "secret:model-openai"}
     assert spec.runtime_config["timeout_seconds"] == 45
     assert spec.runtime_config["execution_profile"]["name"] == "prod-worker"
@@ -253,10 +293,67 @@ def test_runtime_registry_resolves_execution_profile_gateway_tool_and_sandbox_bi
     assert spec.runtime_config["container_pool_policy"]["name"] == "steady-pool"
     assert spec.runtime_config["tool_gateway"]["tools"][0]["name"] == "ticket_lookup"
     assert spec.runtime_config["configurable"] == {"channel": "support"}
-    assert spec.metadata == {
+    assert metadata == {
         "execution_profile_id": "prod-worker",
         "model_gateway_id": 1,
         "sandbox_policy_id": 1,
         "container_pool_policy_id": 1,
         "tool_ids": [1],
+        "source_package_uri": "oci://registry.local/support-agent:1.0.0",
+        "materialized_package_path": metadata["materialized_package_path"],
+        "materialized_package_source": metadata["materialized_package_source"],
     }
+
+
+def test_runtime_registry_materializes_oci_package_archive(tmp_path: Path) -> None:
+    session = make_session()
+    agent = Agent(tenant_id=1, project_id=1, name="support-agent", status="active")
+    session.add(agent)
+    session.flush()
+    package_uri = "oci://registry.local/support-agent:1.0.0"
+    source_dir = Path("examples/langchain-agent/support-agent").resolve()
+    oci_root, cache_root = write_oci_bundle(
+        tmp_path,
+        package_uri=package_uri,
+        source_dir=source_dir,
+    )
+    version = AgentVersion(
+        agent_id=agent.id,
+        version="1.0.0",
+        package_uri=package_uri,
+        framework="langchain-agent",
+        adapter="langchain-agent",
+        entrypoint="support_agent:build_agent",
+        manifest_json=ready_manifest(
+            package_uri=package_uri,
+            framework="langchain-agent",
+            adapter="langchain-agent",
+            entrypoint="support_agent:build_agent",
+        ),
+        capabilities_json={"invoke": True, "stream": True},
+        status="ready",
+    )
+    session.add(version)
+    session.flush()
+
+    registry = AgentRuntimeRegistry(
+        session=session,
+        runtime_mode="production",
+        oci_materializer=OciPackageMaterializer(
+            cache_root=cache_root,
+            oci_roots=[oci_root],
+        ),
+    )
+    spec = registry.resolve_for_run(
+        agent_version_id=version.id,
+        deployment_id=None,
+        tenant_id=1,
+        project_id=1,
+    )
+
+    load_path = Path(spec.package_uri)
+    assert load_path.exists()
+    assert (load_path / "manifest.yaml").exists()
+    metadata = spec.metadata or {}
+    assert metadata["source_package_uri"] == package_uri
+    assert str(metadata["materialized_package_source"]).endswith("1.0.0.tar.gz")

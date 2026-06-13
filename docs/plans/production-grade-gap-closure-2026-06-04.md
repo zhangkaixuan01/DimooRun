@@ -1689,6 +1689,12 @@ Implemented evidence:
   into a runtime-safe `AgentRuntimeSpec`, enforces `ready` status plus validation token,
   rejects non-OCI package URIs outside `dev`, and materializes execution profile, model
   gateway, tool gateway, sandbox policy, container pool policy, and secret bindings.
+- `apps/server/dimoo_run/packages/materializer.py` now turns `oci://` package URIs into
+  cache-backed local load directories by resolving an OCI-style archive from configured
+  package roots, safely unpacking it, and returning a stable path for adapter loading.
+- `apps/server/dimoo_run/core/config.py` now exposes `DIMOORUN_OCI_PACKAGE_ROOTS` and
+  `DIMOORUN_PACKAGE_CACHE_ROOT` so production-shaped workers can fetch and cache packaged
+  runtime bundles without relying on local source trees.
 - `apps/server/dimoo_run/worker/durable.py` now resolves runtime specs per run instead of
   using an empty shared `runtime_config={}`, and `apps/server/dimoo_run/worker/executor.py`
   now passes resolved runtime config, secret refs, and runtime metadata into execution
@@ -1698,8 +1704,10 @@ Implemented evidence:
 - Local proof now includes `uv run pytest -q tests/runtime/test_worker_executor.py
   tests/adapters/test_langchain_agent_adapter.py tests/adapters/test_deepagents_adapter.py
   tests/worker/test_durable_worker_execution.py tests/packages/test_package_validation.py
-  tests/adapters/test_real_framework_smoke.py`, plus targeted `uv run mypy` and `uv run
-  ruff check` over the Phase 8 files.
+  tests/adapters/test_real_framework_smoke.py`, where the package validation and real
+  framework smoke suites now also prove OCI bundle materialization and real adapter loading
+  from the materialized package path, plus targeted `uv run mypy` and `uv run ruff check`
+  over the Phase 8 files.
 
 ### Phase 9: Governance Integration
 
