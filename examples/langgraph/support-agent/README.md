@@ -135,6 +135,9 @@ In `http://127.0.0.1:8080`, you should be able to confirm:
 
 ## Production Caveats
 
+- Current maturity shorthand remains:
+  `Production-shaped foundation: yes.` and
+  `External production-grade platform: not yet.`
 - The example uses an in-memory checkpointer, not a durable production backend.
 - The agent is deterministic and intentionally avoids external model providers.
 - The example proves packaging and runtime shape, not hosted production

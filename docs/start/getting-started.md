@@ -15,7 +15,7 @@ publish, deploy, submit, inspect cycle with honest caveats.
 Working directory:
 
 ```text
-D:\codes\DimooRun
+<repository-root>
 ```
 
 ## First Runtime Path

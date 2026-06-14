@@ -24,6 +24,13 @@ The package manifest is [`manifest.yaml`](manifest.yaml) and declares:
 Working directory: repository root.
 
 ```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Working directory: repository root.
+
+```bash
 uv sync --extra langchain
 ```
 
@@ -39,6 +46,12 @@ Working directory: repository root.
 uv run dimoorun agent publish --base-url http://127.0.0.1:8000 --api-key dev-local-key --tenant-id 1 --project-id 1 --name langchain-support-agent --version 0.1.0 --package-uri file:///workspace/examples/langchain-agent/support-agent --framework langchain-agent --adapter langchain-agent --entrypoint support_agent:build_agent --manifest-file examples/langchain-agent/support-agent/manifest.json
 ```
 
+Working directory: repository root.
+
+```bash
+uv run dimoorun run watch --base-url http://127.0.0.1:8000 --api-key dev-local-key --tenant-id 1 --project-id 1 --run-id <RUN_ID> --show-events
+```
+
 ## Expected Console Result
 
 After publish, Console should show:
@@ -47,6 +60,8 @@ After publish, Console should show:
 - a `ready` version bound to the LangChain adapter
 - deployment compatibility with the same publish/deploy/task flow used by the
   quickstart
+- Console reachable at `http://127.0.0.1:8080` with the same local `dev-local-key`
+  runtime path used by the main quickstart
 
 ## Troubleshooting
 
@@ -59,6 +74,9 @@ After publish, Console should show:
 
 ## Production Caveats
 
+- Current maturity shorthand remains:
+  `Production-shaped foundation: yes.` and
+  `External production-grade platform: not yet.`
 - The model is a fake deterministic chat model for testability, not a real LLM.
 - The example proves adapter/runtime wiring, not prompt quality or hosted load
   behavior.

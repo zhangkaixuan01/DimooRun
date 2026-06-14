@@ -82,6 +82,8 @@ REQUIRED_TABLES = {
     "approval_policies",
     "artifacts",
     "notification_channels",
+    "cost_saved_views",
+    "cost_budget_policies",
     "alert_rules",
     "incident_events",
     "webhook_subscriptions",
@@ -469,6 +471,27 @@ def test_observability_replay_and_quality_tables_are_hardened() -> None:
             "status",
         },
         "notification_channels": {"type", "target_ref", "status", "metadata_json"},
+        "cost_saved_views": {
+            "name",
+            "environment",
+            "group_by",
+            "window_days",
+            "filters_json",
+            "status",
+            "metadata_json",
+        },
+        "cost_budget_policies": {
+            "name",
+            "environment",
+            "scope_type",
+            "scope_ref",
+            "threshold_usd",
+            "reset_window",
+            "channel_id",
+            "action_mode",
+            "status",
+            "metadata_json",
+        },
         "alert_rules": {"name", "signal", "threshold", "channel_id", "status"},
         "incident_events": {"signal", "severity", "status", "source_ref", "value", "metadata_json"},
         "replay_jobs": {
@@ -487,6 +510,16 @@ def test_observability_replay_and_quality_tables_are_hardened() -> None:
         table = Base.metadata.tables[table_name]
         assert table.info.get("placeholder") is not True, table_name
         assert columns <= set(table.columns.keys()), table_name
+
+
+def test_cost_saved_view_active_uniqueness_index_is_present() -> None:
+    index = next(
+        item
+        for item in Base.metadata.tables["cost_saved_views"].indexes
+        if item.name == "uq_cost_saved_views_scope_name_active"
+    )
+
+    assert index.unique is True
 
 
 def test_enterprise_ops_tables_are_hardened() -> None:

@@ -10,6 +10,8 @@ from dimoo_run.domain.models import (
     Agent,
     AgentVersion,
     AlertRule,
+    CostBudgetPolicy,
+    CostSavedView,
     Deployment,
     HumanTask,
     IngressRoute,
@@ -41,6 +43,8 @@ ADMIN_PATHS = [
     "/v1/schedules",
     "/v1/batch-runs",
     "/v1/notifications/channels",
+    "/v1/costs/views",
+    "/v1/costs/budgets",
     "/v1/alerts/rules",
     "/v1/backups/plans",
     "/v1/backups/restore-jobs",
@@ -485,6 +489,80 @@ def test_alert_rule_admin_collection_persists_with_parent_channel(tmp_path, monk
         assert record is not None
         assert record.channel_id == channel.json()["item"]["id"]
         assert record.threshold == 2.5
+    finally:
+        session.close()
+
+
+def test_cost_budget_policy_admin_collection_persists_with_parent_channel(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'admin-cost-budgets.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    client = TestClient(create_app())
+
+    channel = client.post(
+        "/v1/notifications/channels",
+        headers=scoped_admin_headers("req_budget_channel_create", environment="production"),
+        json={"type": "webhook", "target_ref": "slack:#ops-finops"},
+    )
+    assert channel.status_code == 201
+
+    budget = client.post(
+        "/v1/costs/budgets",
+        headers=scoped_admin_headers("req_budget_create", environment="production"),
+        json={
+            "name": "prod-spend-guardrail",
+            "scope_type": "deployment",
+            "scope_ref": "10",
+            "threshold_usd": "25.5",
+            "reset_window": "monthly",
+            "channel_id": channel.json()["item"]["id"],
+            "action_mode": "require_approval",
+        },
+    )
+
+    assert budget.status_code == 201
+    session = create_session_factory(database_url)()
+    try:
+        record = session.get(CostBudgetPolicy, budget.json()["item"]["id"])
+        assert record is not None
+        assert record.environment == "production"
+        assert record.channel_id == channel.json()["item"]["id"]
+        assert record.threshold_usd == 25.5
+        assert record.action_mode == "require_approval"
+    finally:
+        session.close()
+
+
+def test_cost_saved_view_admin_collection_persists_filters_and_window(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'admin-cost-views.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    client = TestClient(create_app())
+
+    saved_view = client.post(
+        "/v1/costs/views",
+        headers=scoped_admin_headers("req_cost_view_create", environment="production"),
+        json={
+            "name": "provider-regressions",
+            "group_by": "provider",
+            "window_days": 90,
+            "filters": {"focus": "failed_runs"},
+        },
+    )
+
+    assert saved_view.status_code == 201
+    session = create_session_factory(database_url)()
+    try:
+        record = session.get(CostSavedView, saved_view.json()["item"]["id"])
+        assert record is not None
+        assert record.environment == "production"
+        assert record.group_by == "provider"
+        assert record.window_days == 90
+        assert record.filters_json == {"focus": "failed_runs"}
     finally:
         session.close()
 

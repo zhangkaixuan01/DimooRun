@@ -1334,16 +1334,30 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add cost attribution read model by tenant, project, environment, agent, deployment, run, model provider, model, tool, and time window.
-- [ ] Add budget policy workflow with threshold, scope, reset window, notification channel, action mode, and dry-run impact preview.
-- [ ] Add anomaly detection summary for sudden token/cost spikes, provider error-cost correlation, high-cost failed runs, and top regressions after deployment.
-- [ ] Add Console cost explorer with breakdown, filters, saved view, linked runs, linked deployments, and quality/failure overlays.
-- [ ] Add browser tests for cost breakdown, budget dry-run, threshold notification preview, anomaly drilldown, and blocked budget action without permission.
+- [x] Add cost attribution read model by tenant, project, environment, agent, deployment, run, model provider, model, tool, and time window.
+- [x] Add budget policy workflow with threshold, scope, reset window, notification channel, action mode, and dry-run impact preview.
+- [x] Add anomaly detection summary for sudden token/cost spikes, provider error-cost correlation, high-cost failed runs, and top regressions after deployment.
+- [x] Add Console cost explorer with breakdown, filters, saved view, linked runs, linked deployments, and quality/failure overlays.
+- [x] Add browser tests for cost breakdown, budget dry-run, threshold notification preview, anomaly drilldown, and blocked budget action without permission.
 - [ ] Commit as `feat(costs): add usage attribution and budget workflow`.
 
 Acceptance:
 
 - Platform teams can explain where spend comes from, catch cost regressions, set guardrails, and connect cost to runtime quality.
+
+Implemented evidence so far:
+
+- `apps/server/dimoo_run/api/console/costs.py` now exposes environment-scoped cost summary, anomaly, and budget-preview endpoints for the Console.
+- `apps/server/dimoo_run/costs/attribution.py` now aggregates usage by deployment, run, provider, and model from recorded model-usage snapshots and surfaces failed-run/provider spend anomalies.
+- `apps/server/dimoo_run/costs/budget_policy.py` now produces dry-run threshold impact previews with contributor breakdown and permission-gated action/notification summaries.
+- `apps/server/dimoo_run/costs/enforcement.py` now evaluates persisted cost budget policies during deployment task submission, and `apps/server/dimoo_run/api/native/deployments.py` blocks exceeded `reject` policies with `cost_budget_exceeded`, blocks exceeded `require_approval` policies with `approval_required`, still allows warn-only policies to pass through, and records operator-visible notification delivery attempts for every triggered persisted budget policy through the existing admin notification workflow.
+- `apps/server/dimoo_run/costs/attribution.py` now also projects deployment promotion quality evidence from persisted deployment config into deployment-group cost breakdown rows, so cost attribution can show quality-gate status, linked experiment run, and score threshold context next to spend.
+- `apps/console/src/pages/observability/CostsPage.vue` now renders grouped cost breakdown, deployment quality overlays, anomaly drilldown, linked run/deployment navigation, and saved-view save/apply/update/delete flows for the Console.
+- Persistent saved cost view CRUD now exists at `/v1/costs/views`, backed by `cost_saved_views`, with Console read-model rehydration at `/v1/console/costs/views/{view_id}` so named group/window presets can refresh live summaries and anomalies on demand.
+- Persistent budget policy CRUD now exists at `/v1/costs/budgets`, backed by `cost_budget_policies` with notification-channel parent validation and saved-policy preview at `/v1/console/costs/budgets/{policy_id}/preview`.
+- `apps/console/src/pages/observability/BudgetsPage.vue` now renders threshold/scope/reset/action preview inputs, saved budget policies, and persisted-policy preview output.
+- `apps/console/tests/e2e/costs-budgets.spec.ts` now proves cost breakdown, deployment quality overlay visibility, anomaly drilldown, saved-view reapply, budget preview success, saved-policy preview, and blocked budget preview permission behavior against the mocked Console API.
+- Local proof now includes `uv run ruff check apps tests packages/sdk-python scripts migrations`, `uv run mypy apps/server tests scripts`, `uv run pytest -q`, `npm run test`, `npm run build:e2e`, and `npm run test:e2e:0m`, covering scoped attribution, anomaly detection, deployment quality overlays, persisted saved-view summary rehydration, blocked-vs-allowed budget preview permissions, persisted budget policy preview, deployment-task budget rejection and approval-required blocking, warn-only pass-through behavior, delivery-attempt recording for triggered policies, and the bounded browser workflow.
 
 ### Phase 0N: Scheduled And Batch Runtime Workflow
 
@@ -1364,11 +1378,11 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add scheduled run API with cron/interval validation, timezone, next fire time, deployment binding, input template, pause/resume, backfill policy, missed-run policy, and audit reason.
-- [ ] Add batch run API with dataset/input source, concurrency, retry policy, cancel policy, progress summary, partial failure handling, and artifact/output linkage.
-- [ ] Add runtime state machines for scheduled run firing, batch task expansion, cancellation, retry, dead-letter, and completion summary.
-- [ ] Add Console workflows for schedule preview, next-run timeline, pause/resume, manual trigger, batch progress, failed item drilldown, and cancel confirmation.
-- [ ] Add browser tests for valid schedule preview, invalid timezone, missed-run policy, batch create, progress drilldown, partial failure, and cancel.
+- [x] Add scheduled run API with cron/interval validation, timezone, next fire time, deployment binding, input template, pause/resume, backfill policy, missed-run policy, and audit reason.
+- [x] Add batch run API with dataset/input source, concurrency, retry policy, cancel policy, progress summary, partial failure handling, and artifact/output linkage.
+- [x] Add runtime state machines for scheduled run firing, batch task expansion, cancellation, retry, dead-letter, and completion summary.
+- [x] Add Console workflows for schedule preview, next-run timeline, pause/resume, manual trigger, batch progress, failed item drilldown, and cancel confirmation.
+- [x] Add browser tests for valid schedule preview, invalid timezone, missed-run policy, batch create, progress drilldown, partial failure, and cancel.
 - [ ] Commit as `feat(runtime): add scheduled and batch workflows`.
 
 Acceptance:
@@ -1394,11 +1408,11 @@ Acceptance:
 
 Tasks:
 
-- [ ] Add catalog item workflow for tools, MCP endpoints, prompts, configs, templates, semantic stores, and approved runtime components.
-- [ ] Add asset version lifecycle with draft, validate, approve, publish, deprecate, archive, rollback, dependency graph, and audit comparison.
-- [ ] Add asset validation for schema, references, secret refs, model gateway refs, policy refs, environment scope, and compatibility with agent/deployment usage.
-- [ ] Add Console asset detail with version history, diff, dependencies, used-by resources, risk flags, approval status, and rollback action.
-- [ ] Add browser tests for asset create, validation failure, version diff, approve/publish, deprecate blocked by active deployment, and rollback.
+- [x] Add catalog item workflow for tools, MCP endpoints, prompts, configs, templates, semantic stores, and approved runtime components.
+- [x] Add asset version lifecycle with draft, validate, approve, publish, deprecate, archive, rollback, dependency graph, and audit comparison.
+- [x] Add asset validation for schema, references, secret refs, model gateway refs, policy refs, environment scope, and compatibility with agent/deployment usage.
+- [x] Add Console asset detail with version history, diff, dependencies, used-by resources, risk flags, approval status, and rollback action.
+- [x] Add browser tests for asset create, validation failure, version diff, approve/publish, deprecate blocked by active deployment, and rollback.
 - [ ] Commit as `feat(catalog): add versioned asset lifecycle workflow`.
 
 Acceptance:
@@ -2040,7 +2054,7 @@ This plan is complete only when:
 - [ ] All phases have passing tests in CI.
 - [ ] Milestone A, B, C, and D have explicit exit status in `docs/readiness/scorecard.md`.
 - [ ] Every core workflow maps to a named user role, job, decision, risk, success feedback, and failure recovery path.
-- [ ] At least three user-role walkthroughs are recorded for guided activation, deployment promotion, failed-run triage, approval decision, and incident recovery; each walkthrough produces a friction log and follow-up backlog items.
+- [x] At least three user-role walkthroughs are recorded for guided activation, deployment promotion, failed-run triage, approval decision, and incident recovery; each walkthrough produces a friction log and follow-up backlog items.
 - [ ] Generic CRUD coverage is no longer counted as complete unless a workflow has domain validation, action availability, audit behavior, and browser coverage.
 - [ ] Product function coverage review exists and is kept current for all major product areas, including lifecycle, runtime, governance, exposure, compatibility, operations, identity, quality, cost, assets, settings, developer experience, and soft power.
 - [ ] Product optimization backlog exists, is prioritized, and maps each enhancement to user value, design guardrail, implementation phase, read model, Console workflow, and browser evidence.
@@ -2063,7 +2077,7 @@ This plan is complete only when:
 - [ ] Critical axe accessibility violations are zero on login, dashboard, one dense table, one drawer/dialog, one high-risk confirmation, and one mobile viewport.
 - [ ] Desktop and mobile screenshots exist for the dashboard, agent detail, deployment workflow, run workbench, gateway route tester, approval queue, settings danger zone, and docs quickstart path.
 - [ ] Production mode rejects unsafe defaults.
-- [ ] Production startup guard tests cover SQLite, in-memory runtime store, default object store credentials, permissive CORS, missing secret provider, dev API key mode, and missing production secret.
+- [ ] Production startup guard tests cover SQLite, in-memory runtime store, default object store credentials, permissive CORS, missing secret provider, dev API key mode, and missing or default bootstrap admin production secret.
 - [ ] Runtime duplicate execution, retry, dead-letter, cancel, crash recovery, and replay are proven end-to-end.
 - [ ] Observability includes metrics, traces, events, audit, and artifacts with redaction.
 - [ ] OpenAPI diff has no undeclared breaking changes, and generated SDK contract tests pass for Python and TypeScript.

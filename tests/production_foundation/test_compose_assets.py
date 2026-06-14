@@ -101,6 +101,16 @@ def test_server_image_runs_database_initialization_before_api() -> None:
     assert "ensure_bootstrap_operator()" in init_db
 
 
+def test_console_image_builds_dist_and_serves_static_bundle() -> None:
+    dockerfile = Path("deploy/docker/console.Dockerfile").read_text(encoding="utf-8")
+
+    assert "RUN npm run build" in dockerfile
+    assert (
+        'CMD ["node", "scripts/serve-dist.mjs", "--host", "0.0.0.0", "--port", "5173"]'
+        in dockerfile
+    )
+
+
 def test_dev_compose_mounts_source_and_enables_reload() -> None:
     compose_path = Path("docker-compose.dev.yml")
     compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
@@ -114,6 +124,21 @@ def test_dev_compose_mounts_source_and_enables_reload() -> None:
     assert "--reload-dir /app/apps/server" in server["command"][-1]
     assert "./apps/console:/app/apps/console" in console["volumes"]
     assert "console-node-modules:/app/apps/console/node_modules" in console["volumes"]
+
+
+def test_compose_console_uses_http_healthcheck() -> None:
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text(encoding="utf-8"))
+
+    console = compose["services"]["console"]
+    assert console["healthcheck"]["test"] == [
+        "CMD",
+        "node",
+        "-e",
+        "fetch('http://127.0.0.1:5173/').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))",
+    ]
+    assert console["healthcheck"]["interval"] == "10s"
+    assert console["healthcheck"]["timeout"] == "5s"
+    assert console["healthcheck"]["retries"] == 5
 
 
 def test_compose_smoke_contract_covers_core_runtime_stack() -> None:

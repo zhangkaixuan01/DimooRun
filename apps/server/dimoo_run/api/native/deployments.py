@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from dimoo_run.api.admin.notifications import record_delivery_attempt
 from dimoo_run.api.dependencies import (
     AuthorizationHeader,
     IdempotencyKeyHeader,
@@ -20,6 +21,7 @@ from dimoo_run.api.native.runtime import (
     SQLAlchemyNativeRuntimeStore,
 )
 from dimoo_run.core.config import Settings
+from dimoo_run.costs import CostBudgetPolicyHit, evaluate_persisted_budget_policies
 from dimoo_run.deployments.service import (
     AuditEntry,
     DeploymentNotFoundError,
@@ -728,6 +730,83 @@ def create_deployment_task(
                 "status": version.status,
             },
         )
+    decision = evaluate_persisted_budget_policies(
+        session=runtime.session if isinstance(runtime, SQLAlchemyNativeRuntimeStore) else None,
+        runtime=runtime,
+        deployments=service,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        environment=deployment.environment,
+        agent_id=deployment.agent_id,
+        deployment_id=deployment.id,
+    )
+    if decision.blocking_policy is not None:
+        policy = decision.blocking_policy
+        _record_budget_notification_attempt(
+            policy=policy,
+            deployment_id=deployment.id,
+            request_id=x_request_id,
+        )
+        service.audit_sink.write(
+            AuditEntry(
+                action="deployment.task.create",
+                resource_type="deployment",
+                resource_id=deployment.id,
+                actor_id=auth.actor_id,
+                tenant_id=x_tenant_id,
+                project_id=x_project_id,
+                request_id=x_request_id,
+                result="denied",
+                metadata={
+                    "reason": (
+                        "cost_budget_requires_approval"
+                        if policy.action_mode == "require_approval"
+                        else "cost_budget_exceeded"
+                    ),
+                    "policy_id": str(policy.policy_id),
+                    "policy_name": policy.name,
+                    "action_mode": policy.action_mode,
+                    "scope_type": policy.scope_type,
+                    "scope_ref": policy.scope_ref or "",
+                    "threshold_usd": f"{policy.threshold_usd:.6f}",
+                    "current_spend_usd": f"{policy.current_spend_usd:.6f}",
+                },
+            )
+        )
+        return error_response(
+            status_code=403,
+            error_code=(
+                "approval_required"
+                if policy.action_mode == "require_approval"
+                else "cost_budget_exceeded"
+            ),
+            message=(
+                "An active cost budget policy requires approval before this "
+                "deployment can accept new tasks."
+                if policy.action_mode == "require_approval"
+                else "An active cost budget policy blocks this deployment "
+                "from accepting new tasks."
+            ),
+            request_id=x_request_id,
+            details={
+                "deployment_id": deployment.id,
+                "policy_id": policy.policy_id,
+                "policy_name": policy.name,
+                "scope_type": policy.scope_type,
+                "scope_ref": policy.scope_ref,
+                "environment": policy.environment or deployment.environment,
+                "action_mode": policy.action_mode,
+                "threshold_usd": policy.threshold_usd,
+                "current_spend_usd": policy.current_spend_usd,
+                "notification_channel": policy.notification_channel,
+            },
+        )
+    for policy in decision.warning_policies:
+        _record_budget_notification_attempt(
+            policy=policy,
+            deployment_id=deployment.id,
+            request_id=x_request_id,
+        )
     try:
         run, task, replayed = runtime.create_task_run(
             tenant_id=x_tenant_id,
@@ -754,6 +833,27 @@ def create_deployment_task(
         task_id=task.id,
         status=task.status.value,
         replayed=replayed,
+    )
+
+
+def _record_budget_notification_attempt(
+    *,
+    policy: CostBudgetPolicyHit,
+    deployment_id: int,
+    request_id: str | None,
+) -> None:
+    scope_ref = policy.scope_ref or "*"
+    record_delivery_attempt(
+        channel_id=policy.channel_id,
+        channel_name=policy.channel_name,
+        target_ref=policy.notification_channel,
+        message=(
+            f"Cost budget policy {policy.name} triggered for deployment #{deployment_id} "
+            f"at {policy.current_spend_usd:.2f} USD (threshold {policy.threshold_usd:.2f} USD, "
+            f"scope {policy.scope_type}:{scope_ref}, mode {policy.action_mode})."
+        ),
+        source=f"cost_budget_policy.{policy.action_mode}",
+        request_id=request_id,
     )
 
 

@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import http from "node:http";
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,24 +20,22 @@ const playwrightCli = path.resolve(
   "playwright",
   "cli.js",
 );
+const windowsCmd = process.env.ComSpec || "cmd.exe";
 const outputIndex = playwrightArgs.findIndex((value) => value === "--output");
 const outputDir = outputIndex >= 0 ? playwrightArgs[outputIndex + 1] : null;
 const actualOutputDir =
   outputDir && outputIndex >= 0 ? `${outputDir}-${Date.now()}` : null;
 const htmlReportDir = process.env.PLAYWRIGHT_HTML_REPORT || "playwright-report";
 const actualHtmlReportDir = `${htmlReportDir}-${Date.now()}`;
+const runtimeHtmlReportDir = process.platform === "win32" ? "playwright-report" : actualHtmlReportDir;
 const serverHost = "127.0.0.1";
 const serverPort = 4173;
 const serverReadyUrl = `http://${serverHost}:${serverPort}`;
 const distDir = path.resolve(rootDir, "dist");
 const indexPath = path.resolve(distDir, "index.html");
 const phaseProofPath = path.resolve(rootDir, ".phase-e2e-proof.json");
-const childEnv = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => {
-    const lower = key.toLowerCase();
-    return !lower.startsWith("npm_") && !lower.startsWith("npm_config_");
-  }),
-);
+const useWindowsManagedCli = process.platform === "win32";
+const childEnv = { ...process.env };
 
 if (outputDir) {
   try {
@@ -88,25 +86,48 @@ let serverProcess = null;
 let ownsServer = false;
 
 try {
-  if (!(await isServerReady())) {
+  if (!useWindowsManagedCli && !(await isServerReady())) {
     serverProcess = await startDistServer();
     ownsServer = true;
   }
 
   const result = await runPlaywrightWithRetries(
-    [
-      playwrightCli,
-      "test",
-      specPath,
-      ...(playwrightArgs.length > 0 ? playwrightArgs : ["--project=chrome"]),
-    ],
+    useWindowsManagedCli
+        ? {
+          type: "spawn",
+          command: windowsCmd,
+          args: [
+            "/d",
+            "/s",
+            "/c",
+            quoteWindowsCommand([
+              path.resolve(path.dirname(process.execPath), "npx.cmd"),
+              "playwright",
+              "test",
+              specPath,
+              ...(playwrightArgs.length > 0 ? playwrightArgs : ["--project=chrome"]),
+            ]),
+          ],
+        }
+      : {
+          type: "spawn",
+          command: process.execPath,
+          args: [
+            playwrightCli,
+            "test",
+            specPath,
+            ...(playwrightArgs.length > 0 ? playwrightArgs : ["--project=chrome"]),
+          ],
+        },
     {
       cwd: rootDir,
       env: {
         ...childEnv,
-        DIMOORUN_E2E_SERVER_READY: "1",
-        PLAYWRIGHT_HTML_REPORT: actualHtmlReportDir,
-        ...(actualOutputDir ? { PLAYWRIGHT_OUTPUT_DIR: actualOutputDir } : {}),
+        ...(!useWindowsManagedCli ? {
+          DIMOORUN_E2E_SERVER_READY: "1",
+          PLAYWRIGHT_HTML_REPORT: actualHtmlReportDir,
+          ...(actualOutputDir ? { PLAYWRIGHT_OUTPUT_DIR: actualOutputDir } : {}),
+        } : {}),
       },
       shell: false,
     },
@@ -114,10 +135,14 @@ try {
   if (result !== 0) {
     process.exit(result);
   }
+  if (actualOutputDir && outputDir) {
+    normalizeArtifactPath(path.resolve(rootDir, actualOutputDir), path.resolve(rootDir, outputDir));
+  }
+  normalizeArtifactPath(path.resolve(rootDir, runtimeHtmlReportDir), path.resolve(rootDir, htmlReportDir));
   writePhaseProof({
     specPath,
-    outputDir: actualOutputDir || outputDir,
-    htmlReportDir: actualHtmlReportDir,
+    outputDir: outputDir || actualOutputDir,
+    htmlReportDir,
   });
 } finally {
   if (ownsServer && serverProcess) {
@@ -228,6 +253,15 @@ function writePhaseProof({ specPath: executedSpecPath, outputDir: executedOutput
   if (executedSpecPath.endsWith("compatibility-explorer.spec.ts")) {
     phases.push("0i");
   }
+  if (executedSpecPath.endsWith("costs-budgets.spec.ts")) {
+    phases.push("0m");
+  }
+  if (executedSpecPath.endsWith("scheduled-batch.spec.ts")) {
+    phases.push("0n");
+  }
+  if (executedSpecPath.endsWith("catalog-assets.spec.ts")) {
+    phases.push("0o");
+  }
   if (phases.length === 0) {
     return;
   }
@@ -248,19 +282,18 @@ function writePhaseProof({ specPath: executedSpecPath, outputDir: executedOutput
   );
 }
 
-async function runCommand(command, args, options) {
-  const child = spawn(command, args, options);
-  return await new Promise((resolve, reject) => {
-    child.once("error", reject);
-    child.once("exit", (code) => resolve(code ?? 1));
-  });
-}
-
-async function runPlaywrightWithRetries(args, options) {
+async function runPlaywrightWithRetries(commandSpec, options) {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const outcome = await runStreamingCommand(process.execPath, args, options);
+      const outcome = await runStreamingCommand(
+        commandSpec.command,
+        commandSpec.args,
+        {
+          ...options,
+          shell: commandSpec.shell ?? options.shell,
+        },
+      );
       if (outcome.code === 0) {
         return 0;
       }
@@ -298,4 +331,40 @@ async function runStreamingCommand(command, args, options) {
     });
     child.once("exit", (code) => resolve({ code: code ?? 1, output }));
   });
+}
+
+function quoteWindowsCommand(parts) {
+  return parts
+    .map((part) => {
+      const text = String(part);
+      if (text.length === 0) {
+        return '""';
+      }
+      if (!/[\s"]/u.test(text)) {
+        return text;
+      }
+      return `"${text.replace(/"/g, '\\"')}"`;
+    })
+    .join(" ");
+}
+
+
+function normalizeArtifactPath(sourcePath, targetPath) {
+  if (!existsSync(sourcePath)) {
+    return;
+  }
+  if (path.resolve(sourcePath) === path.resolve(targetPath)) {
+    return;
+  }
+  try {
+    rmSync(targetPath, { force: true, recursive: true });
+  } catch (error) {
+    console.warn(`Failed to clean ${targetPath}:`, error);
+  }
+  try {
+    renameSync(sourcePath, targetPath);
+  } catch {
+    cpSync(sourcePath, targetPath, { recursive: true });
+    rmSync(sourcePath, { force: true, recursive: true });
+  }
 }

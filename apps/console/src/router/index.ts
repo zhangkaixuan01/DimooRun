@@ -12,6 +12,9 @@ import SecretRotationPage from "../pages/governance/SecretRotationPage.vue";
 import ToolGatewayWorkbenchPage from "../pages/governance/ToolGatewayWorkbenchPage.vue";
 import AdminCollectionPage from "../pages/admin/AdminCollectionPage.vue";
 import LoginPage from "../pages/auth/LoginPage.vue";
+import AssetDetailPage from "../pages/catalog/AssetDetailPage.vue";
+import AssetVersionDiffPage from "../pages/catalog/AssetVersionDiffPage.vue";
+import CatalogPage from "../pages/catalog/CatalogPage.vue";
 import IdentityScopePage from "../pages/identity/IdentityScopePage.vue";
 import IncidentTriagePage from "../pages/incidents/IncidentTriagePage.vue";
 import MachineIdentityPage from "../pages/identity/MachineIdentityPage.vue";
@@ -19,6 +22,8 @@ import OperatorsPage from "../pages/identity/OperatorsPage.vue";
 import RolePermissionMatrixPage from "../pages/identity/RolePermissionMatrixPage.vue";
 import ServiceAccountDetailPage from "../pages/identity/ServiceAccountDetailPage.vue";
 import UserAccessDetailPage from "../pages/identity/UserAccessDetailPage.vue";
+import BudgetsPage from "../pages/observability/BudgetsPage.vue";
+import CostsPage from "../pages/observability/CostsPage.vue";
 import BackupRestorePage from "../pages/ops/BackupRestorePage.vue";
 import PackageRegistrationPage from "../pages/packages/PackageRegistrationPage.vue";
 import PolicyWorkbenchPage from "../pages/policies/PolicyWorkbenchPage.vue";
@@ -29,7 +34,9 @@ import QualityGatePage from "../pages/quality/QualityGatePage.vue";
 import ReplayPage from "../pages/replay/ReplayPage.vue";
 import ReplayComparisonPage from "../pages/replay/ReplayComparisonPage.vue";
 import AgentInstancesPage from "../pages/runtime/AgentInstancesPage.vue";
+import BatchRunsPage from "../pages/runtime/BatchRunsPage.vue";
 import CapacityPage from "../pages/runtime/CapacityPage.vue";
+import ScheduledRunsPage from "../pages/runtime/ScheduledRunsPage.vue";
 import WorkersPage from "../pages/runtime/WorkersPage.vue";
 import RunDetailPage from "../pages/runs/RunDetailPage.vue";
 import RunTriagePage from "../pages/runs/RunTriagePage.vue";
@@ -55,6 +62,8 @@ export const routes: RouteRecordRaw[] = [
   { path: "/runtime/workers", name: "runtime-workers", component: WorkersPage },
   { path: "/runtime/agent-instances", name: "runtime-agent-instances", component: AgentInstancesPage },
   { path: "/runtime/capacity", name: "runtime-capacity", component: CapacityPage },
+  { path: "/runtime/schedules", name: "runtime-schedules", component: ScheduledRunsPage },
+  { path: "/runtime/batches", name: "runtime-batches", component: BatchRunsPage },
   { path: "/runs", name: "runs", component: RunsPage },
   { path: "/runs/:runId", name: "run-detail", component: RunDetailPage, props: true },
   { path: "/runs/:runId/triage", name: "run-triage", component: RunTriagePage, props: true },
@@ -122,26 +131,134 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/governance/catalog-items",
     name: "catalog-items",
-    component: AdminCollectionPage,
-    props: { title: "Catalog Items", kicker: "Governance", description: "Reusable runtime catalog entries exposed to teams.", resourcePath: "/v1/catalog/items", seedName: "catalog-item" },
+    component: CatalogPage,
+    props: {
+      kind: "catalog",
+      title: "Catalog Items",
+      description: "Reusable runtime catalog entries exposed to teams.",
+      detailRouteName: "catalog-item-detail",
+    },
+  },
+  {
+    path: "/governance/catalog-items/:assetId",
+    name: "catalog-item-detail",
+    component: AssetDetailPage,
+    props: (route) => ({
+      kind: "catalog",
+      assetId: Number(route.params.assetId),
+      listRouteName: "catalog-items",
+      detailRouteName: "catalog-item-detail",
+      diffRouteName: "catalog-item-diff",
+    }),
+  },
+  {
+    path: "/governance/catalog-items/:assetId/diff",
+    name: "catalog-item-diff",
+    component: AssetVersionDiffPage,
+    props: (route) => ({
+      kind: "catalog",
+      assetId: Number(route.params.assetId),
+      detailRouteName: "catalog-item-detail",
+    }),
   },
   {
     path: "/governance/prompt-assets",
     name: "prompt-assets",
-    component: AdminCollectionPage,
-    props: { title: "Prompt Assets", kicker: "Governance", description: "Prompt assets available to agents and evaluations.", resourcePath: "/v1/assets/prompts", seedName: "prompt" },
+    component: CatalogPage,
+    props: {
+      kind: "prompt",
+      title: "Prompt Assets",
+      description: "Prompt assets available to agents and evaluations.",
+      detailRouteName: "prompt-asset-detail",
+    },
+  },
+  {
+    path: "/governance/prompt-assets/:assetId",
+    name: "prompt-asset-detail",
+    component: AssetDetailPage,
+    props: (route) => ({
+      kind: "prompt",
+      assetId: Number(route.params.assetId),
+      listRouteName: "prompt-assets",
+      detailRouteName: "prompt-asset-detail",
+      diffRouteName: "prompt-asset-diff",
+    }),
+  },
+  {
+    path: "/governance/prompt-assets/:assetId/diff",
+    name: "prompt-asset-diff",
+    component: AssetVersionDiffPage,
+    props: (route) => ({
+      kind: "prompt",
+      assetId: Number(route.params.assetId),
+      detailRouteName: "prompt-asset-detail",
+    }),
   },
   {
     path: "/governance/config-assets",
     name: "config-assets",
-    component: AdminCollectionPage,
-    props: { title: "Config Assets", kicker: "Governance", description: "Config assets and rollout state.", resourcePath: "/v1/assets/configs", seedName: "config" },
+    component: CatalogPage,
+    props: {
+      kind: "config",
+      title: "Config Assets",
+      description: "Config assets and rollout state.",
+      detailRouteName: "config-asset-detail",
+    },
+  },
+  {
+    path: "/governance/config-assets/:assetId",
+    name: "config-asset-detail",
+    component: AssetDetailPage,
+    props: (route) => ({
+      kind: "config",
+      assetId: Number(route.params.assetId),
+      listRouteName: "config-assets",
+      detailRouteName: "config-asset-detail",
+      diffRouteName: "config-asset-diff",
+    }),
+  },
+  {
+    path: "/governance/config-assets/:assetId/diff",
+    name: "config-asset-diff",
+    component: AssetVersionDiffPage,
+    props: (route) => ({
+      kind: "config",
+      assetId: Number(route.params.assetId),
+      detailRouteName: "config-asset-detail",
+    }),
   },
   {
     path: "/governance/template-assets",
     name: "template-assets",
-    component: AdminCollectionPage,
-    props: { title: "Template Assets", kicker: "Governance", description: "Template assets for reusable runtime surfaces.", resourcePath: "/v1/assets/templates", seedName: "template" },
+    component: CatalogPage,
+    props: {
+      kind: "template",
+      title: "Template Assets",
+      description: "Template assets for reusable runtime surfaces.",
+      detailRouteName: "template-asset-detail",
+    },
+  },
+  {
+    path: "/governance/template-assets/:assetId",
+    name: "template-asset-detail",
+    component: AssetDetailPage,
+    props: (route) => ({
+      kind: "template",
+      assetId: Number(route.params.assetId),
+      listRouteName: "template-assets",
+      detailRouteName: "template-asset-detail",
+      diffRouteName: "template-asset-diff",
+    }),
+  },
+  {
+    path: "/governance/template-assets/:assetId/diff",
+    name: "template-asset-diff",
+    component: AssetVersionDiffPage,
+    props: (route) => ({
+      kind: "template",
+      assetId: Number(route.params.assetId),
+      detailRouteName: "template-asset-detail",
+    }),
   },
   {
     path: "/observability/audit-logs",
@@ -172,6 +289,8 @@ export const routes: RouteRecordRaw[] = [
     component: ExperimentsPage,
   },
   { path: "/observability/quality-gate", name: "quality-gate", component: QualityGatePage },
+  { path: "/observability/costs", name: "costs", component: CostsPage },
+  { path: "/observability/budgets", name: "budgets", component: BudgetsPage },
   {
     path: "/observability/replay-jobs",
     name: "replay-jobs",

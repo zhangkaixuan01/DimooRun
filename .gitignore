@@ -17,6 +17,7 @@ apps/console/test-results/
 apps/console/test-results*/
 apps/console/.phase-e2e-proof.json
 apps/console/tr-*/
+apps/console/tmp-serve-dist*.log
 
 # Virtual environments
 .venv
@@ -41,3 +42,4 @@ Thumbs.db
 data/*.db
 data/*.db-*
 logs
+.tmp-gh-cache/

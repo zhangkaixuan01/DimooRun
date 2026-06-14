@@ -80,6 +80,12 @@ jobs:
           image: dimoorun/server:${{ github.ref_name }}
           output-file: sbom.spdx.json
 
+      - name: Upload release SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-sbom
+          path: sbom.spdx.json
+
       - name: Scan image vulnerabilities
         uses: anchore/scan-action@v6
         with:
@@ -142,3 +148,22 @@ jobs:
         run: gh release create "${{ github.ref_name }}" --notes-file CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Write release evidence index
+        shell: bash
+        run: |
+          {
+            echo "ref=${GITHUB_REF_NAME}"
+            echo "sha=${GITHUB_SHA}"
+            echo "workflow_run=${GITHUB_RUN_ID}"
+            echo "required_artifact=release-sbom"
+            echo "publish_python=passed"
+            echo "publish_sdk_js=passed"
+            echo "release_notes=passed"
+          } > release-evidence-index.txt
+
+      - name: Upload release evidence index
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-index
+          path: release-evidence-index.txt

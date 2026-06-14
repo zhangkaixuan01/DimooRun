@@ -3,12 +3,19 @@
 This quickstart describes the intended 15-minute local path. Treat it as a
 guided baseline, not proof that the project is externally production-ready.
 
+Current maturity shorthand:
+
+```text
+Production-shaped foundation: yes.
+External production-grade platform: not yet.
+```
+
 ## Working Directory
 
 Use the repository root unless a step says otherwise.
 
 ```text
-D:\codes\DimooRun
+<repository-root>
 ```
 
 ## Start The Stack

@@ -41,14 +41,25 @@ npm run test:e2e
 
 Status: `local-pass-with-supplied-chrome`
 
-Date checked: 2026-06-12
+Date checked: 2026-06-14
 
 `npm run check:e2e-browser` passes with `DIMOORUN_PLAYWRIGHT_CHROME` loaded from the ignored local `apps/console/.env.e2e.local` file.
 
 `npm run test:e2e` and the full direct Playwright browser suite both pass locally
 using the supplied Chrome executable. The current suite builds the e2e bundle,
-runs 58 Playwright tests, and now includes dedicated Phase 6 runtime workflow,
-accessibility, and responsive screenshot evidence.
+runs 71 Playwright tests, and now includes dedicated Phase 6 runtime workflow,
+Phase `0M` through `0O` browser proof, accessibility, and responsive screenshot
+evidence.
+
+The latest local rerun also cleared two CI-alignment blockers that had been
+observed on the `2026-06-13` hosted `ci.yml` run for
+`2f1fbc1d4deacbb514b3dfbf90ad1662086fc6e2`:
+
+- the policy approval workflow now asserts the real activation comparison text
+  `decision: - -> deny` instead of the incorrect `decision: deny -> deny`;
+- the axe-based browser checks now scope their audits to the relevant region
+  and are marked slow so parallel CI execution does not time out before the
+  analysis completes.
 
 Focused Phase 7 accessibility proof also passes locally:
 
@@ -102,8 +113,8 @@ vite v7.3.3 building client environment for e2e...
 Playwright result:
 
 ```text
-Running 58 tests using 8 workers
-58 passed (32.3s)
+Running 71 tests using 8 workers
+71 passed (57.5s)
 ```
 
 Focused Phase 7 accessibility result:
@@ -127,6 +138,17 @@ Covered workflow groups in this local mocked run:
 - Model gateway, tool gateway, and secret governance.
 - Published Surface publish, invalid route blocking, exposure-health display, route test, request-log drilldown, traffic split, revoke confirmation, and rollback.
 - Quality loop, replay comparison, incident/notification/recovery, and generic workflow shell states.
+- Cost and budget workflow proof through `npm run test:e2e:0m`, including cost
+  breakdown, anomaly drilldown, saved views, budget impact preview, persisted
+  policy save, and blocked budget-policy updates.
+- Scheduled and batch runtime workflow proof through `npm run test:e2e:0n`,
+  including invalid timezone validation, pause/resume/manual trigger, batch
+  creation, partial-failure drilldown, and queued-item cancellation.
+- Catalog and versioned asset lifecycle proof through `npm run test:e2e:0o`,
+  including prompt create/validate/approve/publish/rollback, blocked
+  deprecate, prompt diff, and catalog item shape/detail review. The current
+  local 0O bundle also emits 5 screenshots plus
+  `apps/console/playwright-report-0o/index.html`.
 
 ## Separate Live 0H Proof
 
@@ -188,6 +210,17 @@ That command runs `tests/e2e/published-surfaces.spec.ts` with the `chrome`
 project, and CI uploads the Playwright report artifact. This is configured
 evidence plumbing, not yet a hosted pass claim until a current CI run publishes
 the report.
+
+The hosted browser workflow now also uploads a stable evidence index artifact:
+
+- `console-playwright-evidence-index`
+
+That index records the workflow file, browser install command, primary
+Playwright report artifact, and every phase-specific hosted report artifact from
+`console-playwright-6-report` through `console-playwright-0o-report`.
+
+This index is the stable artifact entry point that `scorecard.md` should cite
+when hosted browser proof improves.
 
 The Published Surface / Ingress / Agent Gateway live-backend proof path is now
 scripted and has a current local real-terminal pass:

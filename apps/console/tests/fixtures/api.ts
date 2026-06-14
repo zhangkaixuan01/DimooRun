@@ -66,6 +66,35 @@ type MockOptions = {
   delayPath?: string;
 };
 
+type GovernedAssetFixture = Record<string, unknown> & {
+  id: number;
+  kind: "catalog" | "prompt" | "config" | "template";
+  name: string;
+  version: string;
+  status: string;
+  type?: string;
+  provider?: string;
+  risk_level?: string;
+  visibility_level?: string;
+  environment?: string | null;
+  content_ref?: string;
+  schema?: Record<string, unknown>;
+  variables_schema?: Record<string, unknown>;
+  capabilities?: Record<string, unknown>;
+  runtime_requirements?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  _validation?: {
+    status?: string;
+    validated_at?: string | null;
+    issues?: Array<{ code: string; field: string; message: string }>;
+  };
+  _dependencies?: Array<Record<string, unknown>>;
+  _used_by?: Array<Record<string, unknown>>;
+  _risk_flags?: string[];
+};
+
 const createdAt = "2026-06-05T00:00:00.000Z";
 const supportedPackageCapabilities = new Set(["invoke", "stream", "streaming"]);
 
@@ -217,6 +246,9 @@ export async function installConsoleApiMocks(
   page: Page,
   options: MockOptions = {},
 ): Promise<void> {
+  await page.addInitScript(() => {
+    sessionStorage.setItem("dimoorun.console.apiBaseUrlOverride", `${window.location.origin}/mock-api`);
+  });
   const api = makeDashboardApi({ empty: options.empty });
   const runtimeWorkers = makeRuntimeWorkers();
   const runtimeAgentInstances = makeRuntimeAgentInstances();
@@ -257,6 +289,7 @@ export async function installConsoleApiMocks(
   const compatibilityAssistants: Array<Record<string, unknown>> = [];
   const compatibilityThreads: Array<Record<string, unknown>> = [];
   const compatibilityRuns: Array<Record<string, unknown>> = [];
+  const governedAssets: GovernedAssetFixture[] = makeGovernedAssets();
   const identityPermissions: Array<Record<string, unknown>> = [
     { id: 1, code: "admin:read", resource: "admin", action: "read", status: "active" },
     { id: 2, code: "identity:role:write", resource: "identity:role", action: "write", status: "active" },
@@ -469,6 +502,168 @@ export async function installConsoleApiMocks(
     { provider: "notification_transport", status: "degraded", summary: "notification channels", reason: "0 channel(s) configured." },
     { provider: "observability_exporter", status: "healthy", summary: "otlp", reason: "1 exporter record(s) configured." },
   ];
+  const notificationChannels: Array<Record<string, unknown>> = [
+    {
+      id: 901,
+      type: "webhook",
+      target_ref: "slack:#ops-finops",
+      status: "active",
+      metadata: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+    },
+    {
+      id: 902,
+      type: "webhook",
+      target_ref: "slack:#locked-finance",
+      status: "active",
+      metadata: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+    },
+  ];
+  const costBudgetPolicies: Array<Record<string, unknown>> = [
+    {
+      id: 951,
+      name: "prod-spend-guardrail",
+      environment: "local",
+      scope_type: "deployment",
+      scope_ref: "10",
+      threshold_usd: 1.5,
+      reset_window: "monthly",
+      channel_id: 901,
+      action_mode: "require_approval",
+      status: "active",
+      metadata: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      tenant_id: 1,
+      project_id: 1,
+    },
+  ];
+  const costSavedViews: Array<Record<string, unknown>> = [
+    {
+      id: 941,
+      name: "provider-regressions",
+      environment: "local",
+      group_by: "provider",
+      window_days: 30,
+      filters: {},
+      status: "active",
+      metadata: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      tenant_id: 1,
+      project_id: 1,
+    },
+  ];
+  const scheduledRuns: Array<Record<string, unknown>> = [
+    {
+      id: 1201,
+      name: "nightly-eval",
+      status: "active",
+      schedule_type: "interval",
+      cron_expression: null,
+      interval_minutes: 30,
+      timezone: "UTC",
+      next_fire_time: "2026-06-13T01:30:00.000Z",
+      deployment_id: 10,
+      input_template: { message: "scheduled" },
+      backfill_policy: "latest",
+      missed_run_policy: "run_once",
+      last_triggered_at: null,
+      last_run_id: null,
+      last_task_id: null,
+      last_run_status: null,
+      last_task_status: null,
+      last_trigger_source: null,
+      trigger_count: 0,
+      pause_reason: null,
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+      created_at: createdAt,
+      updated_at: createdAt,
+      metadata: {},
+    },
+    {
+      id: 1202,
+      name: "weekday-backfill",
+      status: "paused",
+      schedule_type: "cron",
+      cron_expression: "0 9 * * 1-5",
+      interval_minutes: null,
+      timezone: "Asia/Shanghai",
+      next_fire_time: "2026-06-13T09:00:00.000Z",
+      deployment_id: 11,
+      input_template: { message: "weekday" },
+      backfill_policy: "none",
+      missed_run_policy: "catch_up",
+      last_triggered_at: "2026-06-12T09:00:00.000Z",
+      last_run_id: 1002,
+      last_task_id: 2002,
+      last_run_status: "succeeded",
+      last_task_status: "succeeded",
+      last_trigger_source: "automatic",
+      trigger_count: 4,
+      pause_reason: "maintenance",
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+      created_at: createdAt,
+      updated_at: createdAt,
+      metadata: {},
+    },
+  ];
+  const batchRuns: Array<Record<string, unknown>> = [
+    {
+      id: 1301,
+      name: "backfill-failed-runs",
+      status: "partial_failed",
+      deployment_id: 10,
+      dataset_id: null,
+      concurrency: 2,
+      retry_policy: { max_attempts: 2 },
+      cancel_policy: "best_effort",
+      partial_failure_policy: "continue",
+      artifact_output_ref: null,
+      progress_summary: {
+        total_items: 3,
+        queued_items: 1,
+        running_items: 0,
+        retrying_items: 1,
+        failed_items: 1,
+        dead_letter_items: 0,
+        cancelled_items: 0,
+        completed_items: 0,
+        terminal_items: 1,
+      },
+      items: [
+        { index: 0, status: "queued", input: { message: "one" }, run_id: 4001, task_id: 5001 },
+        {
+          index: 1,
+          status: "failed",
+          input: null,
+          run_id: null,
+          task_id: null,
+          error_code: "batch_item_invalid",
+          message: "Batch input item must be an object.",
+        },
+        { index: 2, status: "retrying", input: { message: "two" }, run_id: 4002, task_id: 5002 },
+      ],
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ];
   const platformSnapshot = {
     runtime_mode: "production",
     runtime_environment: "local",
@@ -575,6 +770,59 @@ export async function installConsoleApiMocks(
         request_id: "e2e-request",
       });
     }
+    if (path === "/v1/console/costs/summary" && route.request().method() === "GET") {
+      return fulfillJson(route, costSummaryResponse(url));
+    }
+    if (path === "/v1/console/costs/anomalies" && route.request().method() === "GET") {
+      return fulfillJson(route, costAnomaliesResponse());
+    }
+    if (path === "/v1/schedules/preview" && route.request().method() === "POST") {
+      return fulfillSchedulePreview(route);
+    }
+    if (path === "/v1/schedules" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(scheduledRuns));
+    }
+    if (path === "/v1/schedules" && route.request().method() === "POST") {
+      return fulfillScheduleCreate(route, scheduledRuns);
+    }
+    const scheduleDetailMatch = path.match(/^\/v1\/schedules\/(\d+)$/);
+    if (scheduleDetailMatch && route.request().method() === "GET") {
+      return fulfillScheduledRunDetail(route, scheduledRuns, Number(scheduleDetailMatch[1]));
+    }
+    const scheduleActionMatch = path.match(/^\/v1\/schedules\/(\d+)\/(pause|resume|trigger)$/);
+    if (scheduleActionMatch && route.request().method() === "POST") {
+      return fulfillScheduleAction(
+        route,
+        scheduledRuns,
+        Number(scheduleActionMatch[1]),
+        scheduleActionMatch[2],
+      );
+    }
+    if (path === "/v1/batch-runs" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(batchRuns));
+    }
+    if (path === "/v1/batch-runs" && route.request().method() === "POST") {
+      return fulfillBatchRunCreate(route, batchRuns);
+    }
+    const batchDetailMatch = path.match(/^\/v1\/batch-runs\/(\d+)$/);
+    if (batchDetailMatch && route.request().method() === "GET") {
+      return fulfillBatchRunDetail(route, batchRuns, Number(batchDetailMatch[1]));
+    }
+    const batchCancelMatch = path.match(/^\/v1\/batch-runs\/(\d+)\/cancel$/);
+    if (batchCancelMatch && route.request().method() === "POST") {
+      return fulfillBatchRunCancel(route, batchRuns, Number(batchCancelMatch[1]));
+    }
+    if (path === "/v1/console/costs/budgets/preview" && route.request().method() === "POST") {
+      return fulfillBudgetPreview(route);
+    }
+    const savedCostViewMatch = path.match(/^\/v1\/console\/costs\/views\/(\d+)$/);
+    if (savedCostViewMatch && route.request().method() === "GET") {
+      return fulfillSavedCostView(route, costSavedViews, Number(savedCostViewMatch[1]));
+    }
+    const savedBudgetPreviewMatch = path.match(/^\/v1\/console\/costs\/budgets\/(\d+)\/preview$/);
+    if (savedBudgetPreviewMatch && route.request().method() === "GET") {
+      return fulfillSavedBudgetPreview(route, costBudgetPolicies, notificationChannels, Number(savedBudgetPreviewMatch[1]));
+    }
     if (path === "/v1/console/settings/scoped-defaults" && route.request().method() === "GET") {
       return fulfillJson(route, {
         items: platformScopedSettings,
@@ -614,6 +862,35 @@ export async function installConsoleApiMocks(
     }
     if (path === "/v1/identity/service-accounts" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(serviceAccounts.map(serviceAccountSummary)));
+    }
+    if (path === "/v1/notifications/channels" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(notificationChannels));
+    }
+    if (path === "/v1/costs/budgets" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(costBudgetPolicies));
+    }
+    if (path === "/v1/costs/views" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(activeCostSavedViews(costSavedViews)));
+    }
+    if (path === "/v1/costs/views" && route.request().method() === "POST") {
+      return fulfillCostSavedViewCreate(route, costSavedViews);
+    }
+    if (path === "/v1/costs/budgets" && route.request().method() === "POST") {
+      return fulfillCostBudgetCreate(route, costBudgetPolicies, notificationChannels);
+    }
+    const costSavedViewMutationMatch = path.match(/^\/v1\/costs\/views\/(\d+)$/);
+    if (costSavedViewMutationMatch && route.request().method() === "PATCH") {
+      return fulfillCostSavedViewUpdate(route, costSavedViews, Number(costSavedViewMutationMatch[1]));
+    }
+    if (costSavedViewMutationMatch && route.request().method() === "DELETE") {
+      return fulfillJson(route, archiveCostSavedView(costSavedViews, Number(costSavedViewMutationMatch[1])));
+    }
+    const costBudgetMutationMatch = path.match(/^\/v1\/costs\/budgets\/(\d+)$/);
+    if (costBudgetMutationMatch && route.request().method() === "PATCH") {
+      return fulfillCostBudgetUpdate(route, costBudgetPolicies, Number(costBudgetMutationMatch[1]));
+    }
+    if (costBudgetMutationMatch && route.request().method() === "DELETE") {
+      return fulfillJson(route, archiveCostBudgetPolicy(costBudgetPolicies, Number(costBudgetMutationMatch[1])));
     }
     const serviceAccountPatchMatch = path.match(/^\/v1\/identity\/service-accounts\/(\d+)$/);
     if (serviceAccountPatchMatch && route.request().method() === "PATCH") {
@@ -669,6 +946,102 @@ export async function installConsoleApiMocks(
     }
     if (path === "/v1/published-surfaces" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(publishedSurfaces));
+    }
+    if (path === "/v1/catalog/items" && route.request().method() === "GET") {
+      try {
+        return fulfillJson(route, makeAdminCollection(listGovernedAssets(governedAssets, "catalog")));
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/catalog/items" && route.request().method() === "POST") {
+      try {
+        return fulfillGovernedAssetCreate(route, governedAssets, "catalog");
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/assets/prompts" && route.request().method() === "GET") {
+      try {
+        return fulfillJson(route, makeAdminCollection(listGovernedAssets(governedAssets, "prompt")));
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/assets/prompts" && route.request().method() === "POST") {
+      try {
+        return fulfillGovernedAssetCreate(route, governedAssets, "prompt");
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/assets/configs" && route.request().method() === "GET") {
+      try {
+        return fulfillJson(route, makeAdminCollection(listGovernedAssets(governedAssets, "config")));
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/assets/configs" && route.request().method() === "POST") {
+      try {
+        return fulfillGovernedAssetCreate(route, governedAssets, "config");
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/assets/templates" && route.request().method() === "GET") {
+      try {
+        return fulfillJson(route, makeAdminCollection(listGovernedAssets(governedAssets, "template")));
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    if (path === "/v1/assets/templates" && route.request().method() === "POST") {
+      try {
+        return fulfillGovernedAssetCreate(route, governedAssets, "template");
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    const catalogDetailMatch = path.match(/^\/v1\/catalog\/items\/(\d+)$/);
+    if (catalogDetailMatch && route.request().method() === "GET") {
+      return fulfillGovernedAssetDetail(route, governedAssets, "catalog", Number(catalogDetailMatch[1]));
+    }
+    const catalogActionMatch = path.match(/^\/v1\/catalog\/items\/(\d+)\/(validate|approve|publish|deprecate|archive|rollback)$/);
+    if (catalogActionMatch && route.request().method() === "POST") {
+      return fulfillGovernedAssetAction(route, governedAssets, "catalog", Number(catalogActionMatch[1]), catalogActionMatch[2]);
+    }
+    const promptDetailMatch = path.match(/^\/v1\/assets\/prompts\/(\d+)$/);
+    if (promptDetailMatch && route.request().method() === "GET") {
+      try {
+        return fulfillGovernedAssetDetail(route, governedAssets, "prompt", Number(promptDetailMatch[1]));
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    const promptActionMatch = path.match(/^\/v1\/assets\/prompts\/(\d+)\/(validate|approve|publish|deprecate|archive|rollback)$/);
+    if (promptActionMatch && route.request().method() === "POST") {
+      try {
+        return fulfillGovernedAssetAction(route, governedAssets, "prompt", Number(promptActionMatch[1]), promptActionMatch[2]);
+      } catch (error) {
+        return fulfillError(route, error);
+      }
+    }
+    const configDetailMatch = path.match(/^\/v1\/assets\/configs\/(\d+)$/);
+    if (configDetailMatch && route.request().method() === "GET") {
+      return fulfillGovernedAssetDetail(route, governedAssets, "config", Number(configDetailMatch[1]));
+    }
+    const configActionMatch = path.match(/^\/v1\/assets\/configs\/(\d+)\/(validate|approve|publish|deprecate|archive|rollback)$/);
+    if (configActionMatch && route.request().method() === "POST") {
+      return fulfillGovernedAssetAction(route, governedAssets, "config", Number(configActionMatch[1]), configActionMatch[2]);
+    }
+    const templateDetailMatch = path.match(/^\/v1\/assets\/templates\/(\d+)$/);
+    if (templateDetailMatch && route.request().method() === "GET") {
+      return fulfillGovernedAssetDetail(route, governedAssets, "template", Number(templateDetailMatch[1]));
+    }
+    const templateActionMatch = path.match(/^\/v1\/assets\/templates\/(\d+)\/(validate|approve|publish|deprecate|archive|rollback)$/);
+    if (templateActionMatch && route.request().method() === "POST") {
+      return fulfillGovernedAssetAction(route, governedAssets, "template", Number(templateActionMatch[1]), templateActionMatch[2]);
     }
     if (path === "/v1/ingress-routes" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(ingressRoutes));
@@ -913,10 +1286,967 @@ function parseRequestBody(route: Route): Record<string, unknown> {
     : {};
 }
 
+function makeGovernedAssets(): GovernedAssetFixture[] {
+  return [
+    {
+      id: 810,
+      kind: "prompt",
+      name: "support-prompt",
+      version: "1.0.0",
+      status: "published",
+      content_ref: "inline:triage-v1",
+      visibility_level: "internal",
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [],
+      _used_by: [],
+      _risk_flags: [],
+    },
+    {
+      id: 811,
+      kind: "prompt",
+      name: "support-prompt",
+      version: "1.1.0",
+      status: "draft",
+      content_ref: "inline:triage-v2",
+      visibility_level: "internal",
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "pending", validated_at: null, issues: [] },
+      _dependencies: [{ kind: "template", name: "support-template", version: "2.0.0" }],
+      _used_by: [],
+      _risk_flags: [],
+    },
+    {
+      id: 812,
+      kind: "prompt",
+      name: "live-prompt",
+      version: "1.0.0",
+      status: "published",
+      content_ref: "inline:live",
+      visibility_level: "internal",
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [],
+      _used_by: [
+        {
+          resource_kind: "deployment",
+          resource_id: 10,
+          environment: "production",
+          status: "active",
+          active: true,
+        },
+      ],
+      _risk_flags: ["active_deployment_dependency"],
+    },
+    {
+      id: 813,
+      kind: "prompt",
+      name: "broken-prompt",
+      version: "latest",
+      status: "draft",
+      content_ref: "inline:broken",
+      visibility_level: "internal",
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: {
+        status: "failed",
+        validated_at: createdAt,
+        issues: [
+          { code: "explicit_version_required", field: "version", message: "latest is not allowed." },
+          { code: "secret_ref_invalid", field: "secret_refs", message: "Invalid secret ref: bad-secret-ref" },
+        ],
+      },
+      _dependencies: [{ kind: "prompt", name: "missing", version: "latest" }],
+      _used_by: [],
+      _risk_flags: ["floating_version"],
+    },
+    {
+      id: 820,
+      kind: "catalog",
+      name: "runtime-tool",
+      version: "1.0.0",
+      status: "published",
+      type: "tool",
+      provider: "local",
+      risk_level: "high",
+      schema: {},
+      capabilities: { invoke: true },
+      runtime_requirements: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [{ kind: "prompt", name: "support-prompt", version: "1.0.0" }],
+      _used_by: [{ resource_kind: "agent_version", resource_id: 12, environment: null, status: "ready", active: true }],
+      _risk_flags: ["high_risk_component"],
+    },
+    {
+      id: 821,
+      kind: "catalog",
+      name: "crm-mcp",
+      version: "1.0.0",
+      status: "published",
+      type: "mcp_endpoint",
+      provider: "remote",
+      risk_level: "medium",
+      schema: {},
+      capabilities: { invoke: true },
+      runtime_requirements: { model_gateway_refs: ["default-gateway"] },
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [{ kind: "prompt", name: "support-prompt", version: "1.0.0" }],
+      _used_by: [{ resource_kind: "agent_version", resource_id: 11, environment: null, status: "ready", active: true }],
+      _risk_flags: [],
+    },
+    {
+      id: 822,
+      kind: "catalog",
+      name: "shared-vector-memory",
+      version: "1.0.0",
+      status: "approved",
+      type: "semantic_store",
+      provider: "chroma",
+      risk_level: "medium",
+      schema: {},
+      capabilities: { search: true },
+      runtime_requirements: { retrieval_mode: "hybrid" },
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [{ kind: "config", name: "production-config", version: "1.0.0" }],
+      _used_by: [],
+      _risk_flags: [],
+    },
+    {
+      id: 823,
+      kind: "catalog",
+      name: "governed-sandbox",
+      version: "1.0.0",
+      status: "published",
+      type: "runtime_component",
+      provider: "native",
+      risk_level: "critical",
+      schema: {},
+      capabilities: { sandbox: true },
+      runtime_requirements: { isolation_level: "process" },
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [{ kind: "template", name: "support-template", version: "2.0.0" }],
+      _used_by: [
+        { resource_kind: "deployment", resource_id: 10, environment: "production", status: "active", active: true },
+      ],
+      _risk_flags: ["high_risk_component", "active_deployment_dependency"],
+    },
+    {
+      id: 830,
+      kind: "config",
+      name: "production-config",
+      version: "1.0.0",
+      status: "approved",
+      content_ref: "inline:cfg",
+      environment: "production",
+      schema: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [],
+      _used_by: [],
+      _risk_flags: [],
+    },
+    {
+      id: 840,
+      kind: "template",
+      name: "support-template",
+      version: "2.0.0",
+      status: "published",
+      type: "template",
+      content_ref: "inline:template",
+      schema: {},
+      created_at: createdAt,
+      updated_at: createdAt,
+      _validation: { status: "passed", validated_at: createdAt, issues: [] },
+      _dependencies: [],
+      _used_by: [],
+      _risk_flags: [],
+    },
+  ];
+}
+
+function listGovernedAssets(
+  assets: GovernedAssetFixture[],
+  kind: GovernedAssetFixture["kind"],
+): Array<Record<string, unknown>> {
+  return assets
+    .filter((item) => item.kind === kind)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      version: item.version,
+      status: item.status,
+      type: item.type,
+      provider: item.provider,
+      risk_level: item.risk_level,
+      visibility_level: item.visibility_level,
+      environment: item.environment ?? null,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    }));
+}
+
+function governedAssetDetailResponse(
+  assets: GovernedAssetFixture[],
+  item: GovernedAssetFixture,
+): Record<string, unknown> {
+  const history = assets
+    .filter((entry) => entry.kind === item.kind && entry.name === item.name && entry.type === item.type)
+    .sort((left, right) => left.id - right.id);
+  const previousIndex = history.findIndex((entry) => entry.id === item.id) - 1;
+  const previous = previousIndex >= 0 ? history[previousIndex] : null;
+  const changed_fields = previous
+    ? [
+        {
+          field: "content_ref",
+          before: previous.content_ref ?? null,
+          after: item.content_ref ?? null,
+        },
+        {
+          field: "version",
+          before: previous.version,
+          after: item.version,
+        },
+      ].filter((entry) => entry.before !== entry.after)
+    : [];
+  return {
+    item: {
+      id: item.id,
+      name: item.name,
+      version: item.version,
+      status: item.status,
+      kind: item.kind,
+      type: item.type,
+      provider: item.provider,
+      risk_level: item.risk_level,
+      visibility_level: item.visibility_level,
+      environment: item.environment ?? null,
+      content_ref: item.content_ref,
+      schema: item.schema ?? {},
+      capabilities: item.capabilities ?? {},
+      runtime_requirements: item.runtime_requirements ?? {},
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    },
+    lifecycle: {
+      status: item.status,
+      last_action: item.status,
+    },
+    validation: item._validation || { status: "pending", issues: [] },
+    dependencies: item._dependencies || [],
+    used_by: item._used_by || [],
+    risk_flags: item._risk_flags || [],
+    version_history: history.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      version: entry.version,
+      status: entry.status,
+    })),
+    diff_to_previous: {
+      changed_fields,
+      has_changes: changed_fields.length > 0,
+    },
+    environment: item.environment ?? null,
+  };
+}
+
+function fulfillGovernedAssetCreate(
+  route: Route,
+  assets: GovernedAssetFixture[],
+  kind: GovernedAssetFixture["kind"],
+) {
+  const body = parseRequestBody(route);
+  const created: GovernedAssetFixture = {
+    id: nextNumericId(assets),
+    kind,
+    name: String(body.name || `${kind}-${assets.length + 1}`),
+    version: String(body.version || "1.0.0"),
+    status: "draft",
+    type: typeof body.type === "string" ? body.type : kind === "catalog" ? "tool" : "template",
+    provider: typeof body.provider === "string" ? body.provider : "local",
+    risk_level: typeof body.risk_level === "string" ? body.risk_level : "medium",
+    visibility_level: "internal",
+    environment: typeof body.environment === "string" ? body.environment : null,
+    content_ref: typeof body.content_ref === "string" ? body.content_ref : "inline:content",
+    created_at: createdAt,
+    updated_at: createdAt,
+    _validation: { status: "pending", validated_at: null, issues: [] },
+    _dependencies: [],
+    _used_by: [],
+    _risk_flags: [],
+  };
+  assets.unshift(created);
+  return fulfillJson(route, { item: listGovernedAssets([created], kind)[0], request_id: "e2e-request" });
+}
+
+function fulfillGovernedAssetDetail(
+  route: Route,
+  assets: GovernedAssetFixture[],
+  kind: GovernedAssetFixture["kind"],
+  assetId: number,
+) {
+  const item = assets.find((entry) => entry.kind === kind && entry.id === assetId);
+  if (!item) {
+    return route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      json: { detail: { error_code: `${kind}_asset_not_found`, message: "Asset not found." } },
+    });
+  }
+  return fulfillJson(route, governedAssetDetailResponse(assets, item));
+}
+
+function fulfillGovernedAssetAction(
+  route: Route,
+  assets: GovernedAssetFixture[],
+  kind: GovernedAssetFixture["kind"],
+  assetId: number,
+  action: string,
+) {
+  const body = parseRequestBody(route);
+  const item = assets.find((entry) => entry.kind === kind && entry.id === assetId);
+  if (!item) {
+    return route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      json: { detail: { error_code: `${kind}_asset_not_found`, message: "Asset not found." } },
+    });
+  }
+  if (action === "validate") {
+    if (item.name === "broken-prompt") {
+      return fulfillJson(route, {
+        item: { id: item.id, name: item.name, version: item.version, status: item.status },
+        lifecycle: { status: item.status },
+        validation: item._validation,
+      });
+    }
+    item.status = "validated";
+    item.updated_at = createdAt;
+    item._validation = { status: "passed", validated_at: createdAt, issues: [] };
+    return fulfillJson(route, {
+      item: { id: item.id, name: item.name, version: item.version, status: item.status },
+      lifecycle: { status: item.status },
+      validation: item._validation,
+    });
+  }
+  if (action === "approve") {
+    item.status = "approved";
+    return fulfillJson(route, {
+      item: { id: item.id, name: item.name, version: item.version, status: item.status },
+      lifecycle: { status: item.status },
+    });
+  }
+  if (action === "publish") {
+    for (const sibling of assets) {
+      if (sibling.kind === item.kind && sibling.name === item.name && sibling.id !== item.id && sibling.status === "published") {
+        sibling.status = "deprecated";
+      }
+    }
+    item.status = "published";
+    return fulfillJson(route, {
+      item: { id: item.id, name: item.name, version: item.version, status: item.status },
+      lifecycle: { status: item.status },
+    });
+  }
+  if (action === "deprecate" && (item._used_by || []).some((entry) => recordValue(entry, "active") === true)) {
+    return route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "asset_in_use_by_active_deployment",
+          message: "Asset is still referenced by an active deployment.",
+          request_id: "e2e-error-request",
+        },
+      },
+    });
+  }
+  if (action === "deprecate") {
+    item.status = "deprecated";
+    return fulfillJson(route, {
+      item: { id: item.id, name: item.name, version: item.version, status: item.status },
+      lifecycle: { status: item.status },
+      used_by: item._used_by || [],
+    });
+  }
+  if (action === "archive") {
+    item.status = "archived";
+    return fulfillJson(route, {
+      item: { id: item.id, name: item.name, version: item.version, status: item.status },
+      lifecycle: { status: item.status },
+    });
+  }
+  const targetVersion = String(body.target_version || "");
+  const target = assets.find(
+    (entry) => entry.kind === kind && entry.name === item.name && entry.version === targetVersion,
+  );
+  if (!target) {
+    return route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "rollback_target_not_found",
+          message: "Rollback target version was not found.",
+          request_id: "e2e-error-request",
+        },
+      },
+    });
+  }
+  item.status = "deprecated";
+  target.status = "published";
+  return fulfillJson(route, {
+    item: { id: target.id, name: target.name, version: target.version, status: target.status },
+    rolled_back_from: { id: item.id, name: item.name, version: item.version, status: item.status },
+    lifecycle: { status: target.status },
+  });
+}
+
 function recordValue(record: unknown, key: string): unknown {
   return record && typeof record === "object" && !Array.isArray(record)
     ? (record as Record<string, unknown>)[key]
     : undefined;
+}
+
+function fulfillSchedulePreview(route: Route) {
+  const body = parseRequestBody(route);
+  const timezone = String(body.timezone || "UTC");
+  if (timezone === "Mars/Phobos") {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "invalid_timezone",
+          message: "Schedule preview payload is invalid.",
+          request_id: "e2e-error-request",
+        },
+      },
+    });
+  }
+  return fulfillJson(route, {
+    preview: {
+      schedule_type: body.cron_expression ? "cron" : "interval",
+      timezone,
+      cron_expression: body.cron_expression || null,
+      interval_minutes: body.interval_minutes || null,
+      next_fire_time: "2026-06-13T01:30:00.000Z",
+    },
+    normalized: body,
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillScheduleCreate(route: Route, scheduledRuns: Array<Record<string, unknown>>) {
+  const body = parseRequestBody(route);
+  const nextId = Math.max(...scheduledRuns.map((item) => Number(item.id || 0))) + 1;
+  const record = {
+    id: nextId,
+    name: String(body.name || "runtime-schedule"),
+    status: "active",
+    schedule_type: body.cron_expression ? "cron" : "interval",
+    cron_expression: typeof body.cron_expression === "string" ? body.cron_expression : null,
+    interval_minutes: body.interval_minutes == null ? null : Number(body.interval_minutes),
+    timezone: String(body.timezone || "UTC"),
+    next_fire_time: "2026-06-13T02:00:00.000Z",
+    deployment_id: Number(body.deployment_id || 10),
+    input_template: body.input_template || {},
+    backfill_policy: String(body.backfill_policy || "none"),
+    missed_run_policy: String(body.missed_run_policy || "skip"),
+    last_triggered_at: null,
+    last_run_id: null,
+    last_task_id: null,
+    last_run_status: null,
+    last_task_status: null,
+    last_trigger_source: null,
+    trigger_count: 0,
+    pause_reason: null,
+    tenant_id: 1,
+    project_id: 1,
+    environment: "local",
+    created_at: createdAt,
+    updated_at: createdAt,
+    metadata: {},
+  };
+  scheduledRuns.unshift(record);
+  return fulfillJson(route, { item: record, request_id: "e2e-request" });
+}
+
+function fulfillScheduledRunDetail(
+  route: Route,
+  scheduledRuns: Array<Record<string, unknown>>,
+  scheduleId: number,
+) {
+  const item = scheduledRuns.find((record) => Number(record.id) === scheduleId);
+  return item
+    ? fulfillJson(route, { item, request_id: "e2e-request" })
+    : fulfillError(route, new Error("schedule_not_found"));
+}
+
+function fulfillScheduleAction(
+  route: Route,
+  scheduledRuns: Array<Record<string, unknown>>,
+  scheduleId: number,
+  action: string,
+) {
+  const item = scheduledRuns.find((record) => Number(record.id) === scheduleId);
+  if (!item) return fulfillError(route, new Error("schedule_not_found"));
+  if (action === "pause") {
+    item.status = "paused";
+    item.pause_reason = "maintenance";
+  } else if (action === "resume") {
+    item.status = "active";
+    item.pause_reason = null;
+  } else if (action === "trigger") {
+    item.last_triggered_at = "2026-06-13T01:15:00.000Z";
+    item.last_run_id = 9001;
+    item.last_task_id = 9101;
+    item.last_run_status = "pending";
+    item.last_task_status = "queued";
+    item.last_trigger_source = "manual";
+    item.trigger_count = Number(item.trigger_count || 0) + 1;
+    item.next_fire_time = "2026-06-13T01:45:00.000Z";
+    return fulfillJson(route, {
+      item,
+      triggered_run: { run_id: 9001, task_id: 9101, status: "queued" },
+      request_id: "e2e-request",
+    });
+  }
+  return fulfillJson(route, { item, request_id: "e2e-request" });
+}
+
+function fulfillBatchRunCreate(route: Route, batchRuns: Array<Record<string, unknown>>) {
+  const body = parseRequestBody(route);
+  const nextId = Math.max(...batchRuns.map((item) => Number(item.id || 0))) + 1;
+  const items = Array.isArray(body.input_items) ? body.input_items : [];
+  const normalizedItems = items.map((item, index) => {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      return {
+        index,
+        status: "queued",
+        input: item,
+        run_id: 5000 + index,
+        task_id: 6000 + index,
+      };
+    }
+    return {
+      index,
+      status: "failed",
+      input: null,
+      run_id: null,
+      task_id: null,
+      error_code: "batch_item_invalid",
+      message: "Batch input item must be an object.",
+    };
+  });
+  const queuedItems = normalizedItems.filter((item) => item.status === "queued").length;
+  const failedItems = normalizedItems.filter((item) => item.status === "failed").length;
+  const record = {
+    id: nextId,
+    name: String(body.name || "runtime-batch"),
+    status: failedItems > 0 ? "partial_failed" : "queued",
+    deployment_id: Number(body.deployment_id || 10),
+    dataset_id: null,
+    concurrency: Number(body.concurrency || 1),
+    retry_policy: body.retry_policy || {},
+    cancel_policy: String(body.cancel_policy || "queued_only"),
+    partial_failure_policy: String(body.partial_failure_policy || "continue"),
+    artifact_output_ref: null,
+    progress_summary: {
+      total_items: normalizedItems.length,
+      queued_items: queuedItems,
+      running_items: 0,
+      retrying_items: 0,
+      failed_items: failedItems,
+      dead_letter_items: 0,
+      cancelled_items: 0,
+      completed_items: 0,
+      terminal_items: failedItems,
+    },
+    items: normalizedItems,
+    tenant_id: 1,
+    project_id: 1,
+    environment: "local",
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+  batchRuns.unshift(record);
+  return fulfillJson(route, { item: record, request_id: "e2e-request" });
+}
+
+function fulfillBatchRunDetail(route: Route, batchRuns: Array<Record<string, unknown>>, batchId: number) {
+  const item = batchRuns.find((record) => Number(record.id) === batchId);
+  return item
+    ? fulfillJson(route, { item, request_id: "e2e-request" })
+    : fulfillError(route, new Error("batch_run_not_found"));
+}
+
+function fulfillBatchRunCancel(route: Route, batchRuns: Array<Record<string, unknown>>, batchId: number) {
+  const item = batchRuns.find((record) => Number(record.id) === batchId);
+  if (!item) return fulfillError(route, new Error("batch_run_not_found"));
+  const items = Array.isArray(item.items) ? item.items : [];
+  for (const entry of items) {
+    if (entry && typeof entry === "object" && (entry as Record<string, unknown>).status === "queued") {
+      (entry as Record<string, unknown>).status = "cancelled";
+    }
+  }
+  item.status = "partial_failed";
+  item.progress_summary = {
+    total_items: items.length,
+    queued_items: 0,
+    running_items: 0,
+    retrying_items: 0,
+    failed_items: 1,
+    dead_letter_items: 0,
+    cancelled_items: items.filter((entry) => entry && typeof entry === "object" && (entry as Record<string, unknown>).status === "cancelled").length,
+    completed_items: 0,
+    terminal_items:
+      1 + items.filter((entry) => entry && typeof entry === "object" && (entry as Record<string, unknown>).status === "cancelled").length,
+  };
+  return fulfillJson(route, { item, request_id: "e2e-request" });
+}
+
+function costBreakdown(
+  groupBy: string,
+  key: string,
+  label: string,
+  totalCostUsd: number,
+  totalTokens: number,
+  runCount: number,
+  failedRunCount: number,
+  latestRunId: number | null,
+  qualityGate: Record<string, unknown> | null = null,
+): Record<string, unknown> {
+  return {
+    group_by: groupBy,
+    key,
+    label,
+    total_cost_usd: totalCostUsd,
+    total_tokens: totalTokens,
+    run_count: runCount,
+    failed_run_count: failedRunCount,
+    latest_run_id: latestRunId,
+    latest_at: createdAt,
+    quality_gate: qualityGate,
+  };
+}
+
+function costSummaryResponse(url: URL): Record<string, unknown> {
+  const groupBy = url.searchParams.get("group_by") || "deployment";
+  const windowDays = Number(url.searchParams.get("window_days") || 30);
+  let breakdown: Array<Record<string, unknown>>;
+  if (groupBy === "provider") {
+    breakdown = [
+      costBreakdown("provider", "openai", "openai", 1.9, 9800, 3, 1, 1003),
+      costBreakdown("provider", "anthropic", "anthropic", 0.48, 2100, 1, 0, 1002),
+    ];
+  } else if (groupBy === "model") {
+    breakdown = [
+      costBreakdown("model", "gpt-4.1", "gpt-4.1", 1.2, 5200, 1, 1, 1001),
+      costBreakdown("model", "gpt-4.1-mini", "gpt-4.1-mini", 0.7, 4600, 2, 0, 1003),
+      costBreakdown("model", "claude-3-7-sonnet", "claude-3-7-sonnet", 0.48, 2100, 1, 0, 1002),
+    ];
+  } else if (groupBy === "run") {
+    breakdown = [
+      costBreakdown("run", "1001", "Run #1001", 1.2, 5200, 1, 1, 1001),
+      costBreakdown("run", "1003", "Run #1003", 0.45, 2800, 1, 0, 1003),
+      costBreakdown("run", "1002", "Run #1002", 0.25, 1800, 1, 0, 1002),
+    ];
+  } else if (groupBy === "agent") {
+    breakdown = [
+      costBreakdown("agent", "1", "support-agent", 2.38, 11900, 4, 1, 1003),
+    ];
+  } else {
+    breakdown = [
+      costBreakdown("deployment", "10", "Deployment #10", 1.9, 9800, 3, 1, 1003, {
+        status: "passed",
+        promotion_allowed: true,
+        blocked_reason: null,
+        experiment_run_id: 401,
+        average_score: 1.0,
+        min_score: 0.8,
+        candidate_agent_version_id: 12,
+      }),
+      costBreakdown("deployment", "11", "Deployment #11", 0.48, 2100, 1, 0, 1002, {
+        status: "failed",
+        promotion_allowed: false,
+        blocked_reason: "quality_gate_failed",
+        experiment_run_id: 402,
+        average_score: 0.6,
+        min_score: 0.8,
+        candidate_agent_version_id: 13,
+      }),
+    ];
+  }
+  return {
+    window_days: windowDays,
+    group_by: groupBy,
+    total_cost_usd: 2.38,
+    total_tokens: 11900,
+    run_count: 4,
+    failed_run_count: 1,
+    breakdown,
+  };
+}
+
+function costAnomaliesResponse(): Array<Record<string, unknown>> {
+  return [
+    {
+      kind: "high_cost_failed_run",
+      severity: "high",
+      title: "High-cost failed run",
+      summary: "Run #1001 failed after burning most of the monthly deployment budget.",
+      cost_usd: 1.2,
+      run_id: 1001,
+      deployment_id: 10,
+      provider: "openai",
+      model: "gpt-4.1",
+    },
+    {
+      kind: "cost_spike",
+      severity: "critical",
+      title: "Deployment spend spike",
+      summary: "Deployment #10 is 2.4x above its recent baseline after the latest rollout.",
+      cost_usd: 1.9,
+      run_id: 1003,
+      deployment_id: 10,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+    },
+    {
+      kind: "provider_error_cost_correlation",
+      severity: "medium",
+      title: "Provider error cost correlation",
+      summary: "OpenAI failures now correlate with elevated token spend in the last window.",
+      cost_usd: 1.2,
+      run_id: 1001,
+      deployment_id: 10,
+      provider: "openai",
+      model: null,
+    },
+  ];
+}
+
+function fulfillSavedCostView(
+  route: Route,
+  savedViews: Array<Record<string, unknown>>,
+  viewId: number,
+) {
+  const view = activeCostSavedViews(savedViews).find((item) => Number(item.id) === viewId);
+  if (!view) return fulfillError(route, new Error(`Saved cost view ${viewId} not found`));
+  const url = new URL(route.request().url());
+  url.searchParams.set("group_by", String(view.group_by || "deployment"));
+  url.searchParams.set("window_days", String(view.window_days || 30));
+  return fulfillJson(route, {
+    item: view,
+    summary: costSummaryResponse(url),
+    anomalies: costAnomaliesResponse(),
+  });
+}
+
+function fulfillBudgetPreview(route: Route) {
+  const body = parseRequestBody(route);
+  const notificationChannel = String(body.notification_channel || "");
+  if (notificationChannel.includes("locked")) {
+    return route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "policy_update_required",
+          message: "Missing permission: policy:update",
+          request_id: "e2e-error-request",
+          details: {
+            required_scope: "policy:update",
+          },
+        },
+      },
+    });
+  }
+  const thresholdUsd = Number(body.threshold_usd || 0);
+  const currentSpendUsd = 1.9;
+  const projectedSpendUsd = 2.35;
+  return fulfillJson(route, {
+    scope_type: String(body.scope_type || "deployment"),
+    scope_ref: typeof body.scope_ref === "string" ? body.scope_ref : "10",
+    reset_window: String(body.reset_window || "monthly"),
+    threshold_usd: thresholdUsd,
+    current_spend_usd: currentSpendUsd,
+    projected_spend_usd: projectedSpendUsd,
+    utilization_ratio: thresholdUsd > 0 ? projectedSpendUsd / thresholdUsd : 0,
+    would_trigger: thresholdUsd > 0 ? projectedSpendUsd >= thresholdUsd : false,
+    notification_preview: `Notification preview -> ${notificationChannel}`,
+    action_preview: `Action preview -> ${String(body.action_mode || "warn")}`,
+    top_contributors: [
+      costBreakdown("deployment", "10", "Deployment #10", 1.9, 9800, 3, 1, 1003),
+      costBreakdown("deployment", "11", "Deployment #11", 0.48, 2100, 1, 0, 1002),
+    ],
+  });
+}
+
+function fulfillSavedBudgetPreview(
+  route: Route,
+  policies: Array<Record<string, unknown>>,
+  channels: Array<Record<string, unknown>>,
+  policyId: number,
+) {
+  const policy = policies.find((item) => Number(item.id) === policyId);
+  if (!policy) return fulfillError(route, new Error(`Budget policy ${policyId} not found`));
+  const channel = channels.find((item) => Number(item.id) === Number(policy.channel_id));
+  return fulfillJson(route, {
+    scope_type: String(policy.scope_type || "deployment"),
+    scope_ref: typeof policy.scope_ref === "string" ? policy.scope_ref : null,
+    reset_window: String(policy.reset_window || "monthly"),
+    threshold_usd: Number(policy.threshold_usd || 0),
+    current_spend_usd: 1.9,
+    projected_spend_usd: 2.35,
+    utilization_ratio: Number(policy.threshold_usd || 0) > 0 ? 2.35 / Number(policy.threshold_usd) : 0,
+    would_trigger: true,
+    notification_preview: `Notification preview -> ${String(channel?.target_ref || `channel:${policy.channel_id}`)}`,
+    action_preview: `Action preview -> ${String(policy.action_mode || "warn")}`,
+    top_contributors: [
+      costBreakdown("deployment", "10", "Deployment #10", 1.9, 9800, 3, 1, 1003),
+      costBreakdown("deployment", "11", "Deployment #11", 0.48, 2100, 1, 0, 1002),
+    ],
+  });
+}
+
+function fulfillCostBudgetCreate(
+  route: Route,
+  policies: Array<Record<string, unknown>>,
+  channels: Array<Record<string, unknown>>,
+) {
+  const body = parseRequestBody(route);
+  const channelId = Number(body.channel_id || 0);
+  if (!channels.some((item) => Number(item.id) === channelId)) {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      json: {
+        detail: {
+          error_code: "invalid_admin_resource",
+          message: "Parent channel not found.",
+          request_id: "e2e-error-request",
+          details: { field: "channel_id", reason: "parent_not_found", parent_id: channelId },
+        },
+      },
+    });
+  }
+  const nextId = Math.max(...policies.map((item) => Number(item.id)), 950) + 1;
+  const item = {
+    id: nextId,
+    name: String(body.name || `budget-${nextId}`),
+    environment: "local",
+    scope_type: String(body.scope_type || "deployment"),
+    scope_ref: typeof body.scope_ref === "string" ? body.scope_ref : null,
+    threshold_usd: Number(body.threshold_usd || 0),
+    reset_window: String(body.reset_window || "monthly"),
+    channel_id: channelId,
+    action_mode: String(body.action_mode || "warn"),
+    status: "active",
+    metadata: {},
+    created_at: createdAt,
+    updated_at: createdAt,
+    tenant_id: 1,
+    project_id: 1,
+  };
+  policies.unshift(item);
+  return fulfillJson(route, { item, request_id: "e2e-request" });
+}
+
+function fulfillCostSavedViewCreate(
+  route: Route,
+  savedViews: Array<Record<string, unknown>>,
+) {
+  const body = parseRequestBody(route);
+  const nextId = Math.max(...savedViews.map((item) => Number(item.id)), 940) + 1;
+  const item = {
+    id: nextId,
+    name: String(body.name || `cost-view-${nextId}`),
+    environment: "local",
+    group_by: String(body.group_by || "deployment"),
+    window_days: Number(body.window_days || 30),
+    filters: body.filters && typeof body.filters === "object" ? body.filters : {},
+    status: "active",
+    metadata: {},
+    created_at: createdAt,
+    updated_at: createdAt,
+    tenant_id: 1,
+    project_id: 1,
+  };
+  savedViews.unshift(item);
+  return fulfillJson(route, { item, request_id: "e2e-request" });
+}
+
+function fulfillCostSavedViewUpdate(
+  route: Route,
+  savedViews: Array<Record<string, unknown>>,
+  viewId: number,
+) {
+  const savedView = activeCostSavedViews(savedViews).find((item) => Number(item.id) === viewId);
+  if (!savedView) return fulfillError(route, new Error(`Saved cost view ${viewId} not found`));
+  const body = parseRequestBody(route);
+  Object.assign(savedView, {
+    name: typeof body.name === "string" ? body.name : savedView.name,
+    group_by: typeof body.group_by === "string" ? body.group_by : savedView.group_by,
+    window_days: typeof body.window_days === "number" ? body.window_days : savedView.window_days,
+    filters: body.filters && typeof body.filters === "object" ? body.filters : savedView.filters,
+    updated_at: createdAt,
+  });
+  return fulfillJson(route, { item: savedView, request_id: "e2e-request" });
+}
+
+function fulfillCostBudgetUpdate(
+  route: Route,
+  policies: Array<Record<string, unknown>>,
+  policyId: number,
+) {
+  const policy = policies.find((item) => Number(item.id) === policyId);
+  if (!policy) return fulfillError(route, new Error(`Budget policy ${policyId} not found`));
+  const body = parseRequestBody(route);
+  Object.assign(policy, body, { updated_at: createdAt });
+  return fulfillJson(route, { item: policy, request_id: "e2e-request" });
+}
+
+function archiveCostBudgetPolicy(
+  policies: Array<Record<string, unknown>>,
+  policyId: number,
+): Record<string, unknown> {
+  const policy = policies.find((item) => Number(item.id) === policyId);
+  if (!policy) {
+    return { item: { id: policyId, status: "deleted" }, request_id: "e2e-request" };
+  }
+  policy.status = "deleted";
+  return { item: policy, request_id: "e2e-request" };
+}
+
+function archiveCostSavedView(
+  savedViews: Array<Record<string, unknown>>,
+  viewId: number,
+): Record<string, unknown> {
+  const savedView = activeCostSavedViews(savedViews).find((item) => Number(item.id) === viewId);
+  if (!savedView) {
+    return { item: { id: viewId, status: "deleted" }, request_id: "e2e-request" };
+  }
+  savedView.status = "deleted";
+  return { item: savedView, request_id: "e2e-request" };
+}
+
+function activeCostSavedViews(
+  savedViews: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return savedViews.filter((item) => String(item.status || "active") !== "deleted");
 }
 
 function deployment(id: number, runtimeStatus: string, replicas: number): NativeDeploymentRead {

@@ -284,6 +284,28 @@ _DB_COLLECTIONS: dict[str, AdminDbCollectionSpec] = {
         domain_models.NotificationChannel,
         defaults={"type": "webhook", "target_ref": "unset", "metadata_json": {}},
     ),
+    "cost_saved_views": AdminDbCollectionSpec(
+        domain_models.CostSavedView,
+        defaults={
+            "group_by": "deployment",
+            "window_days": 30,
+            "filters_json": {},
+            "metadata_json": {},
+        },
+        required_fields=("name",),
+    ),
+    "cost_budget_policies": AdminDbCollectionSpec(
+        domain_models.CostBudgetPolicy,
+        defaults={
+            "scope_type": "deployment",
+            "threshold_usd": 100.0,
+            "reset_window": "monthly",
+            "action_mode": "warn",
+            "metadata_json": {},
+        },
+        required_fields=("name", "channel_id"),
+        parent_refs={"channel_id": domain_models.NotificationChannel},
+    ),
     "alert_rules": AdminDbCollectionSpec(
         domain_models.AlertRule,
         defaults={"signal": "runtime.error_rate", "threshold": 1.0, "metadata_json": {}},
@@ -2458,6 +2480,8 @@ for _path, _collection in [
     ("/schedules", "schedules"),
     ("/batch-runs", "batch_runs"),
     ("/notifications/channels", "notification_channels"),
+    ("/costs/views", "cost_saved_views"),
+    ("/costs/budgets", "cost_budget_policies"),
     ("/alerts/rules", "alert_rules"),
     ("/backups/plans", "backup_plans"),
     ("/backups/restore-jobs", "restore_jobs"),

@@ -38,12 +38,14 @@ def _safe_production_settings() -> Settings:
 def clear_prod_related_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DIMOORUN_DEV_API_KEY", raising=False)
     monkeypatch.delenv("DIMOORUN_SECRET_PROVIDER", raising=False)
+    monkeypatch.delenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", raising=False)
 
 
 def test_production_startup_accepts_safe_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.setenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", "ProdOnly-ChangeMe-123!")
 
     enforce_startup_settings(_safe_production_settings())
 
@@ -145,9 +147,41 @@ def test_production_startup_rejects_dev_api_key_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.setenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", "ProdOnly-ChangeMe-123!")
     monkeypatch.setenv("DIMOORUN_DEV_API_KEY", "dev-local-key")
 
     with pytest.raises(StartupConfigurationError) as exc_info:
         enforce_startup_settings(_safe_production_settings())
 
     assert "Production mode cannot expose DIMOORUN_DEV_API_KEY." in exc_info.value.errors
+
+
+def test_production_startup_requires_explicit_bootstrap_admin_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+
+    with pytest.raises(StartupConfigurationError) as exc_info:
+        enforce_startup_settings(_safe_production_settings())
+
+    assert (
+        "Production mode requires an explicit non-default "
+        "DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD."
+    ) in exc_info.value.errors
+
+
+@pytest.mark.parametrize("password", ["admin123", "admin12345"])
+def test_production_startup_rejects_default_bootstrap_admin_password(
+    monkeypatch: pytest.MonkeyPatch,
+    password: str,
+) -> None:
+    monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.setenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", password)
+
+    with pytest.raises(StartupConfigurationError) as exc_info:
+        enforce_startup_settings(_safe_production_settings())
+
+    assert (
+        "Production mode cannot use the default "
+        "DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD."
+    ) in exc_info.value.errors

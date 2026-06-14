@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypedDict
 
 REQUIRED_DOCS = [
     "docs/plans/production-grade-gap-closure-2026-06-04.md",
@@ -28,7 +29,17 @@ REQUIRED_DOCS = [
     "docs/readiness/current-maturity.md",
     "docs/readiness/screenshots.md",
     "docs/readiness/compose-smoke-report.md",
+    "docs/readiness/kind-smoke-report.md",
     "docs/readiness/browser-smoke-report.md",
+    "docs/readiness/external-proof-matrix.md",
+    "docs/readiness/all-phases-ci-proof.md",
+    "docs/readiness/release-proof-report.md",
+    "docs/readiness/phase-0m-evidence.md",
+    "docs/readiness/phase-0n-evidence.md",
+    "docs/readiness/phase-0o-evidence.md",
+    "docs/readiness/walkthroughs/2026-06-guided-activation-and-promotion.md",
+    "docs/readiness/walkthroughs/2026-06-failed-run-triage-and-approval.md",
+    "docs/readiness/walkthroughs/2026-06-incident-recovery.md",
     "docs/architecture/adrs/0001-runtime-control-plane.md",
     "examples/langgraph/support-agent/README.md",
     "examples/langchain-agent/support-agent/README.md",
@@ -172,6 +183,17 @@ REQUIRED_SECTIONS = {
         "## Result",
         "## Evidence",
         "## Next Action",
+        "## Hosted CI Backfill Template",
+        "## Scorecard Rows To Update",
+    ],
+    "docs/readiness/kind-smoke-report.md": [
+        "# KinD Smoke Report",
+        "## Command",
+        "## Result",
+        "## Evidence",
+        "## Next Action",
+        "## Hosted CI Backfill Template",
+        "## Scorecard Rows To Update",
     ],
     "docs/readiness/browser-smoke-report.md": [
         "# Browser Smoke Report",
@@ -179,6 +201,98 @@ REQUIRED_SECTIONS = {
         "## Result",
         "## Evidence",
         "## Next Action",
+    ],
+    "docs/readiness/external-proof-matrix.md": [
+        "# Outstanding External Proof Matrix",
+        "## How To Use",
+        "## Open External Proof Items",
+        "## Completion Transaction",
+        "## Backfill Rule",
+    ],
+    "docs/readiness/release-proof-report.md": [
+        "# Release Proof Report",
+        "## Workflow Contract",
+        "## Current State",
+        "## Hosted CI Backfill Template",
+        "## Scorecard Rows To Update",
+        "## Closure Verdict",
+    ],
+    "docs/readiness/all-phases-ci-proof.md": [
+        "# All-Phases CI Proof",
+        "## Workflow Contract",
+        "## Current State",
+        "## Hosted CI Backfill Template",
+        "## Scorecard Rows To Update",
+        "## Closure Verdict",
+    ],
+    "docs/readiness/phase-0m-evidence.md": [
+        "# Phase 0M Evidence Checklist",
+        "## What Is Already Proven",
+        "## Hosted CI Gap",
+        "## Hosted CI Backfill Template",
+        "## Latest Local Result",
+        "## Local Operator Notes",
+        "## Scorecard Rows To Update",
+        "## Closure Verdict",
+    ],
+    "docs/readiness/phase-0n-evidence.md": [
+        "# Phase 0N Evidence Checklist",
+        "## What Is Already Proven",
+        "## Hosted CI Gap",
+        "## Hosted CI Backfill Template",
+        "## Latest Local Result",
+        "## Local Operator Notes",
+        "## Scorecard Rows To Update",
+        "## Closure Verdict",
+    ],
+    "docs/readiness/phase-0o-evidence.md": [
+        "# Phase 0O Evidence Checklist",
+        "## What Is Already Proven",
+        "## Hosted CI Gap",
+        "## Hosted CI Backfill Template",
+        "## Latest Local Result",
+        "## Local Operator Notes",
+        "## Scorecard Rows To Update",
+        "## Closure Verdict",
+    ],
+    "docs/readiness/scorecard.md": [
+        "# Production Readiness Scorecard",
+        "## Milestone Status",
+        "## Early Phase Status",
+        "## Milestone A Exit Criteria",
+        "## Milestone B Exit Criteria",
+        "## Milestone C Exit Criteria",
+        "## Milestone D Exit Criteria",
+        "## Definition Of Done Audit",
+        "## Hosted Evidence Backfill",
+        "## Claim Guardrails",
+    ],
+    "docs/readiness/walkthroughs/2026-06-guided-activation-and-promotion.md": [
+        "# Walkthrough: Guided Activation And Deployment Promotion",
+        "## Roles",
+        "## Workflow Scope",
+        "## Preconditions",
+        "## Walkthrough",
+        "## Friction Log",
+        "## Follow-Up Backlog Items",
+    ],
+    "docs/readiness/walkthroughs/2026-06-failed-run-triage-and-approval.md": [
+        "# Walkthrough: Failed-Run Triage And Approval Decision",
+        "## Roles",
+        "## Workflow Scope",
+        "## Preconditions",
+        "## Walkthrough",
+        "## Friction Log",
+        "## Follow-Up Backlog Items",
+    ],
+    "docs/readiness/walkthroughs/2026-06-incident-recovery.md": [
+        "# Walkthrough: Incident Recovery",
+        "## Roles",
+        "## Workflow Scope",
+        "## Preconditions",
+        "## Walkthrough",
+        "## Friction Log",
+        "## Follow-Up Backlog Items",
     ],
     "docs/architecture/adrs/0001-runtime-control-plane.md": [
         "# ADR 0001: Runtime Control Plane",
@@ -236,6 +350,35 @@ REQUIRED_MILESTONES = [
     "Milestone D: Competitive Excellence",
 ]
 
+REQUIRED_MILESTONE_EXIT_SECTIONS = [
+    "## Milestone A Exit Criteria",
+    "## Milestone B Exit Criteria",
+    "## Milestone C Exit Criteria",
+    "## Milestone D Exit Criteria",
+]
+
+REQUIRED_DOD_AUDIT_ITEMS = [
+    "All phases have passing tests in CI.",
+    (
+        "Every core workflow maps to a named user role, job, decision, risk, "
+        "success feedback, and failure recovery path."
+    ),
+    (
+        "Generic CRUD coverage is no longer counted as complete unless a workflow "
+        "has domain validation, action availability, audit behavior, and browser "
+        "coverage."
+    ),
+    (
+        "Product function coverage review exists and is kept current for all major "
+        "product areas, including lifecycle, runtime, governance, exposure, "
+        "compatibility, operations, identity, quality, cost, assets, settings, "
+        "developer experience, and soft power."
+    ),
+    "Docker Compose smoke passes from a clean checkout.",
+    "Kubernetes smoke passes in an ephemeral cluster.",
+    "Release workflow builds, scans, signs or attests, and publishes artifacts.",
+]
+
 REQUIRED_PHASES = [
     "Phase -3: User Task And Experience Baseline",
     "Phase -2: Product Workflow Spec Reconciliation",
@@ -260,6 +403,165 @@ STALE_MATURITY_PHRASES = [
     "belong to the next phase",
     "next product-doc phase is trust assets",
 ]
+CANONICAL_MATURITY_LINES = [
+    "Production-shaped foundation: yes.",
+    "External production-grade platform: not yet.",
+]
+CONSISTENT_RUNTIME_PATH_DOCS = {
+    "README.md": [
+        "examples/langgraph/support-agent",
+        "docker compose up --build",
+        "uv run dimoorun run watch",
+    ],
+    "docs/start/quickstart.md": [
+        "examples/langgraph/support-agent",
+        "docker compose up --build",
+        "uv run dimoorun run watch",
+        "http://127.0.0.1:8080",
+        "dev-local-key",
+    ],
+    "examples/langgraph/support-agent/README.md": [
+        "examples/langgraph/support-agent",
+        "docker compose up --build",
+        "uv run dimoorun run watch",
+        "http://127.0.0.1:8080",
+        "dev-local-key",
+    ],
+    "docs/DEMO_SCRIPT.md": [
+        "docker compose up --build",
+        "uv run dimoorun run watch",
+        "http://127.0.0.1:8080",
+        "dev-local-key",
+        "examples/langgraph/support-agent",
+    ],
+    "examples/langchain-agent/support-agent/README.md": [
+        "examples/langchain-agent/support-agent",
+        "docker compose up --build",
+        "uv run dimoorun run watch",
+        "http://127.0.0.1:8080",
+        "dev-local-key",
+    ],
+    "examples/deepagents/support-agent/README.md": [
+        "examples/deepagents/support-agent",
+        "docker compose up --build",
+        "uv run dimoorun run watch",
+        "http://127.0.0.1:8080",
+        "dev-local-key",
+    ],
+}
+
+HOSTED_PROOF_CONTRACTS: dict[str, HostedProofContract] = {
+    "docs/readiness/phase-0m-evidence.md": {
+        "matrix_label": "Hosted browser proof for Phase 0M",
+        "scorecard_label": "Hosted browser matrix closeout for 0M",
+        "artifacts": [
+            "`console-playwright-0m-report`",
+            "`console-playwright-evidence-index`",
+        ],
+        "scorecard_rows": [
+            (
+                "`Cost and budget workflows explain usage by agent, deployment, run, "
+                "provider, tenant, project, and environment, with anomaly and budget "
+                "guardrails.`"
+            ),
+            "`Browser E2E tests cover core Console workflows.`",
+            "`Milestone C: External GA`",
+        ],
+    },
+    "docs/readiness/phase-0n-evidence.md": {
+        "matrix_label": "Hosted browser proof for Phase 0N",
+        "scorecard_label": "Hosted browser matrix closeout for 0N",
+        "artifacts": [
+            "`console-playwright-0n-report`",
+            "`console-playwright-evidence-index`",
+        ],
+        "scorecard_rows": [
+            (
+                "`Scheduled Run and Batch Run are first-class runtime task shapes with "
+                "validation, state machines, cancellation, replay, audit, and browser "
+                "coverage.`"
+            ),
+            "`Browser E2E tests cover core Console workflows.`",
+            "`Milestone C: External GA`",
+        ],
+    },
+    "docs/readiness/phase-0o-evidence.md": {
+        "matrix_label": "Hosted browser proof for Phase 0O",
+        "scorecard_label": "Hosted browser matrix closeout for 0O",
+        "artifacts": [
+            "`console-playwright-0o-report`",
+            "`console-playwright-evidence-index`",
+        ],
+        "scorecard_rows": [
+            (
+                "`Catalog, Prompt, Config, and Template assets have version lifecycle, "
+                "validation, dependency visibility, approval, rollback, and used-by "
+                "impact.`"
+            ),
+            "`Browser E2E tests cover core Console workflows.`",
+            "`Milestone C: External GA`",
+        ],
+    },
+    "docs/readiness/compose-smoke-report.md": {
+        "matrix_label": "Hosted Compose smoke proof",
+        "scorecard_label": "Hosted Compose smoke closeout",
+        "artifacts": [
+            "`compose-runtime-smoke`",
+            "`compose-runtime-smoke-index`",
+        ],
+        "scorecard_rows": [
+            "`Phase 1: Production Truth Baseline`",
+            "`Phase 10: Deployment And Operations Hardening`",
+            "`Docker Compose smoke passes from a clean checkout.`",
+            "`Milestone C: External GA`",
+        ],
+    },
+    "docs/readiness/kind-smoke-report.md": {
+        "matrix_label": "Hosted KinD smoke proof",
+        "scorecard_label": "Hosted KinD smoke closeout",
+        "artifacts": [
+            "`kind-smoke`",
+            "`kind-smoke-index`",
+        ],
+        "scorecard_rows": [
+            "`Phase 10: Deployment And Operations Hardening`",
+            "`Kubernetes smoke passes in an ephemeral cluster.`",
+            "`Milestone C: External GA`",
+        ],
+    },
+    "docs/readiness/release-proof-report.md": {
+        "matrix_label": "Hosted release proof",
+        "scorecard_label": "Hosted release closeout",
+        "artifacts": [
+            "`release-evidence-index`",
+            "`release-sbom`",
+        ],
+        "scorecard_rows": [
+            "`Phase 11: SDK, CLI, And Release Engineering`",
+            "`Milestone C: External GA`",
+            "`Release workflow builds, scans, signs or attests, and publishes artifacts.`",
+            (
+                "`SDK, CLI, README, quickstart, examples, trust docs, and release "
+                "workflow are coherent and versioned.`"
+            ),
+        ],
+    },
+    "docs/readiness/all-phases-ci-proof.md": {
+        "matrix_label": "Hosted all-phases CI proof",
+        "scorecard_label": "Hosted all-phases CI closeout",
+        "artifacts": [
+            "`console-playwright-evidence-index`",
+            "`compose-runtime-smoke-index`",
+            "`kind-smoke-index`",
+        ],
+        "scorecard_rows": [
+            "`All phases have passing tests in CI.`",
+            "`Milestone A: Internal Alpha`",
+            "`Milestone B: Production Beta`",
+            "`Milestone C: External GA`",
+        ],
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -269,6 +571,13 @@ class DocsQualityResult:
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+class HostedProofContract(TypedDict):
+    matrix_label: str
+    scorecard_label: str
+    artifacts: list[str]
+    scorecard_rows: list[str]
 
 
 def validate_docs_quality(root: Path) -> DocsQualityResult:
@@ -312,6 +621,11 @@ def validate_docs_quality(root: Path) -> DocsQualityResult:
     errors.extend(_validate_changelog_entries(root))
     errors.extend(_validate_demo_prerequisites(root))
     errors.extend(_validate_stale_maturity_wording(root))
+    errors.extend(_validate_walkthroughs(root))
+    errors.extend(_validate_maturity_consistency(root))
+    errors.extend(_validate_runtime_path_consistency(root))
+    errors.extend(_validate_external_proof_matrix(root))
+    errors.extend(_validate_hosted_proof_consistency(root))
 
     return DocsQualityResult(errors=errors)
 
@@ -325,6 +639,17 @@ def _validate_scorecard(scorecard: str) -> list[str]:
     for milestone in REQUIRED_MILESTONES:
         if milestone not in scorecard:
             errors.append(f"Readiness scorecard missing {milestone}.")
+
+    for section in REQUIRED_MILESTONE_EXIT_SECTIONS:
+        if section not in scorecard:
+            errors.append(f"Readiness scorecard missing exit criteria section: {section}")
+
+    if "## Definition Of Done Audit" not in scorecard:
+        errors.append("Readiness scorecard missing section: ## Definition Of Done Audit")
+
+    for item in REQUIRED_DOD_AUDIT_ITEMS:
+        if item not in scorecard:
+            errors.append(f"Readiness scorecard missing Definition of Done audit item: {item}")
 
     for phase in REQUIRED_PHASES:
         if phase not in scorecard:
@@ -548,4 +873,146 @@ def _validate_stale_maturity_wording(root: Path) -> list[str]:
         for phrase in STALE_MATURITY_PHRASES:
             if phrase in text:
                 errors.append(f"{relative_path} contains stale maturity wording: {phrase}")
+    return errors
+
+
+def _validate_walkthroughs(root: Path) -> list[str]:
+    walkthrough_dir = root / "docs" / "readiness" / "walkthroughs"
+    if not walkthrough_dir.exists():
+        return ["Missing walkthrough directory: docs/readiness/walkthroughs"]
+    walkthroughs = sorted(walkthrough_dir.glob("*.md"))
+    if len(walkthroughs) < 3:
+        return [
+            "docs/readiness/walkthroughs must contain at least three walkthrough records."
+        ]
+    errors: list[str] = []
+    required_phrases = [
+        "guided activation",
+        "deployment promotion",
+        "failed-run triage",
+        "approval decision",
+        "incident recovery",
+        "friction log",
+        "follow-up backlog items",
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8").lower() for path in walkthroughs)
+    for phrase in required_phrases:
+        if phrase not in combined:
+            errors.append(
+                "Walkthrough evidence is missing required coverage phrase: "
+                f"{phrase}"
+            )
+    return errors
+
+
+def _validate_maturity_consistency(root: Path) -> list[str]:
+    errors: list[str] = []
+    for relative_path in (
+        "README.md",
+        "docs/DEMO_SCRIPT.md",
+        "docs/readiness/current-maturity.md",
+        "docs/readiness/scorecard.md",
+        "examples/langgraph/support-agent/README.md",
+        "examples/langchain-agent/support-agent/README.md",
+        "examples/deepagents/support-agent/README.md",
+    ):
+        path = root / relative_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for line in CANONICAL_MATURITY_LINES:
+            if line not in text:
+                errors.append(
+                    f"{relative_path} missing canonical maturity line: {line}"
+                )
+    return errors
+
+
+def _validate_runtime_path_consistency(root: Path) -> list[str]:
+    errors: list[str] = []
+    for relative_path, required_phrases in CONSISTENT_RUNTIME_PATH_DOCS.items():
+        path = root / relative_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for phrase in required_phrases:
+            if phrase not in text:
+                errors.append(
+                    f"{relative_path} missing required runtime path phrase: {phrase}"
+                )
+    return errors
+
+
+def _validate_external_proof_matrix(root: Path) -> list[str]:
+    path = root / "docs/readiness/external-proof-matrix.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    required_phrases = [
+        "Required scorecard row updates",
+        "## Completion Transaction",
+        "Update every scorecard row named in `Required scorecard row updates`.",
+        "## Hosted Evidence Backfill",
+    ]
+    for phrase in required_phrases:
+        if phrase not in text:
+            errors.append(
+                "docs/readiness/external-proof-matrix.md missing required external "
+                f"proof phrase: {phrase}"
+            )
+    return errors
+
+
+def _validate_hosted_proof_consistency(root: Path) -> list[str]:
+    errors: list[str] = []
+    matrix_path = root / "docs/readiness/external-proof-matrix.md"
+    scorecard_path = root / "docs/readiness/scorecard.md"
+    matrix = matrix_path.read_text(encoding="utf-8") if matrix_path.exists() else ""
+    scorecard = scorecard_path.read_text(encoding="utf-8") if scorecard_path.exists() else ""
+    for relative_path, contract in HOSTED_PROOF_CONTRACTS.items():
+        path = root / relative_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "## Scorecard Rows To Update" not in text:
+            errors.append(f"{relative_path} missing required section: ## Scorecard Rows To Update")
+        if contract["matrix_label"] not in matrix:
+            errors.append(
+                "docs/readiness/external-proof-matrix.md missing hosted proof row: "
+                f"{contract['matrix_label']}"
+            )
+        if contract["scorecard_label"] not in scorecard:
+            errors.append(
+                "docs/readiness/scorecard.md missing hosted evidence row: "
+                f"{contract['scorecard_label']}"
+            )
+        if relative_path not in matrix:
+            errors.append(
+                "docs/readiness/external-proof-matrix.md missing backfill document link: "
+                f"{relative_path}"
+            )
+        if relative_path not in scorecard:
+            errors.append(
+                "docs/readiness/scorecard.md missing hosted evidence backfill link: "
+                f"{relative_path}"
+            )
+        for artifact in contract["artifacts"]:
+            if artifact not in text:
+                errors.append(f"{relative_path} missing hosted artifact reference: {artifact}")
+            if artifact not in matrix:
+                errors.append(
+                    "docs/readiness/external-proof-matrix.md missing hosted artifact reference: "
+                    f"{artifact}"
+                )
+            if artifact not in scorecard:
+                errors.append(
+                    "docs/readiness/scorecard.md missing hosted artifact reference: "
+                    f"{artifact}"
+                )
+        for row in contract["scorecard_rows"]:
+            if row not in text:
+                errors.append(
+                    f"{relative_path} missing scorecard row update reference: {row}"
+                )
     return errors

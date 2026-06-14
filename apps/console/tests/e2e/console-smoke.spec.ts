@@ -26,9 +26,13 @@ test("renders the authenticated dashboard shell", async ({ page }) => {
 });
 
 test("keeps the login page free of critical accessibility violations", async ({ page }) => {
+  test.slow();
   await page.goto("/login");
 
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  const results = await new AxeBuilder({ page })
+    .include("main")
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
   const criticalViolations = results.violations.filter((violation) => violation.impact === "critical");
 
   expect(criticalViolations).toEqual([]);

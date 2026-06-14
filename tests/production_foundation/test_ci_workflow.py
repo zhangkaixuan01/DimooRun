@@ -10,8 +10,11 @@ def test_ci_workflow_runs_backend_docs_and_frontend_baseline() -> None:
 
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     workflow_text = workflow_path.read_text(encoding="utf-8")
+    workflow_on = workflow.get("on", workflow.get(True))
     jobs = workflow["jobs"]
 
+    assert workflow_on is not None
+    assert "workflow_dispatch" in workflow_on
     assert {"backend", "frontend"} <= set(jobs)
     assert "actions/setup-python" in workflow_text
     assert "actions/setup-node" in workflow_text
@@ -62,6 +65,10 @@ def test_integration_workflow_runs_live_compose_and_kind_smoke() -> None:
     assert "kind version" in workflow_text
     assert "uv run python scripts/helm_smoke.py --cluster-runtime kind" in workflow_text
     assert "kind-smoke" in workflow_text
+    assert "compose-runtime-smoke-index" in workflow_text
+    assert "kind-smoke-index" in workflow_text
+    assert "compose-runtime-evidence-index.txt" in workflow_text
+    assert "kind-smoke-evidence-index.txt" in workflow_text
 
 
 def test_ci_runs_phase_0h_browser_workflow_with_managed_chromium_report() -> None:
@@ -78,6 +85,8 @@ def test_ci_runs_phase_0h_browser_workflow_with_managed_chromium_report() -> Non
     assert "playwright-report" in workflow_text
     assert "console-playwright-0h-report" in workflow_text
     assert "apps/console/playwright-report-0h" in workflow_text
+    assert "console-playwright-evidence-index" in workflow_text
+    assert "playwright-evidence-index.txt" in workflow_text
 
 
 def test_ci_runs_phase_0a_browser_workflow_with_managed_chromium_report() -> None:
@@ -251,3 +260,51 @@ def test_ci_runs_phase_0l_browser_workflow_with_managed_chromium_report() -> Non
     assert "actions/upload-artifact" in workflow_text
     assert "console-playwright-0l-report" in workflow_text
     assert "apps/console/playwright-report-0l" in workflow_text
+
+
+def test_ci_runs_phase_0m_browser_workflow_with_managed_chromium_report() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
+
+    assert '"test:e2e:0m"' in package_text
+    assert "tests/e2e/costs-budgets.spec.ts" in package_text
+    assert "--project=chrome" in package_text
+    assert "--workers=1" in package_text
+    assert "--output test-results-0m" in package_text
+    assert "npm run test:e2e:0m" in workflow_text
+    assert "PLAYWRIGHT_HTML_REPORT: playwright-report-0m" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
+    assert "console-playwright-0m-report" in workflow_text
+    assert "apps/console/playwright-report-0m" in workflow_text
+
+
+def test_ci_runs_phase_0n_browser_workflow_with_managed_chromium_report() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
+
+    assert '"test:e2e:0n"' in package_text
+    assert "tests/e2e/scheduled-batch.spec.ts" in package_text
+    assert "--project=chrome" in package_text
+    assert "--workers=1" in package_text
+    assert "--output test-results-0n" in package_text
+    assert "npm run test:e2e:0n" in workflow_text
+    assert "PLAYWRIGHT_HTML_REPORT: playwright-report-0n" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
+    assert "console-playwright-0n-report" in workflow_text
+    assert "apps/console/playwright-report-0n" in workflow_text
+
+
+def test_ci_runs_phase_0o_browser_workflow_with_managed_chromium_report() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_text = Path("apps/console/package.json").read_text(encoding="utf-8")
+
+    assert '"test:e2e:0o"' in package_text
+    assert "tests/e2e/catalog-assets.spec.ts" in package_text
+    assert "--project=chrome" in package_text
+    assert "--workers=1" in package_text
+    assert "--output test-results-0o" in package_text
+    assert "npm run test:e2e:0o" in workflow_text
+    assert "PLAYWRIGHT_HTML_REPORT: playwright-report-0o" in workflow_text
+    assert "actions/upload-artifact" in workflow_text
+    assert "console-playwright-0o-report" in workflow_text
+    assert "apps/console/playwright-report-0o" in workflow_text

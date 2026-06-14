@@ -5,7 +5,12 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.helm_smoke import HELM_NAMESPACE, HELM_RELEASE, run_cluster_smoke
+from scripts.helm_smoke import (
+    HELM_NAMESPACE,
+    HELM_RELEASE,
+    live_smoke_overrides,
+    run_cluster_smoke,
+)
 
 CHART_DIR = Path("deploy/helm/dimoorun")
 
@@ -65,6 +70,31 @@ def test_k8s_templates_include_required_objects_without_embedding_plain_secrets(
     for env_name in ["DATABASE_URL", "REDIS_URL", "OBJECT_STORE_ACCESS_KEY"]:
         assert rendered_source.count(f"name: {env_name}") >= 2
     assert ".Values.objectStore.external.secretRef" in rendered_source
+
+
+def test_live_smoke_overrides_disable_cluster_specific_resources_and_workloads() -> None:
+    overrides = live_smoke_overrides()
+
+    assert overrides == {
+        "serviceMonitor.enabled": "false",
+        "migrationJob.enabled": "false",
+        "autoscaling.enabled": "false",
+        "server.replicas": "0",
+        "worker.replicas": "0",
+        "console.replicas": "0",
+    }
+
+
+def test_templates_guard_resources_that_live_smoke_disables() -> None:
+    assert "{{- if .Values.migrationJob.enabled }}" in (
+        CHART_DIR / "templates" / "migration-job.yaml"
+    ).read_text(encoding="utf-8")
+    assert "{{- if .Values.serviceMonitor.enabled }}" in (
+        CHART_DIR / "templates" / "servicemonitor.yaml"
+    ).read_text(encoding="utf-8")
+    assert "{{- if .Values.autoscaling.enabled }}" in (
+        CHART_DIR / "templates" / "hpa.yaml"
+    ).read_text(encoding="utf-8")
 
 
 class FakeHelmRunner:

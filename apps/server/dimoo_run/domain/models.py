@@ -1155,6 +1155,45 @@ class NotificationChannel(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
+class CostSavedView(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "cost_saved_views"
+    __table_args__ = (
+        Index(
+            "uq_cost_saved_views_scope_name_active",
+            "tenant_id",
+            "project_id",
+            "environment",
+            "name",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    environment: Mapped[str | None] = mapped_column(String(128))
+    group_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    window_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    filters_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class CostBudgetPolicy(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "cost_budget_policies"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    environment: Mapped[str | None] = mapped_column(String(128))
+    scope_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    scope_ref: Mapped[str | None] = mapped_column(String(255))
+    threshold_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    reset_window: Mapped[str] = mapped_column(String(32), nullable=False)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("notification_channels.id"), nullable=False)
+    action_mode: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class AlertRule(IdMixin, TenantProjectMixin, TimestampMixin, Base):
     __tablename__ = "alert_rules"
 

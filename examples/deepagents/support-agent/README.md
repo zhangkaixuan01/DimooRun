@@ -25,6 +25,13 @@ The package manifest is [`manifest.yaml`](manifest.yaml) and declares:
 Working directory: repository root.
 
 ```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Working directory: repository root.
+
+```bash
 uv sync --extra deepagents
 ```
 
@@ -40,6 +47,12 @@ Working directory: repository root.
 uv run dimoorun agent publish --base-url http://127.0.0.1:8000 --api-key dev-local-key --tenant-id 1 --project-id 1 --name deepagents-support-agent --version 0.1.0 --package-uri file:///workspace/examples/deepagents/support-agent --framework deepagents --adapter deepagents --entrypoint support_agent:build_agent --manifest-file examples/deepagents/support-agent/manifest.json
 ```
 
+Working directory: repository root.
+
+```bash
+uv run dimoorun run watch --base-url http://127.0.0.1:8000 --api-key dev-local-key --tenant-id 1 --project-id 1 --run-id <RUN_ID> --show-events
+```
+
 ## Expected Console Result
 
 After publish, Console should show:
@@ -48,6 +61,8 @@ After publish, Console should show:
 - a `ready` version tied to the DeepAgents adapter
 - runtime evidence that distinguishes stream output and approval-style behavior
   from the simpler LangChain example
+- Console reachable at `http://127.0.0.1:8080` with the same local `dev-local-key`
+  runtime path used by the main quickstart
 
 ## Troubleshooting
 
@@ -62,6 +77,9 @@ After publish, Console should show:
 
 ## Production Caveats
 
+- Current maturity shorthand remains:
+  `Production-shaped foundation: yes.` and
+  `External production-grade platform: not yet.`
 - The example patches model initialization for deterministic testing.
 - It is useful for adapter compatibility evaluation, not for proving hosted
   DeepAgents production operations.

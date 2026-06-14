@@ -41,6 +41,9 @@ class ConsoleIdentityUnavailableError(RuntimeError):
     pass
 
 
+_DEFAULT_BOOTSTRAP_ADMIN_PASSWORD = "admin12345"
+
+
 @dataclass(frozen=True)
 class ConsoleOperator:
     id: int
@@ -170,7 +173,10 @@ class ConsoleIdentityService:
     def ensure_bootstrap_operator(self) -> ConsoleOperator:
         self._ensure_tables()
         email = os.getenv("DIMOORUN_BOOTSTRAP_ADMIN_EMAIL", "admin@local.dimoorun")
-        password = os.getenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", "admin123")
+        password = os.getenv(
+            "DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD",
+            _DEFAULT_BOOTSTRAP_ADMIN_PASSWORD,
+        )
         name = os.getenv("DIMOORUN_BOOTSTRAP_ADMIN_NAME", "Bootstrap Admin")
         with self._session_factory() as session:
             self._seed_builtin_permissions(session)

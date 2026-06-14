@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import dimoo_run.core.config as core_config
 import pytest
 from dimoo_run.core.config import Settings
 from dimoo_run.core.startup_checks import StartupConfigurationError
@@ -106,6 +107,7 @@ def test_cors_preflight_allows_loopback_console_origin(
 def test_create_app_rejects_unsafe_production_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(core_config, "_find_dotenv", lambda: None)
     monkeypatch.setenv("DIMOORUN_RUNTIME_MODE", "production")
     monkeypatch.delenv("DIMOORUN_SECRET_PROVIDER", raising=False)
     monkeypatch.delenv("DIMOORUN_DEV_API_KEY", raising=False)
@@ -115,6 +117,7 @@ def test_create_app_rejects_unsafe_production_defaults(
     monkeypatch.delenv("OBJECT_STORE_ACCESS_KEY", raising=False)
     monkeypatch.delenv("OBJECT_STORE_SECRET_KEY", raising=False)
     monkeypatch.delenv("DIMOORUN_NATIVE_RUNTIME_STORE", raising=False)
+    monkeypatch.delenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", raising=False)
 
     with pytest.raises(StartupConfigurationError) as exc_info:
         create_app()
@@ -123,3 +126,4 @@ def test_create_app_rejects_unsafe_production_defaults(
     assert "Production mode cannot use SQLite." in message
     assert "Production mode cannot use the in-memory runtime store." in message
     assert "Production mode requires a configured secret provider." in message
+    assert "Production mode requires an explicit non-default " in message

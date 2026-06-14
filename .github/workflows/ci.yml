@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -144,6 +145,21 @@ jobs:
         env:
           PLAYWRIGHT_HTML_REPORT: playwright-report-0l
 
+      - name: Run Console Phase 0M browser workflow
+        run: npm run test:e2e:0m
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-0m
+
+      - name: Run Console Phase 0N browser workflow
+        run: npm run test:e2e:0n
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-0n
+
+      - name: Run Console Phase 0O browser workflow
+        run: npm run test:e2e:0o
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-0o
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -255,3 +271,61 @@ jobs:
           name: console-playwright-0l-report
           path: apps/console/playwright-report-0l
           if-no-files-found: ignore
+
+      - name: Upload Phase 0M Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-0m-report
+          path: apps/console/playwright-report-0m
+          if-no-files-found: ignore
+
+      - name: Upload Phase 0N Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-0n-report
+          path: apps/console/playwright-report-0n
+          if-no-files-found: ignore
+
+      - name: Upload Phase 0O Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-0o-report
+          path: apps/console/playwright-report-0o
+          if-no-files-found: ignore
+
+      - name: Write browser evidence index
+        if: always()
+        run: |
+          @'
+          workflow: ci.yml
+          browser-install: npx playwright install --with-deps chromium
+          primary-report: console-playwright-report
+          phase-reports:
+            - console-playwright-6-report
+            - console-playwright-0a-report
+            - console-playwright-0b-report
+            - console-playwright-0c-report
+            - console-playwright-0d-report
+            - console-playwright-0e-report
+            - console-playwright-0f-report
+            - console-playwright-0g-report
+            - console-playwright-0h-report
+            - console-playwright-0i-report
+            - console-playwright-0j-report
+            - console-playwright-0k-report
+            - console-playwright-0l-report
+            - console-playwright-0m-report
+            - console-playwright-0n-report
+            - console-playwright-0o-report
+          '@ | Set-Content -Path apps/console/playwright-evidence-index.txt
+
+      - name: Upload browser evidence index
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-evidence-index
+          path: apps/console/playwright-evidence-index.txt
+          if-no-files-found: error

@@ -1,11 +1,23 @@
 import type {
   Agent,
   AgentVersion,
+  AssetCatalogKind,
+  AssetDetail,
+  AssetLifecycleActionResult,
+  BatchRun,
+  BatchRunItem,
   BackupDryRunResult,
+  BudgetPreview,
+  CostBudgetPolicy,
+  CostSavedView,
+  CostSavedViewDetail,
   CompatibilityExplorerResult,
   CompatibilityMigrationResponse,
   ConsoleRuntimeOverview,
   ConsoleWriteOptions,
+  CostAnomaly,
+  CostBreakdown,
+  CostSummary,
   DatasetCapture,
   DashboardSummary,
   Deployment,
@@ -15,6 +27,7 @@ import type {
   IncidentWorkflowResult,
   IngressRouteTestResult,
   ModelGatewayTestResult,
+  NotificationChannelOption,
   NotificationTestResult,
   PackageValidationResult,
   PolicyActivation,
@@ -40,6 +53,8 @@ import type {
   RuntimeWorker,
   RuntimeWorkerDetail,
   RuntimeMetricsSnapshot,
+  SchedulePreview,
+  ScheduledRun,
   SecretRotationResult,
   SecretValidationResult,
   Task,
@@ -238,6 +253,19 @@ export type DangerousActionResult = {
   rollback_notes: string;
   request_id: string | null;
 };
+
+function governedAssetBasePath(kind: AssetCatalogKind): string {
+  switch (kind) {
+    case "catalog":
+      return "/v1/catalog/items";
+    case "prompt":
+      return "/v1/assets/prompts";
+    case "config":
+      return "/v1/assets/configs";
+    case "template":
+      return "/v1/assets/templates";
+  }
+}
 
 const TOKEN_KEY = "dimoorun.console.token";
 const OPERATOR_KEY = "dimoorun.console.operator";
@@ -588,6 +616,231 @@ function mapRuntimeMetricsSnapshot(snapshot: Record<string, unknown>): RuntimeMe
       runs: Number((point as Record<string, unknown>).runs || 0),
       successRate: Number((point as Record<string, unknown>).success_rate || 0),
     })),
+  };
+}
+
+function mapCostBreakdown(item: Record<string, unknown>): CostBreakdown {
+  const qualityGate = isRecord(item.quality_gate) ? item.quality_gate : null;
+  return {
+    groupBy: String(item.group_by || "deployment") as CostBreakdown["groupBy"],
+    key: String(item.key || ""),
+    label: String(item.label || ""),
+    totalCostUsd: Number(item.total_cost_usd || 0),
+    totalTokens: Number(item.total_tokens || 0),
+    runCount: Number(item.run_count || 0),
+    failedRunCount: Number(item.failed_run_count || 0),
+    latestRunId: item.latest_run_id == null ? null : Number(item.latest_run_id),
+    latestAt: typeof item.latest_at === "string" ? item.latest_at : null,
+    qualityGate: qualityGate
+      ? {
+          status: String(qualityGate.status || "unknown"),
+          promotionAllowed: Boolean(qualityGate.promotion_allowed),
+          blockedReason:
+            typeof qualityGate.blocked_reason === "string" ? qualityGate.blocked_reason : null,
+          experimentRunId:
+            qualityGate.experiment_run_id == null ? null : Number(qualityGate.experiment_run_id),
+          averageScore:
+            qualityGate.average_score == null ? null : Number(qualityGate.average_score),
+          minScore: qualityGate.min_score == null ? null : Number(qualityGate.min_score),
+          candidateAgentVersionId:
+            qualityGate.candidate_agent_version_id == null
+              ? null
+              : Number(qualityGate.candidate_agent_version_id),
+        }
+      : null,
+  };
+}
+
+function mapCostSummary(payload: Record<string, unknown>): CostSummary {
+  return {
+    windowDays: Number(payload.window_days || 30),
+    groupBy: String(payload.group_by || "deployment") as CostBreakdown["groupBy"],
+    totalCostUsd: Number(payload.total_cost_usd || 0),
+    totalTokens: Number(payload.total_tokens || 0),
+    runCount: Number(payload.run_count || 0),
+    failedRunCount: Number(payload.failed_run_count || 0),
+    breakdown: Array.isArray(payload.breakdown)
+      ? payload.breakdown.filter(isRecord).map(mapCostBreakdown)
+      : [],
+  };
+}
+
+function mapCostAnomaly(payload: Record<string, unknown>): CostAnomaly {
+  return {
+    kind: String(payload.kind || ""),
+    severity: String(payload.severity || "warning"),
+    title: String(payload.title || ""),
+    summary: String(payload.summary || ""),
+    costUsd: Number(payload.cost_usd || 0),
+    runId: payload.run_id == null ? null : Number(payload.run_id),
+    deploymentId: payload.deployment_id == null ? null : Number(payload.deployment_id),
+    provider: typeof payload.provider === "string" ? payload.provider : null,
+    model: typeof payload.model === "string" ? payload.model : null,
+  };
+}
+
+function mapBudgetPreview(payload: Record<string, unknown>): BudgetPreview {
+  return {
+    scopeType: String(payload.scope_type || ""),
+    scopeRef: typeof payload.scope_ref === "string" ? payload.scope_ref : null,
+    resetWindow: String(payload.reset_window || "monthly"),
+    thresholdUsd: Number(payload.threshold_usd || 0),
+    currentSpendUsd: Number(payload.current_spend_usd || 0),
+    projectedSpendUsd: Number(payload.projected_spend_usd || 0),
+    utilizationRatio: Number(payload.utilization_ratio || 0),
+    wouldTrigger: Boolean(payload.would_trigger),
+    notificationPreview: String(payload.notification_preview || ""),
+    actionPreview: String(payload.action_preview || ""),
+    topContributors: Array.isArray(payload.top_contributors)
+      ? payload.top_contributors.filter(isRecord).map(mapCostBreakdown)
+      : [],
+  };
+}
+
+function mapSchedulePreview(payload: Record<string, unknown>): SchedulePreview {
+  return {
+    scheduleType: String(payload.schedule_type || "interval") as SchedulePreview["scheduleType"],
+    timezone: String(payload.timezone || "UTC"),
+    cronExpression: typeof payload.cron_expression === "string" ? payload.cron_expression : null,
+    intervalMinutes:
+      payload.interval_minutes == null ? null : Number(payload.interval_minutes),
+    nextFireTime: String(payload.next_fire_time || ""),
+  };
+}
+
+function mapScheduledRun(payload: Record<string, unknown>): ScheduledRun {
+  return {
+    id: Number(payload.id || 0),
+    name: typeof payload.name === "string" ? payload.name : null,
+    status: String(payload.status || "active"),
+    scheduleType: String(payload.schedule_type || "interval") as ScheduledRun["scheduleType"],
+    cronExpression: typeof payload.cron_expression === "string" ? payload.cron_expression : null,
+    intervalMinutes:
+      payload.interval_minutes == null ? null : Number(payload.interval_minutes),
+    timezone: String(payload.timezone || "UTC"),
+    nextFireTime: typeof payload.next_fire_time === "string" ? payload.next_fire_time : null,
+    deploymentId: Number(payload.deployment_id || 0),
+    inputTemplate: isRecord(payload.input_template) ? payload.input_template : {},
+    backfillPolicy: typeof payload.backfill_policy === "string" ? payload.backfill_policy : null,
+    missedRunPolicy: typeof payload.missed_run_policy === "string" ? payload.missed_run_policy : null,
+    lastTriggeredAt:
+      typeof payload.last_triggered_at === "string" ? payload.last_triggered_at : null,
+    lastRunId: payload.last_run_id == null ? null : Number(payload.last_run_id),
+    lastTaskId: payload.last_task_id == null ? null : Number(payload.last_task_id),
+    lastRunStatus: typeof payload.last_run_status === "string" ? payload.last_run_status : null,
+    lastTaskStatus: typeof payload.last_task_status === "string" ? payload.last_task_status : null,
+    lastTriggerSource:
+      typeof payload.last_trigger_source === "string" ? payload.last_trigger_source : null,
+    triggerCount: Number(payload.trigger_count || 0),
+    pauseReason: typeof payload.pause_reason === "string" ? payload.pause_reason : null,
+    tenantId: Number(payload.tenant_id || 0),
+    projectId: Number(payload.project_id || 0),
+    environment: typeof payload.environment === "string" ? payload.environment : null,
+    createdAt: typeof payload.created_at === "string" ? payload.created_at : null,
+    updatedAt: typeof payload.updated_at === "string" ? payload.updated_at : null,
+    metadata: isRecord(payload.metadata) ? payload.metadata : {},
+  };
+}
+
+function mapBatchRunItem(payload: Record<string, unknown>): BatchRunItem {
+  return {
+    index: Number(payload.index || 0),
+    status: String(payload.status || "queued"),
+    input: isRecord(payload.input) ? payload.input : null,
+    runId: payload.run_id == null ? null : Number(payload.run_id),
+    taskId: payload.task_id == null ? null : Number(payload.task_id),
+    errorCode: typeof payload.error_code === "string" ? payload.error_code : null,
+    message: typeof payload.message === "string" ? payload.message : null,
+  };
+}
+
+function mapBatchRun(payload: Record<string, unknown>): BatchRun {
+  const progressSummary = isRecord(payload.progress_summary) ? payload.progress_summary : {};
+  return {
+    id: Number(payload.id || 0),
+    name: typeof payload.name === "string" ? payload.name : null,
+    status: String(payload.status || "queued"),
+    deploymentId: Number(payload.deployment_id || 0),
+    datasetId: payload.dataset_id == null ? null : Number(payload.dataset_id),
+    concurrency: Number(payload.concurrency || 1),
+    retryPolicy: isRecord(payload.retry_policy) ? payload.retry_policy : {},
+    cancelPolicy: typeof payload.cancel_policy === "string" ? payload.cancel_policy : null,
+    partialFailurePolicy:
+      typeof payload.partial_failure_policy === "string"
+        ? payload.partial_failure_policy
+        : null,
+    artifactOutputRef:
+      typeof payload.artifact_output_ref === "string" ? payload.artifact_output_ref : null,
+    progressSummary: {
+      totalItems: Number(progressSummary.total_items || 0),
+      queuedItems: Number(progressSummary.queued_items || 0),
+      runningItems: Number(progressSummary.running_items || 0),
+      retryingItems: Number(progressSummary.retrying_items || 0),
+      failedItems: Number(progressSummary.failed_items || 0),
+      deadLetterItems: Number(progressSummary.dead_letter_items || 0),
+      cancelledItems: Number(progressSummary.cancelled_items || 0),
+      completedItems: Number(progressSummary.completed_items || 0),
+      terminalItems: Number(progressSummary.terminal_items || 0),
+    },
+    items: Array.isArray(payload.items)
+      ? payload.items.filter(isRecord).map(mapBatchRunItem)
+      : [],
+    tenantId: Number(payload.tenant_id || 0),
+    projectId: Number(payload.project_id || 0),
+    environment: typeof payload.environment === "string" ? payload.environment : null,
+    createdAt: typeof payload.created_at === "string" ? payload.created_at : null,
+    updatedAt: typeof payload.updated_at === "string" ? payload.updated_at : null,
+  };
+}
+
+function mapCostBudgetPolicy(payload: Record<string, unknown>): CostBudgetPolicy {
+  return {
+    id: Number(payload.id || 0),
+    name: String(payload.name || ""),
+    environment: typeof payload.environment === "string" ? payload.environment : null,
+    scopeType: String(payload.scope_type || "deployment"),
+    scopeRef: typeof payload.scope_ref === "string" ? payload.scope_ref : null,
+    thresholdUsd: Number(payload.threshold_usd || 0),
+    resetWindow: String(payload.reset_window || "monthly"),
+    channelId: Number(payload.channel_id || 0),
+    actionMode: String(payload.action_mode || "warn"),
+    status: String(payload.status || "active"),
+    metadata: isRecord(payload.metadata) ? payload.metadata : {},
+    createdAt: typeof payload.created_at === "string" ? payload.created_at : null,
+    updatedAt: typeof payload.updated_at === "string" ? payload.updated_at : null,
+  };
+}
+
+function mapCostSavedView(payload: Record<string, unknown>): CostSavedView {
+  return {
+    id: Number(payload.id || 0),
+    name: String(payload.name || ""),
+    environment: typeof payload.environment === "string" ? payload.environment : null,
+    groupBy: String(payload.group_by || "deployment") as CostSavedView["groupBy"],
+    windowDays: Number(payload.window_days || 30),
+    filters: isRecord(payload.filters) ? payload.filters : {},
+    status: String(payload.status || "active"),
+    metadata: isRecord(payload.metadata) ? payload.metadata : {},
+    createdAt: typeof payload.created_at === "string" ? payload.created_at : null,
+    updatedAt: typeof payload.updated_at === "string" ? payload.updated_at : null,
+  };
+}
+
+function mapNotificationChannelOption(payload: Record<string, unknown>): NotificationChannelOption {
+  return {
+    id: Number(payload.id || 0),
+    targetRef: String(payload.target_ref || ""),
+    status: String(payload.status || "active"),
+  };
+}
+
+function mapCostSavedViewDetail(payload: Record<string, unknown>): CostSavedViewDetail {
+  return {
+    item: mapCostSavedView(isRecord(payload.item) ? payload.item : {}),
+    summary: mapCostSummary(isRecord(payload.summary) ? payload.summary : {}),
+    anomalies: Array.isArray(payload.anomalies)
+      ? payload.anomalies.map((item) => mapCostAnomaly(isRecord(item) ? item : {}))
+      : [],
   };
 }
 
@@ -1154,6 +1407,201 @@ export const liveConsoleClient = {
       await requestConsolePath<Record<string, unknown>>("/v1/runtime/metrics/summary"),
     );
   },
+  async getCostSummary(
+    groupBy: CostBreakdown["groupBy"] = "deployment",
+    windowDays = 30,
+  ): Promise<CostSummary> {
+    const payload = await requestConsolePath<Record<string, unknown>>(
+      `/v1/console/costs/summary?group_by=${encodeURIComponent(groupBy)}&window_days=${windowDays}`,
+    );
+    return mapCostSummary(payload);
+  },
+  async getCostAnomalies(windowDays = 30): Promise<CostAnomaly[]> {
+    const payload = await requestConsolePath<Array<Record<string, unknown>>>(
+      `/v1/console/costs/anomalies?window_days=${windowDays}`,
+    );
+    return payload.map(mapCostAnomaly);
+  },
+  async getSavedCostView(viewId: ResourceId): Promise<CostSavedViewDetail> {
+    const payload = await requestConsolePath<Record<string, unknown>>(
+      `/v1/console/costs/views/${viewId}`,
+    );
+    return mapCostSavedViewDetail(payload);
+  },
+  async listCostSavedViews(): Promise<CursorPage<CostSavedView>> {
+    const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/costs/views");
+    return page(payload.items.map((item) => mapCostSavedView(item)));
+  },
+  async createCostSavedView(payload: Record<string, unknown>): Promise<CostSavedView> {
+    const response = await nativeClient(crypto.randomUUID()).createAdminItem<AdminResource>(
+      "/v1/costs/views",
+      payload,
+    );
+    return mapCostSavedView(response.item);
+  },
+  async updateCostSavedView(viewId: ResourceId, payload: Record<string, unknown>): Promise<CostSavedView> {
+    const response = await nativeClient(crypto.randomUUID()).updateAdminItem<AdminResource>(
+      "/v1/costs/views",
+      viewId,
+      payload,
+    );
+    return mapCostSavedView(response.item);
+  },
+  async deleteCostSavedView(viewId: ResourceId): Promise<CostSavedView> {
+    const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>(
+      "/v1/costs/views",
+      viewId,
+    );
+    return mapCostSavedView(response.item);
+  },
+  async previewBudgetPolicy(payload: Record<string, unknown>): Promise<BudgetPreview> {
+    const response = await requestConsolePath<Record<string, unknown>>(
+      "/v1/console/costs/budgets/preview",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+    return mapBudgetPreview(response);
+  },
+  async previewSavedBudgetPolicy(policyId: ResourceId): Promise<BudgetPreview> {
+    const response = await requestConsolePath<Record<string, unknown>>(
+      `/v1/console/costs/budgets/${policyId}/preview`,
+    );
+    return mapBudgetPreview(response);
+  },
+  async listCostBudgetPolicies(): Promise<CursorPage<CostBudgetPolicy>> {
+    const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/costs/budgets");
+    return page(payload.items.map((item) => mapCostBudgetPolicy(item)));
+  },
+  async createCostBudgetPolicy(payload: Record<string, unknown>): Promise<CostBudgetPolicy> {
+    const response = await nativeClient(crypto.randomUUID()).createAdminItem<AdminResource>("/v1/costs/budgets", payload);
+    return mapCostBudgetPolicy(response.item);
+  },
+  async updateCostBudgetPolicy(policyId: ResourceId, payload: Record<string, unknown>): Promise<CostBudgetPolicy> {
+    const response = await nativeClient(crypto.randomUUID()).updateAdminItem<AdminResource>("/v1/costs/budgets", policyId, payload);
+    return mapCostBudgetPolicy(response.item);
+  },
+  async deleteCostBudgetPolicy(policyId: ResourceId): Promise<CostBudgetPolicy> {
+    const response = await nativeClient(crypto.randomUUID()).deleteAdminItem<AdminResource>("/v1/costs/budgets", policyId);
+    return mapCostBudgetPolicy(response.item);
+  },
+  async listNotificationChannels(): Promise<CursorPage<NotificationChannelOption>> {
+    const payload = await nativeClient().listAdminCollection<AdminResource>("/v1/notifications/channels");
+    return page(payload.items.map((item) => mapNotificationChannelOption(item)));
+  },
+  async previewSchedule(payload: Record<string, unknown>): Promise<SchedulePreview> {
+    const response = await requestConsolePath<{
+      preview: Record<string, unknown>;
+      normalized: Record<string, unknown>;
+      request_id: string | null;
+    }>("/v1/schedules/preview", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapSchedulePreview(response.preview);
+  },
+  async listSchedules(): Promise<CursorPage<ScheduledRun>> {
+    const response = await requestConsolePath<{
+      items: Array<Record<string, unknown>>;
+      count: number;
+      request_id: string | null;
+    }>("/v1/schedules");
+    return page(response.items.map(mapScheduledRun));
+  },
+  async getSchedule(scheduleId: ResourceId): Promise<ScheduledRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/schedules/${scheduleId}`);
+    return mapScheduledRun(response.item);
+  },
+  async createSchedule(payload: Record<string, unknown>): Promise<ScheduledRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>("/v1/schedules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapScheduledRun(response.item);
+  },
+  async pauseSchedule(scheduleId: ResourceId, payload: Record<string, unknown>): Promise<ScheduledRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/schedules/${scheduleId}/pause`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapScheduledRun(response.item);
+  },
+  async resumeSchedule(scheduleId: ResourceId, payload: Record<string, unknown>): Promise<ScheduledRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/schedules/${scheduleId}/resume`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapScheduledRun(response.item);
+  },
+  async triggerSchedule(
+    scheduleId: ResourceId,
+    payload: Record<string, unknown>,
+  ): Promise<{ item: ScheduledRun; triggeredRun: { runId: ResourceId; taskId: ResourceId; status: string } }> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      triggered_run: { run_id: number; task_id: number; status: string };
+      request_id: string | null;
+    }>(`/v1/schedules/${scheduleId}/trigger`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return {
+      item: mapScheduledRun(response.item),
+      triggeredRun: {
+        runId: Number(response.triggered_run.run_id),
+        taskId: Number(response.triggered_run.task_id),
+        status: String(response.triggered_run.status),
+      },
+    };
+  },
+  async listBatchRuns(): Promise<CursorPage<BatchRun>> {
+    const response = await requestConsolePath<{
+      items: Array<Record<string, unknown>>;
+      count: number;
+      request_id: string | null;
+    }>("/v1/batch-runs");
+    return page(response.items.map(mapBatchRun));
+  },
+  async getBatchRun(batchId: ResourceId): Promise<BatchRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/batch-runs/${batchId}`);
+    return mapBatchRun(response.item);
+  },
+  async createBatchRun(payload: Record<string, unknown>): Promise<BatchRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>("/v1/batch-runs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapBatchRun(response.item);
+  },
+  async cancelBatchRun(batchId: ResourceId, payload: Record<string, unknown>): Promise<BatchRun> {
+    const response = await requestConsolePath<{
+      item: Record<string, unknown>;
+      request_id: string | null;
+    }>(`/v1/batch-runs/${batchId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapBatchRun(response.item);
+  },
   async listRuntimeWorkers(): Promise<CursorPage<RuntimeWorker>> {
     const payload = await requestConsolePath<{
       items: Array<Record<string, unknown>>;
@@ -1653,6 +2101,45 @@ export const liveConsoleClient = {
   async listAdminCollection(path: string, scopeOverride?: Partial<ConsoleScope>): Promise<CursorPage<AdminResource>> {
     const payload = await nativeClient(undefined, scopeOverride).listAdminCollection<AdminResource>(path);
     return page(payload.items);
+  },
+  async listGovernedAssets(kind: AssetCatalogKind): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection(governedAssetBasePath(kind));
+  },
+  async getGovernedAssetDetail(kind: AssetCatalogKind, assetId: ResourceId): Promise<AssetDetail> {
+    return requestConsolePath<AssetDetail>(`${governedAssetBasePath(kind)}/${assetId}`);
+  },
+  async validateGovernedAsset(
+    kind: AssetCatalogKind,
+    assetId: ResourceId,
+    auditReason?: string,
+  ): Promise<AssetLifecycleActionResult> {
+    return requestConsolePath<AssetLifecycleActionResult>(
+      `${governedAssetBasePath(kind)}/${assetId}/validate`,
+      {
+        method: "POST",
+        body: JSON.stringify(auditReason ? { audit_reason: auditReason } : {}),
+      },
+      undefined,
+      { auditReason },
+    );
+  },
+  async mutateGovernedAsset(
+    kind: AssetCatalogKind,
+    assetId: ResourceId,
+    action: "approve" | "publish" | "deprecate" | "archive" | "rollback",
+    payload: Record<string, unknown>,
+  ): Promise<AssetLifecycleActionResult> {
+    const auditReason =
+      typeof payload.audit_reason === "string" ? payload.audit_reason : undefined;
+    return requestConsolePath<AssetLifecycleActionResult>(
+      `${governedAssetBasePath(kind)}/${assetId}/${action}`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      undefined,
+      { auditReason },
+    );
   },
   async createAdminItem(path: string, payload: Record<string, unknown>): Promise<AdminResource> {
     const response = await nativeClient(crypto.randomUUID()).createAdminItem<AdminResource>(path, payload);

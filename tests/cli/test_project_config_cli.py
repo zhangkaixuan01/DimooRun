@@ -80,6 +80,7 @@ def test_doctor_production_reports_invalid_runtime_settings(
     monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "http://localhost:5173")
     monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "memory")
     monkeypatch.setenv("DIMOORUN_DEV_API_KEY", "dev-key")
+    monkeypatch.delenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", raising=False)
 
     exit_code = run_cli(["doctor", "production"])
 
@@ -87,6 +88,10 @@ def test_doctor_production_reports_invalid_runtime_settings(
     assert exit_code == 1
     assert "Production mode cannot use SQLite." in captured.out
     assert "Production mode requires a configured secret provider." in captured.out
+    assert (
+        "Production mode requires an explicit non-default "
+        "DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD."
+    ) in captured.out
 
 
 def test_doctor_production_accepts_safe_runtime_settings(
@@ -102,6 +107,7 @@ def test_doctor_production_accepts_safe_runtime_settings(
     monkeypatch.setenv("OBJECT_STORE_SECRET_KEY", "prod-secret")
     monkeypatch.setenv("DIMOORUN_CORS_ORIGINS", "https://console.example.com")
     monkeypatch.setenv("DIMOORUN_SECRET_PROVIDER", "vault")
+    monkeypatch.setenv("DIMOORUN_BOOTSTRAP_ADMIN_PASSWORD", "ProdOnly-ChangeMe-123!")
     monkeypatch.delenv("DIMOORUN_DEV_API_KEY", raising=False)
 
     exit_code = run_cli(["doctor", "production"])

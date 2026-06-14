@@ -41,6 +41,8 @@ test("declares the MVP runtime control routes", () => {
       "/runtime/workers",
       "/runtime/agent-instances",
       "/runtime/capacity",
+      "/runtime/schedules",
+      "/runtime/batches",
       "/runs",
       "/runs/:runId",
       "/tasks",
@@ -885,6 +887,168 @@ test("defines a dedicated runtime capacity browser workflow", () => {
       "workerActionMatch",
       "runtimeCapacitySummaryResponse",
     ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
+});
+
+test("wires the cost and budget observability workflow", () => {
+    const client = read("src/api/client.ts");
+    const router = read("src/router/index.ts");
+    const shell = read("src/layouts/AppShell.vue");
+    const costsPage = read("src/pages/observability/CostsPage.vue");
+    const budgetsPage = read("src/pages/observability/BudgetsPage.vue");
+    const fixture = read("tests/fixtures/api.ts");
+
+    assert.match(client, /getCostSummary/);
+    assert.match(client, /getCostAnomalies/);
+    assert.match(client, /getSavedCostView/);
+    assert.match(client, /listCostSavedViews/);
+    assert.match(client, /createCostSavedView/);
+    assert.match(client, /updateCostSavedView/);
+    assert.match(client, /deleteCostSavedView/);
+    assert.match(client, /previewBudgetPolicy/);
+    assert.match(client, /previewSavedBudgetPolicy/);
+    assert.match(client, /listCostBudgetPolicies/);
+    assert.match(client, /createCostBudgetPolicy/);
+    assert.match(client, /deleteCostBudgetPolicy/);
+    assert.match(client, /listNotificationChannels/);
+    assert.match(client, /body: JSON\.stringify\(payload\)/);
+    assert.match(router, /path: "\/observability\/costs"/);
+    assert.match(router, /path: "\/observability\/budgets"/);
+    assert.match(shell, /to: "\/observability\/costs"/);
+    assert.match(shell, /to: "\/observability\/budgets"/);
+    assert.match(costsPage, /consoleClient\.getCostSummary/);
+    assert.match(costsPage, /consoleClient\.getCostAnomalies/);
+    assert.match(costsPage, /consoleClient\.listCostSavedViews/);
+    assert.match(costsPage, /consoleClient\.getSavedCostView/);
+    assert.match(costsPage, /consoleClient\.createCostSavedView/);
+    assert.match(costsPage, /consoleClient\.updateCostSavedView/);
+    assert.match(costsPage, /consoleClient\.deleteCostSavedView/);
+    assert.match(costsPage, /Saved views/);
+    assert.match(costsPage, /qualityGate/);
+    assert.match(costsPage, /exp #/);
+    assert.match(costsPage, /Open Deployment #/);
+    assert.match(budgetsPage, /consoleClient\.previewBudgetPolicy/);
+    assert.match(budgetsPage, /consoleClient\.previewSavedBudgetPolicy/);
+    assert.match(budgetsPage, /consoleClient\.createCostBudgetPolicy/);
+    assert.match(budgetsPage, /consoleClient\.listCostBudgetPolicies/);
+    assert.match(budgetsPage, /consoleClient\.listNotificationChannels/);
+    assert.match(budgetsPage, /previewResult\.notificationPreview/);
+    [
+      'path === "/v1/console/costs/summary"',
+      'path === "/v1/console/costs/anomalies"',
+      'path === "/v1/costs/views"',
+      'path === "/v1/console/costs/budgets/preview"',
+      'path === "/v1/costs/budgets"',
+      'path === "/v1/notifications/channels"',
+      "savedCostViewMatch",
+      "savedBudgetPreviewMatch",
+      "costSummaryResponse",
+      "costAnomaliesResponse",
+      "quality_gate",
+      "fulfillSavedCostView",
+      "fulfillCostSavedViewCreate",
+      "fulfillBudgetPreview",
+      "fulfillSavedBudgetPreview",
+      "fulfillCostBudgetCreate",
+    ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
+});
+
+test("defines a dedicated phase-0m browser workflow", () => {
+    const packageJson = read("package.json");
+    const workflow = read("../../.github/workflows/ci.yml");
+
+    assert.match(packageJson, /"test:e2e:0m"/);
+    assert.match(packageJson, /tests\/e2e\/costs-budgets\.spec\.ts/);
+    assert.match(packageJson, /test-results-0m/);
+    assert.match(workflow, /npm run test:e2e:0m/);
+    assert.match(workflow, /PLAYWRIGHT_HTML_REPORT: playwright-report-0m/);
+    assert.match(workflow, /console-playwright-0m-report/);
+});
+
+test("wires the scheduled and batch runtime workflow", () => {
+    const client = read("src/api/client.ts");
+    const router = read("src/router/index.ts");
+    const shell = read("src/layouts/AppShell.vue");
+    const schedulesPage = read("src/pages/runtime/ScheduledRunsPage.vue");
+    const batchesPage = read("src/pages/runtime/BatchRunsPage.vue");
+    const fixture = read("tests/fixtures/api.ts");
+
+    [
+      "previewSchedule",
+      "listSchedules",
+      "getSchedule",
+      "createSchedule",
+      "pauseSchedule",
+      "resumeSchedule",
+      "triggerSchedule",
+      "listBatchRuns",
+      "getBatchRun",
+      "createBatchRun",
+      "cancelBatchRun",
+    ].forEach((name) => assert.match(client, new RegExp(name)));
+    assert.match(router, /path: "\/runtime\/schedules"/);
+    assert.match(router, /path: "\/runtime\/batches"/);
+    assert.match(shell, /to: "\/runtime\/schedules"/);
+    assert.match(shell, /to: "\/runtime\/batches"/);
+    assert.match(schedulesPage, /consoleClient\.previewSchedule/);
+    assert.match(schedulesPage, /consoleClient\.createSchedule/);
+    assert.match(schedulesPage, /consoleClient\.pauseSchedule/);
+    assert.match(schedulesPage, /consoleClient\.resumeSchedule/);
+    assert.match(schedulesPage, /consoleClient\.triggerSchedule/);
+    assert.match(schedulesPage, /Next-run timeline/);
+    assert.match(schedulesPage, /Missed-run policy/);
+    assert.match(batchesPage, /consoleClient\.createBatchRun/);
+    assert.match(batchesPage, /consoleClient\.listBatchRuns/);
+    assert.match(batchesPage, /consoleClient\.cancelBatchRun/);
+    assert.match(batchesPage, /Failed item drilldown/);
+    [
+      'path === "/v1/schedules/preview"',
+      'path === "/v1/schedules"',
+      "scheduleDetailMatch",
+      "scheduleActionMatch",
+      'path === "/v1/batch-runs"',
+      "batchDetailMatch",
+      "batchCancelMatch",
+      "fulfillSchedulePreview",
+      "fulfillBatchRunCreate",
+      "fulfillBatchRunCancel",
+    ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
+});
+
+test("defines a dedicated phase-0n browser workflow", () => {
+    const packageJson = read("package.json");
+    const runner = read("scripts/run-phase-e2e.mjs");
+
+    assert.match(packageJson, /"test:e2e:0n"/);
+    assert.match(packageJson, /tests\/e2e\/scheduled-batch\.spec\.ts/);
+    assert.match(packageJson, /test-results-0n/);
+    assert.match(runner, /scheduled-batch\.spec\.ts/);
+    assert.match(runner, /phases\.push\("0n"\)/);
+});
+
+test("defines a dedicated phase-0o browser workflow", () => {
+    const packageJson = read("package.json");
+    const runner = read("scripts/run-phase-e2e.mjs");
+    const fixture = read("tests/fixtures/api.ts");
+    const catalogPage = read("src/pages/catalog/CatalogPage.vue");
+    const detailPage = read("src/pages/catalog/AssetDetailPage.vue");
+    const diffPage = read("src/pages/catalog/AssetVersionDiffPage.vue");
+
+    assert.match(packageJson, /"test:e2e:0o"/);
+    assert.match(packageJson, /tests\/e2e\/catalog-assets\.spec\.ts/);
+    assert.match(packageJson, /test-results-0o/);
+    assert.match(runner, /catalog-assets\.spec\.ts/);
+    assert.match(runner, /phases\.push\("0o"\)/);
+    [
+      'path === "/v1/assets/prompts"',
+      "promptDetailMatch",
+      "promptActionMatch",
+      "fulfillGovernedAssetCreate",
+      "fulfillGovernedAssetDetail",
+      "fulfillGovernedAssetAction",
+    ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
+    assert.match(catalogPage, /Create asset/);
+    assert.match(detailPage, /Rollback target/);
+    assert.match(diffPage, /Changed fields/);
 });
 
 test("documents the shared phase-0l browser proof flow", () => {

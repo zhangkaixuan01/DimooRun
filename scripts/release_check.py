@@ -7,6 +7,11 @@ from pathlib import Path
 
 from dimoo_run.server import create_app
 
+from scripts.docs_quality import (
+    CANONICAL_MATURITY_LINES,
+    CONSISTENT_RUNTIME_PATH_DOCS,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 OPENAPI_PATH = ROOT / "openapi" / "dimoorun.openapi.json"
@@ -71,6 +76,8 @@ def run_release_check(root: Path = ROOT) -> ReleaseCheckResult:
     checked.append("migrations")
     _check_docs_links(root, errors)
     checked.append("docs-links")
+    _check_docs_consistency(root, errors)
+    checked.append("docs-consistency")
     return ReleaseCheckResult(errors=errors, checked=checked)
 
 
@@ -138,6 +145,34 @@ def _check_docs_links(root: Path, errors: list[str]) -> None:
     for link in REQUIRED_DOC_LINKS:
         if link not in readme:
             errors.append(f"required_docs_link_missing: README.md must reference {link}")
+
+
+def _check_docs_consistency(root: Path, errors: list[str]) -> None:
+    for relative_path in (
+        "README.md",
+        "docs/DEMO_SCRIPT.md",
+        "docs/readiness/current-maturity.md",
+        "docs/readiness/scorecard.md",
+        "examples/langgraph/support-agent/README.md",
+        "examples/langchain-agent/support-agent/README.md",
+        "examples/deepagents/support-agent/README.md",
+    ):
+        text = (root / relative_path).read_text(encoding="utf-8")
+        for line in CANONICAL_MATURITY_LINES:
+            if line not in text:
+                errors.append(
+                    "docs_consistency_maturity_missing: "
+                    f"{relative_path} missing {line}"
+                )
+
+    for relative_path, phrases in CONSISTENT_RUNTIME_PATH_DOCS.items():
+        text = (root / relative_path).read_text(encoding="utf-8")
+        for phrase in phrases:
+            if phrase not in text:
+                errors.append(
+                    "docs_consistency_runtime_path_missing: "
+                    f"{relative_path} missing {phrase}"
+                )
 
 
 def main() -> None:

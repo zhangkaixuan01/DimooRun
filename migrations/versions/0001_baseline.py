@@ -651,6 +651,59 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_notification_channels_project_id'), 'notification_channels', ['project_id'], unique=False)
     op.create_index(op.f('ix_notification_channels_tenant_id'), 'notification_channels', ['tenant_id'], unique=False)
+    op.create_table('cost_saved_views',
+    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('environment', sa.String(length=128), nullable=True),
+    sa.Column('group_by', sa.String(length=64), nullable=False),
+    sa.Column('window_days', sa.Integer(), nullable=False),
+    sa.Column('filters_json', sa.JSON(), nullable=False),
+    sa.Column('status', sa.String(length=64), nullable=False),
+    sa.Column('metadata_json', sa.JSON(), nullable=False),
+    sa.Column('tenant_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('project_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_by', sa.String(length=64), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_by', sa.String(length=64), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_by', sa.String(length=64), nullable=True),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_cost_saved_views_project_id'), 'cost_saved_views', ['project_id'], unique=False)
+    op.create_index(op.f('ix_cost_saved_views_tenant_id'), 'cost_saved_views', ['tenant_id'], unique=False)
+    op.create_index('uq_cost_saved_views_scope_name_active', 'cost_saved_views', ['tenant_id', 'project_id', 'environment', 'name'], unique=True, postgresql_where=sa.text('is_deleted = false'), sqlite_where=sa.text('is_deleted = 0'))
+    op.create_table('cost_budget_policies',
+    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('environment', sa.String(length=128), nullable=True),
+    sa.Column('scope_type', sa.String(length=64), nullable=False),
+    sa.Column('scope_ref', sa.String(length=255), nullable=True),
+    sa.Column('threshold_usd', sa.Float(), nullable=False),
+    sa.Column('reset_window', sa.String(length=32), nullable=False),
+    sa.Column('channel_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('action_mode', sa.String(length=64), nullable=False),
+    sa.Column('status', sa.String(length=64), nullable=False),
+    sa.Column('metadata_json', sa.JSON(), nullable=False),
+    sa.Column('tenant_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('project_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_by', sa.String(length=64), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_by', sa.String(length=64), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_by', sa.String(length=64), nullable=True),
+    sa.ForeignKeyConstraint(['channel_id'], ['notification_channels.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_cost_budget_policies_project_id'), 'cost_budget_policies', ['project_id'], unique=False)
+    op.create_index(op.f('ix_cost_budget_policies_tenant_id'), 'cost_budget_policies', ['tenant_id'], unique=False)
     op.create_table('observability_exporters',
     sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -1996,6 +2049,13 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_alert_rules_tenant_id'), table_name='alert_rules')
     op.drop_index(op.f('ix_alert_rules_project_id'), table_name='alert_rules')
     op.drop_table('alert_rules')
+    op.drop_index(op.f('ix_cost_budget_policies_tenant_id'), table_name='cost_budget_policies')
+    op.drop_index(op.f('ix_cost_budget_policies_project_id'), table_name='cost_budget_policies')
+    op.drop_table('cost_budget_policies')
+    op.drop_index('uq_cost_saved_views_scope_name_active', table_name='cost_saved_views', postgresql_where=sa.text('is_deleted = false'), sqlite_where=sa.text('is_deleted = 0'))
+    op.drop_index(op.f('ix_cost_saved_views_tenant_id'), table_name='cost_saved_views')
+    op.drop_index(op.f('ix_cost_saved_views_project_id'), table_name='cost_saved_views')
+    op.drop_table('cost_saved_views')
     op.drop_index(op.f('ix_agent_versions_agent_id'), table_name='agent_versions')
     op.drop_table('agent_versions')
     op.drop_index(op.f('ix_webhook_subscriptions_tenant_id'), table_name='webhook_subscriptions')

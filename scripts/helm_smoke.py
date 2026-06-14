@@ -61,6 +61,19 @@ LIVE_SMOKE_HELM_SET_ARGS = [
     "--set",
     "console.replicas=0",
 ]
+LIVE_SMOKE_REQUIRED_TEMPLATE_GUARDS = {
+    "migration-job.yaml": "{{- if .Values.migrationJob.enabled }}",
+    "servicemonitor.yaml": "{{- if .Values.serviceMonitor.enabled }}",
+    "hpa.yaml": "{{- if .Values.autoscaling.enabled }}",
+}
+LIVE_SMOKE_EXPECTED_OVERRIDES = {
+    "serviceMonitor.enabled": "false",
+    "migrationJob.enabled": "false",
+    "autoscaling.enabled": "false",
+    "server.replicas": "0",
+    "worker.replicas": "0",
+    "console.replicas": "0",
+}
 
 
 @dataclass(frozen=True)
@@ -112,6 +125,24 @@ def validate_helm_chart(root: Path) -> HelmSmokeResult:
             errors.append(f"server and worker must both include env: {env_name}")
     if ".Values.objectStore.external.secretRef" not in rendered_source:
         errors.append("objectStore.external.secretRef must be used by workload templates.")
+    for template_name, required_guard in LIVE_SMOKE_REQUIRED_TEMPLATE_GUARDS.items():
+        template_path = templates_dir / template_name
+        if not template_path.exists():
+            errors.append(f"Helm template smoke missing file: {template_name}")
+            continue
+        template_text = template_path.read_text(encoding="utf-8")
+        if required_guard not in template_text:
+            errors.append(
+                f"Helm live smoke requires {template_name} to guard resource creation with "
+                f"{required_guard}"
+            )
+    override_map = live_smoke_overrides()
+    for key, expected_value in LIVE_SMOKE_EXPECTED_OVERRIDES.items():
+        if override_map.get(key) != expected_value:
+            errors.append(
+                f"Helm live smoke override {key} must be {expected_value}, "
+                f"got {override_map.get(key)!r}"
+            )
 
     checked_steps = [
         "values",
@@ -120,6 +151,7 @@ def validate_helm_chart(root: Path) -> HelmSmokeResult:
         "networkpolicy",
         "pdb",
         "servicemonitor",
+        "live-smoke-overrides",
     ]
     return HelmSmokeResult(errors=errors, checked_steps=checked_steps)
 
@@ -274,6 +306,18 @@ def _cluster_smoke_commands(
             60,
         ),
     ]
+
+
+def live_smoke_overrides() -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for index in range(0, len(LIVE_SMOKE_HELM_SET_ARGS), 2):
+        flag = LIVE_SMOKE_HELM_SET_ARGS[index]
+        assignment = LIVE_SMOKE_HELM_SET_ARGS[index + 1]
+        if flag != "--set" or "=" not in assignment:
+            raise ValueError(f"Invalid live smoke Helm override segment: {flag} {assignment}")
+        key, value = assignment.split("=", 1)
+        overrides[key] = value
+    return overrides
 
 
 def _cleanup_commands(cluster_runtime: str) -> list[tuple[str, list[str], int]]:

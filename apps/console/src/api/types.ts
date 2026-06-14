@@ -345,6 +345,254 @@ export type RuntimeMetricsSnapshot = {
   }>;
 };
 
+export type CostBreakdown = {
+  qualityGate: {
+    status: string;
+    promotionAllowed: boolean;
+    blockedReason: string | null;
+    experimentRunId: ResourceId | null;
+    averageScore: number | null;
+    minScore: number | null;
+    candidateAgentVersionId: ResourceId | null;
+  } | null;
+  groupBy: "agent" | "deployment" | "run" | "provider" | "model";
+  key: string;
+  label: string;
+  totalCostUsd: number;
+  totalTokens: number;
+  runCount: number;
+  failedRunCount: number;
+  latestRunId: ResourceId | null;
+  latestAt: string | null;
+};
+
+export type CostSummary = {
+  windowDays: number;
+  groupBy: CostBreakdown["groupBy"];
+  totalCostUsd: number;
+  totalTokens: number;
+  runCount: number;
+  failedRunCount: number;
+  breakdown: CostBreakdown[];
+};
+
+export type CostAnomaly = {
+  kind: string;
+  severity: string;
+  title: string;
+  summary: string;
+  costUsd: number;
+  runId: ResourceId | null;
+  deploymentId: ResourceId | null;
+  provider: string | null;
+  model: string | null;
+};
+
+export type CostBudgetPolicy = {
+  id: ResourceId;
+  name: string;
+  environment: string | null;
+  scopeType: string;
+  scopeRef: string | null;
+  thresholdUsd: number;
+  resetWindow: string;
+  channelId: ResourceId;
+  actionMode: string;
+  status: string;
+  metadata: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type CostSavedView = {
+  id: ResourceId;
+  name: string;
+  environment: string | null;
+  groupBy: CostBreakdown["groupBy"];
+  windowDays: number;
+  filters: Record<string, unknown>;
+  status: string;
+  metadata: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type CostSavedViewDetail = {
+  item: CostSavedView;
+  summary: CostSummary;
+  anomalies: CostAnomaly[];
+};
+
+export type NotificationChannelOption = {
+  id: ResourceId;
+  targetRef: string;
+  status: string;
+};
+
+export type BudgetPreview = {
+  scopeType: string;
+  scopeRef: string | null;
+  resetWindow: string;
+  thresholdUsd: number;
+  currentSpendUsd: number;
+  projectedSpendUsd: number;
+  utilizationRatio: number;
+  wouldTrigger: boolean;
+  notificationPreview: string;
+  actionPreview: string;
+  topContributors: CostBreakdown[];
+};
+
+export type SchedulePreview = {
+  scheduleType: "cron" | "interval";
+  timezone: string;
+  cronExpression: string | null;
+  intervalMinutes: number | null;
+  nextFireTime: string;
+};
+
+export type ScheduledRun = {
+  id: ResourceId;
+  name: string | null;
+  status: string;
+  scheduleType: "cron" | "interval";
+  cronExpression: string | null;
+  intervalMinutes: number | null;
+  timezone: string;
+  nextFireTime: string | null;
+  deploymentId: ResourceId;
+  inputTemplate: Record<string, unknown>;
+  backfillPolicy: string | null;
+  missedRunPolicy: string | null;
+  lastTriggeredAt: string | null;
+  lastRunId: ResourceId | null;
+  lastTaskId: ResourceId | null;
+  lastRunStatus: string | null;
+  lastTaskStatus: string | null;
+  lastTriggerSource: string | null;
+  triggerCount: number;
+  pauseReason: string | null;
+  tenantId: number;
+  projectId: number;
+  environment: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type BatchRunItem = {
+  index: number;
+  status: string;
+  input: Record<string, unknown> | null;
+  runId: ResourceId | null;
+  taskId: ResourceId | null;
+  errorCode: string | null;
+  message: string | null;
+};
+
+export type BatchRun = {
+  id: ResourceId;
+  name: string | null;
+  status: string;
+  deploymentId: ResourceId;
+  datasetId: ResourceId | null;
+  concurrency: number;
+  retryPolicy: Record<string, unknown>;
+  cancelPolicy: string | null;
+  partialFailurePolicy: string | null;
+  artifactOutputRef: string | null;
+  progressSummary: {
+    totalItems: number;
+    queuedItems: number;
+    runningItems: number;
+    retryingItems: number;
+    failedItems: number;
+    deadLetterItems: number;
+    cancelledItems: number;
+    completedItems: number;
+    terminalItems: number;
+  };
+  items: BatchRunItem[];
+  tenantId: number;
+  projectId: number;
+  environment: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type AssetCatalogKind = "catalog" | "prompt" | "config" | "template";
+
+export type AssetValidationIssue = {
+  code: string;
+  field: string;
+  message: string;
+};
+
+export type AssetDependency = {
+  kind?: string;
+  asset_kind?: string;
+  type?: string;
+  name: string;
+  version: string;
+};
+
+export type AssetUsage = {
+  resource_kind: string;
+  resource_id: ResourceId;
+  environment: string | null;
+  status: string;
+  active: boolean;
+};
+
+export type AssetDiff = {
+  changed_fields: Array<{
+    field: string;
+    before: unknown;
+    after: unknown;
+  }>;
+  has_changes: boolean;
+};
+
+export type AssetHistoryItem = Record<string, unknown> & {
+  id: ResourceId;
+  name: string;
+  version: string;
+  status: string;
+};
+
+export type AssetDetail = {
+  item: Record<string, unknown> & {
+    id: ResourceId;
+    name: string;
+    version: string;
+    status: string;
+  };
+  lifecycle: Record<string, unknown>;
+  validation: {
+    status?: string;
+    validated_at?: string | null;
+    issues?: AssetValidationIssue[];
+  };
+  dependencies: AssetDependency[];
+  used_by: AssetUsage[];
+  risk_flags: string[];
+  version_history: AssetHistoryItem[];
+  diff_to_previous: AssetDiff;
+  environment: string | null;
+};
+
+export type AssetLifecycleActionResult = {
+  item: AssetHistoryItem;
+  lifecycle: Record<string, unknown>;
+  validation?: {
+    status?: string;
+    validated_at?: string | null;
+    issues?: AssetValidationIssue[];
+  };
+  used_by?: AssetUsage[];
+  rolled_back_from?: AssetHistoryItem;
+};
+
 export type RuntimeControlAction = {
   action: string;
   label: string;

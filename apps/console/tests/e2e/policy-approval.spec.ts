@@ -27,7 +27,8 @@ test("simulates, activates, rolls back, and shows policy denied evidence", async
   await expect(page.getByText("Activated version 1")).toBeVisible();
   await expect(page.getByText("Rollback target: version 1")).toBeVisible();
   await expect(page.getByText("Audit comparison")).toBeVisible();
-  await expect(page.getByText("decision: deny -> deny")).toBeVisible();
+  await expect(page.getByText("Version draft -> 1")).toBeVisible();
+  await expect(page.getByText("decision: - -> deny")).toBeVisible();
 
   await page.getByRole("button", { name: "Rollback policy" }).click();
   await expect(page.getByText("Rolled back to version 1")).toBeVisible();

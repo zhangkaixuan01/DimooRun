@@ -2,7 +2,10 @@ from fastapi import APIRouter
 
 from dimoo_run.api import auth as auth_router
 from dimoo_run.api import ingress as live_ingress_router
+from dimoo_run.api.admin import assets as asset_router
 from dimoo_run.api.admin import backups as backup_router
+from dimoo_run.api.admin import batches as batch_router
+from dimoo_run.api.admin import catalog as catalog_router
 from dimoo_run.api.admin import datasets as dataset_router
 from dimoo_run.api.admin import experiments as experiment_router
 from dimoo_run.api.admin import identity_workflows as identity_workflow_router
@@ -13,11 +16,13 @@ from dimoo_run.api.admin import notifications as notification_router
 from dimoo_run.api.admin import policies as policy_router
 from dimoo_run.api.admin import published_surfaces as published_surface_router
 from dimoo_run.api.admin import router as admin_router
+from dimoo_run.api.admin import schedules as schedule_router
 from dimoo_run.api.admin import secrets as secret_router
 from dimoo_run.api.admin import tools as tool_router
 from dimoo_run.api.compat import router as compat_router
 from dimoo_run.api.console import agent_instances as console_agent_instances_router
 from dimoo_run.api.console import compatibility as console_compatibility_router
+from dimoo_run.api.console import costs as console_costs_router
 from dimoo_run.api.console import identity as console_identity_router
 from dimoo_run.api.console import published as console_published_router
 from dimoo_run.api.console import router as console_router
@@ -33,6 +38,7 @@ router.include_router(native_metrics_router.router)
 router.include_router(native_router)
 router.include_router(live_ingress_router.router)
 router.include_router(console_router)
+router.include_router(console_costs_router.router)
 router.include_router(console_workers_router.router)
 router.include_router(console_agent_instances_router.router)
 router.include_router(console_compatibility_router.router)
@@ -44,6 +50,10 @@ router.include_router(published_surface_router.router)
 router.include_router(ingress_route_router.router)
 router.include_router(dataset_router.router)
 router.include_router(experiment_router.router)
+router.include_router(schedule_router.router)
+router.include_router(batch_router.router)
+router.include_router(catalog_router.router)
+router.include_router(asset_router.router)
 router.include_router(incident_router.router)
 router.include_router(notification_router.router)
 router.include_router(backup_router.router)

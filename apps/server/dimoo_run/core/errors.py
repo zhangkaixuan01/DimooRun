@@ -16,6 +16,7 @@ ERROR_CODES: frozenset[str] = frozenset(
         "capability_not_supported",
         "checkpoint_incompatible",
         "compatibility_not_supported",
+        "cost_budget_exceeded",
         "dataset_scope_mismatch",
         "deployment_agent_version_mismatch",
         "deployment_control_conflict",

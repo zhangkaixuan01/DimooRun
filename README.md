@@ -189,6 +189,13 @@ Current capture backlog and evidence rules are in
 DimooRun has a production-shaped foundation, not a completed production-grade
 product.
 
+Use the same shorthand as the readiness scorecard:
+
+```text
+Production-shaped foundation: yes.
+External production-grade platform: not yet.
+```
+
 - Strong today: adapter-first runtime model, durable worker/task foundations,
   deployment control, policy/governance surfaces, runtime observability, Console
   live backend, CLI/SDK workflow, Compose/Helm assets.

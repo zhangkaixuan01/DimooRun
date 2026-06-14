@@ -4,6 +4,13 @@ This script is for maintainers who want to record or present a truthful
 DimooRun walkthrough. It prioritizes workflows that already have repository
 evidence and calls out where the demo is illustrative rather than hosted-proof.
 
+Current maturity shorthand:
+
+```text
+Production-shaped foundation: yes.
+External production-grade platform: not yet.
+```
+
 ## Prerequisites
 
 - local `.env` created from `.env.example`
