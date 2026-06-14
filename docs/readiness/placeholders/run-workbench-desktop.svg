@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <rect width="1280" height="720" fill="#f1f4ef"/>
-  <rect x="48" y="48" width="1184" height="624" rx="28" fill="#fbfef9" stroke="#31524b" stroke-width="4"/>
-  <text x="88" y="130" fill="#31524b" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700">Run Workbench Placeholder</text>
-  <text x="88" y="182" fill="#4f7068" font-family="Segoe UI, Arial, sans-serif" font-size="24">Attempts, events, artifacts, and replay evidence</text>
-  <rect x="88" y="232" width="250" height="340" rx="20" fill="#d4e6dc"/>
-  <rect x="368" y="232" width="792" height="152" rx="20" fill="#e2ecf3"/>
-  <rect x="368" y="420" width="792" height="152" rx="20" fill="#efe1d5"/>
-</svg>

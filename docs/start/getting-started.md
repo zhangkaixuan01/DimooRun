@@ -78,7 +78,7 @@ If you want scriptable evaluation instead of manual API calls, use:
 ## Where To Verify Status
 
 - Readiness: [Production Readiness Scorecard](../readiness/scorecard.md)
-- Workflow coverage: [Product Workflow Coverage Matrix](../product/workflow-coverage-matrix.md)
-- UX acceptance: [Console Experience Acceptance](../product/console-experience-acceptance.md)
+- Product surface: [Product Documentation](../product/README.md)
+- Current caveats: [Current Maturity](../readiness/current-maturity.md)
 - Quick commands: [Quickstart](quickstart.md)
 

@@ -28,9 +28,8 @@ docker compose up --build
 ```
 
 Expected result: server, worker, Console, Postgres, Redis, and MinIO start. If
-Compose fails in your environment, record the failure in
-[Compose Smoke Report](../readiness/compose-smoke-report.md) instead of treating
-the path as proven.
+Compose fails in your environment, treat the path as unproven and compare the
+result with [Current Maturity](../readiness/current-maturity.md).
 
 Working directory: repository root.
 
@@ -41,7 +40,8 @@ uv run python scripts/compose_runtime_smoke.py
 Expected result: the smoke script can reach server `/healthz` and the Console
 root page. Current failures are still valid evidence; do not hide them.
 
-Current local evidence is tracked in [Compose Smoke Report](../readiness/compose-smoke-report.md).
+Current readiness status is tracked in
+[Production Readiness Scorecard](../readiness/scorecard.md).
 
 ## Publish The Example Agent
 

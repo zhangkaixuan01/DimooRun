@@ -21,8 +21,8 @@ External production-grade platform: not yet.
 Authoritative status:
 
 - [Production Readiness Scorecard](scorecard.md)
-- [Product Function Coverage Review](../product/function-coverage-review.md)
-- [Product Workflow Coverage Matrix](../product/workflow-coverage-matrix.md)
+- [Product Documentation](../product/README.md)
+- [Repository README](../../README.md)
 
 ## What You Can Evaluate Today
 

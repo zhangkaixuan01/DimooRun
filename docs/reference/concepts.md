@@ -53,7 +53,8 @@ A route, table, and edit form do not make a workflow complete. A production-grad
 - failure recovery;
 - browser evidence.
 
-The current workflow status is tracked in [Product Workflow Coverage Matrix](../product/workflow-coverage-matrix.md).
+The current workflow status is summarized in
+[Current Maturity](../readiness/current-maturity.md).
 
 ## Idempotency And Request Identity
 

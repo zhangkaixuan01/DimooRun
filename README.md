@@ -161,16 +161,19 @@ More detailed diagrams for control plane, runtime plane, worker loop,
 governance, compatibility, and observability live in
 [docs/architecture/overview.md](docs/architecture/overview.md).
 
-## Screenshots
+## Screenshot Evidence
 
-Product screenshots are tracked as placeholders until the Playwright capture
-suite is wired into the docs pipeline.
+Generated product screenshots are not maintained as committed public docs right
+now. Console browser tests can still produce local Playwright reports and
+attachments, but README should not embed placeholder images or link to stale
+gallery files.
 
-![Console runtime overview placeholder](docs/readiness/placeholders/dashboard-desktop.svg)
-![Quickstart flow placeholder](docs/readiness/placeholders/docs-quickstart-mobile.svg)
-
-Current capture backlog and evidence rules are in
-[docs/readiness/screenshots.md](docs/readiness/screenshots.md).
+- Required capture set: dashboard, agent detail, deployment workflow, run
+  workbench, gateway route tester, approval queue, settings danger zone, and docs
+  quickstart.
+- Current state: real generated product screenshots and hosted browser evidence
+  are still incomplete.
+- Readiness status: [docs/readiness/scorecard.md](docs/readiness/scorecard.md).
 
 ## Supported Modes
 
@@ -198,10 +201,10 @@ External production-grade platform: not yet.
 
 - Strong today: adapter-first runtime model, durable worker/task foundations,
   deployment control, policy/governance surfaces, runtime observability, Console
-  live backend, CLI/SDK workflow, Compose/Helm assets.
-- Still incomplete: trust/security assets, broad screenshot evidence, clean
-  hosted smoke proof, some operator workflows, and later cost/scheduling/catalog
-  areas.
+  live backend, CLI/SDK workflow, Compose/Helm assets, and local proof for cost,
+  scheduled/batch, and catalog workflows.
+- Still incomplete: broad screenshot evidence, clean hosted smoke proof, some
+  operator workflows, release proof, and externally hosted trust verification.
 
 Use these before making any maturity claim:
 

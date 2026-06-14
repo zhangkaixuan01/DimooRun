@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <rect width="1280" height="720" fill="#f4f0ea"/>
-  <rect x="48" y="48" width="1184" height="624" rx="28" fill="#fffefa" stroke="#3f4d37" stroke-width="4"/>
-  <text x="88" y="130" fill="#3f4d37" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700">Agent Detail Placeholder</text>
-  <text x="88" y="182" fill="#6a7664" font-family="Segoe UI, Arial, sans-serif" font-size="24">Version, capability, and deployment evidence view</text>
-  <rect x="88" y="232" width="260" height="330" rx="20" fill="#dce8d3"/>
-  <rect x="378" y="232" width="782" height="120" rx="20" fill="#efe3d3"/>
-  <rect x="378" y="382" width="782" height="180" rx="20" fill="#e8eef3"/>
-</svg>
