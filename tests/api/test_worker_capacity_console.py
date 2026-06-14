@@ -39,6 +39,7 @@ CONSOLE_RUNTIME_PATHS = [
 
 def setup_function() -> None:
     os.environ["DIMOORUN_RUNTIME_MODE"] = "dev"
+    os.environ["DIMOORUN_NATIVE_RUNTIME_STORE"] = "memory"
     os.environ["DATABASE_URL"] = (
         f"sqlite:///{tempfile.gettempdir()}/dimoorun-console-capacity-{uuid4().hex}.db"
     )

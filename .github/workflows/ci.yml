@@ -299,7 +299,7 @@ jobs:
       - name: Write browser evidence index
         if: always()
         run: |
-          @'
+          cat <<'EOF' > playwright-evidence-index.txt
           workflow: ci.yml
           browser-install: npx playwright install --with-deps chromium
           primary-report: console-playwright-report
@@ -320,7 +320,7 @@ jobs:
             - console-playwright-0m-report
             - console-playwright-0n-report
             - console-playwright-0o-report
-          '@ | Set-Content -Path apps/console/playwright-evidence-index.txt
+          EOF
 
       - name: Upload browser evidence index
         if: always()
