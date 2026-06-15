@@ -2,9 +2,9 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Governance</p>
-        <h1 class="page-title">{{ title }}</h1>
-        <p class="page-subtitle">{{ description }}</p>
+        <p class="page-kicker">{{ t("governanceArea") }}</p>
+        <h1 class="page-title">{{ localizedTitle }}</h1>
+        <p class="page-subtitle">{{ localizedDescription }}</p>
       </div>
     </header>
 
@@ -14,16 +14,16 @@
       <SkeletonBlock variant="table" :lines="8" />
     </section>
 
-    <section v-if="mode !== 'offline' && !loading && !error" class="grid cols-2 sections">
+    <section v-if="mode !== 'offline' && !loading && !error" class="workbench-grid sections">
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Inventory</h2>
-            <p class="panel-copy">Versioned control-plane assets in the current scope.</p>
+            <h2 class="panel-title">{{ t("inventory") }}</h2>
+            <p class="panel-copy">{{ t("assetInventoryCopy") }}</p>
           </div>
         </div>
         <div class="panel-body">
-          <DataTable :columns="columns" :rows="items" row-key="id" :label="title">
+          <DataTable :columns="columns" :rows="items" row-key="id" :label="localizedTitle">
             <template #cell-name="{ row }">
               <div>
                 <strong>{{ String(row.name || "-") }}</strong>
@@ -40,71 +40,73 @@
               <span class="mono muted">{{ scopeLabel(row) }}</span>
             </template>
             <template #cell-actions="{ row }">
-              <RouterLink class="button" :to="detailTo(Number(row.id))">Open</RouterLink>
+              <RouterLink class="button" :to="detailTo(Number(row.id))">{{ t("open") }}</RouterLink>
             </template>
           </DataTable>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2 class="panel-title">Create asset</h2>
-            <p class="panel-copy">Register a new governed version in the current scope.</p>
+      <aside class="workbench-side">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">{{ t("createAsset") }}</h2>
+              <p class="panel-copy">{{ t("createAssetCopy") }}</p>
+            </div>
           </div>
-        </div>
-        <div class="panel-body summary-grid">
-          <label class="field">
-            <span>Name</span>
-            <input v-model="createForm.name" class="input" placeholder="support-prompt" />
-          </label>
-          <label class="field">
-            <span>Version</span>
-            <input v-model="createForm.version" class="input" placeholder="1.0.0" />
-          </label>
-          <label class="field" v-if="props.kind === 'catalog' || props.kind === 'template'">
-            <span>Type</span>
-            <input v-model="createForm.type" class="input" :placeholder="props.kind === 'catalog' ? 'tool' : 'template'" />
-          </label>
-          <label class="field" v-if="props.kind === 'catalog'">
-            <span>Provider</span>
-            <input v-model="createForm.provider" class="input" placeholder="local" />
-          </label>
-          <label class="field" v-if="props.kind !== 'catalog'">
-            <span>Content ref</span>
-            <input v-model="createForm.contentRef" class="input" placeholder="inline:content" />
-          </label>
-          <label class="field" v-if="props.kind === 'config'">
-            <span>Environment</span>
-            <input v-model="createForm.environment" class="input" placeholder="production" />
-          </label>
-          <label class="field">
-            <span>Audit reason</span>
-            <input v-model="createForm.auditReason" class="input" placeholder="register governed asset" />
-          </label>
-          <div class="create-actions">
-            <button class="button primary" type="button" :disabled="creating" @click="createAsset">
-              Create asset
-            </button>
+          <div class="panel-body summary-grid">
+            <label class="field">
+              <span>{{ t("name") }}</span>
+              <input v-model="createForm.name" class="input" placeholder="support-prompt" />
+            </label>
+            <label class="field">
+              <span>{{ t("version") }}</span>
+              <input v-model="createForm.version" class="input" placeholder="1.0.0" />
+            </label>
+            <label class="field" v-if="props.kind === 'catalog' || props.kind === 'template'">
+              <span>{{ t("type") }}</span>
+              <input v-model="createForm.type" class="input" :placeholder="props.kind === 'catalog' ? 'tool' : 'template'" />
+            </label>
+            <label class="field" v-if="props.kind === 'catalog'">
+              <span>{{ t("providerType") }}</span>
+              <input v-model="createForm.provider" class="input" placeholder="local" />
+            </label>
+            <label class="field" v-if="props.kind !== 'catalog'">
+              <span>{{ t("contentRef") }}</span>
+              <input v-model="createForm.contentRef" class="input" placeholder="inline:content" />
+            </label>
+            <label class="field" v-if="props.kind === 'config'">
+              <span>{{ t("environment") }}</span>
+              <input v-model="createForm.environment" class="input" placeholder="production" />
+            </label>
+            <label class="field">
+              <span>{{ t("auditReason") }}</span>
+              <input v-model="createForm.auditReason" class="input" :placeholder="t('createAssetCopy')" />
+            </label>
+            <div class="create-actions">
+              <button class="button primary" type="button" :disabled="creating" @click="createAsset">
+                {{ t("createAsset") }}
+              </button>
+            </div>
+            <p v-if="actionMessage" class="action-message">{{ actionMessage }}</p>
           </div>
-          <p v-if="actionMessage" class="action-message">{{ actionMessage }}</p>
-        </div>
-      </section>
+        </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2 class="panel-title">Status summary</h2>
-            <p class="panel-copy">Quick signal for draft, approved, published, and deprecated items.</p>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">{{ t("statusSummary") }}</h2>
+              <p class="panel-copy">{{ t("statusSummaryCopy") }}</p>
+            </div>
           </div>
-        </div>
-        <div class="panel-body summary-grid">
-          <article v-for="item in summaryCards" :key="item.label" class="summary-card">
-            <p class="section-kicker">{{ item.label }}</p>
-            <strong class="summary-value">{{ item.count }}</strong>
-          </article>
-        </div>
-      </section>
+          <div class="panel-body summary-grid">
+            <article v-for="item in summaryCards" :key="item.label" class="summary-card">
+              <p class="section-kicker">{{ item.label }}</p>
+              <strong class="summary-value">{{ item.count }}</strong>
+            </article>
+          </div>
+        </section>
+      </aside>
     </section>
   </section>
 </template>
@@ -118,6 +120,7 @@ import ApiState from "../../components/ApiState.vue";
 import DataTable from "../../components/DataTable.vue";
 import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { useI18n } from "../../i18n/useI18n";
 
 const props = defineProps<{
   kind: AssetCatalogKind;
@@ -126,6 +129,7 @@ const props = defineProps<{
   detailRouteName: string;
 }>();
 
+const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const creating = ref(false);
@@ -143,12 +147,26 @@ const createForm = reactive({
 });
 
 const columns = [
-  { key: "name", label: "Asset" },
-  { key: "status", label: "Lifecycle" },
-  { key: "shape", label: "Shape" },
-  { key: "scope", label: "Scope" },
-  { key: "actions", label: "Actions" },
+  { key: "name", label: t("asset") },
+  { key: "status", label: t("lifecycle") },
+  { key: "shape", label: t("shape") },
+  { key: "scope", label: t("scope") },
+  { key: "actions", label: t("actions") },
 ];
+
+const localizedTitle = computed(() => ({
+  catalog: t("catalogItems"),
+  prompt: t("promptAssets"),
+  config: t("configAssets"),
+  template: t("templateAssets"),
+})[props.kind]);
+
+const localizedDescription = computed(() => ({
+  catalog: t("catalogItemsCopy"),
+  prompt: t("promptAssetsCopy"),
+  config: t("configAssetsCopy"),
+  template: t("templateAssetsCopy"),
+})[props.kind]);
 
 const summaryCards = computed(() => {
   const counts = new Map<string, number>();
@@ -248,7 +266,7 @@ async function createAsset() {
       template: "/v1/assets/templates",
     }[props.kind];
     const created = await consoleClient.createAdminItem(path, createPayload());
-    actionMessage.value = `Created asset #${created.id}.`;
+    actionMessage.value = `${t("createdAsset")} #${created.id}.`;
     items.value = [created, ...items.value];
     createForm.name = "";
   } catch (caught) {
@@ -296,13 +314,13 @@ onMounted(() => {
 .summary-card {
   padding: 14px;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-raised);
 }
 
 .summary-value {
   display: block;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   margin-top: 6px;
 }
 </style>

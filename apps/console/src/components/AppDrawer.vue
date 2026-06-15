@@ -141,12 +141,13 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--color-border);
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .drawer-header h2 {
   margin: 0;
-  font-size: 19px;
+  font-size: 16px;
+  font-weight: 760;
   line-height: 1.2;
 }
 

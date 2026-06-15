@@ -7,7 +7,7 @@
         <p class="page-subtitle">Track spend, token usage, and regressions by runtime scope.</p>
       </div>
       <button class="button" type="button" :disabled="loading" @click="load">
-        {{ loading ? t("loading") : "Refresh" }}
+        {{ loading ? t("loading") : t("refresh") }}
       </button>
     </header>
 
@@ -41,7 +41,7 @@
         </div>
         <div class="toolbar-actions">
           <button class="button" type="button" :disabled="loading || !canSaveView" @click="saveCurrentView">
-            Save current view
+            {{ t("saveCurrentView") }}
           </button>
           <button
             class="button"
@@ -49,7 +49,7 @@
             :disabled="loading || selectedSavedViewId === null || !canSaveView"
             @click="updateSelectedView"
           >
-            Update selected
+            {{ t("updateSelected") }}
           </button>
         </div>
       </div>
@@ -84,7 +84,7 @@
               <p class="muted">{{ view.groupBy }} · {{ view.windowDays }}d</p>
               <div class="saved-view-actions">
                 <button class="button" type="button" :disabled="loading" @click="applySavedView(view.id)">
-                  Apply
+                  {{ t("applySavedView") }}
                 </button>
                 <button class="button danger" type="button" :disabled="loading" @click="deleteSavedView(view.id)">
                   {{ t("delete") }}

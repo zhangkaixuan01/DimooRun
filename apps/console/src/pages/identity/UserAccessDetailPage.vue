@@ -3,11 +3,11 @@
     <header class="page-header">
       <div>
         <p class="page-kicker">{{ t("identity") }}</p>
-        <h1 class="page-title">User Access Detail</h1>
-        <p class="page-subtitle">Assigned roles, inherited permissions, active sessions, issued keys, and recent audit facts for one operator.</p>
+        <h1 class="page-title">{{ t("userAccessDetail") }}</h1>
+        <p class="page-subtitle">{{ t("userAccessDetailCopy") }}</p>
       </div>
       <div class="header-actions">
-        <RouterLink class="button" to="/identity/operators">Back to operators</RouterLink>
+        <RouterLink class="button" to="/identity/operators">{{ t("backToOperators") }}</RouterLink>
         <button
           v-if="isSelf"
           class="button danger"
@@ -15,7 +15,7 @@
           :disabled="busy"
           @click="revokeCurrentBrowserSession"
         >
-          Revoke current browser session
+          {{ t("revokeCurrentBrowserSession") }}
         </button>
       </div>
     </header>
@@ -25,25 +25,25 @@
     <div v-if="mode !== 'offline' && !loading && !error && detail" class="detail-layout">
       <section class="panel hero-panel">
         <div>
-          <p class="section-kicker">Operator</p>
+          <p class="section-kicker">{{ t("operator") }}</p>
           <h2 class="panel-title">{{ detail.item.name }}</h2>
           <p class="muted">{{ detail.item.email }}</p>
         </div>
         <div class="summary-grid">
           <div>
-            <span>Status</span>
+            <span>{{ t("status") }}</span>
             <strong>{{ detail.item.status }}</strong>
           </div>
           <div>
-            <span>Roles</span>
+            <span>{{ t("roles") }}</span>
             <strong>{{ detail.item.roles.join(", ") || "-" }}</strong>
           </div>
           <div>
-            <span>Permissions</span>
+            <span>{{ t("permissions") }}</span>
             <strong>{{ detail.item.permissions.length }}</strong>
           </div>
           <div>
-            <span>Active sessions</span>
+            <span>{{ t("activeSessions") }}</span>
             <strong>{{ detail.item.disable_impact.active_session_count }}</strong>
           </div>
         </div>
@@ -82,8 +82,8 @@
         <section class="panel">
           <header class="panel-header">
             <div>
-              <p class="section-kicker">Sessions</p>
-              <h3 class="panel-title">Active sessions</h3>
+              <p class="section-kicker">{{ t("activeSessions") }}</p>
+              <h3 class="panel-title">{{ t("activeSessions") }}</h3>
             </div>
           </header>
           <div class="table-wrap embedded">
@@ -91,11 +91,11 @@
               <thead>
                 <tr>
                   <th>Session</th>
-                  <th>Status</th>
-                  <th>Last used</th>
-                  <th>Expires</th>
+                  <th>{{ t("status") }}</th>
+                  <th>{{ t("lastUsed") }}</th>
+                  <th>{{ t("expires") }}</th>
                   <th>Client</th>
-                  <th>Actions</th>
+                  <th>{{ t("actions") }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,12 +107,12 @@
                   <td>{{ session.ip_address || "-" }} / {{ session.user_agent || "-" }}</td>
                   <td>
                     <button class="button danger" type="button" :disabled="busy" @click="revokeSession(session.id)">
-                      Revoke session
+                      {{ t("revokeSession") }}
                     </button>
                   </td>
                 </tr>
                 <tr v-if="detail.item.active_sessions.length === 0">
-                  <td colspan="6" class="muted">No active sessions.</td>
+                  <td colspan="6" class="muted">{{ t("noActiveSessions") }}</td>
                 </tr>
               </tbody>
             </table>

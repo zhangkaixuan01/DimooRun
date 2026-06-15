@@ -2,8 +2,8 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Platform</p>
-        <h1 class="page-title">Platform Settings</h1>
+        <p class="page-kicker">{{ t("platform") }}</p>
+        <h1 class="page-title">{{ t("platformSettings") }}</h1>
       </div>
     </header>
 
@@ -13,34 +13,34 @@
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Runtime</p>
-            <h2>Current mode</h2>
+            <p class="page-kicker">{{ t("runtime") }}</p>
+            <h2>{{ t("currentMode") }}</h2>
           </div>
           <StatusBadge :status="snapshot.production_safety.status === 'safe' ? 'ready' : 'failed'" :label="snapshot.runtime_mode" />
         </header>
         <div class="panel-body key-grid">
-          <div><span>Database</span><strong>{{ snapshot.database_mode }}</strong></div>
-          <div><span>Queue</span><strong>{{ snapshot.queue_backend }}</strong></div>
-          <div><span>Object store</span><strong>{{ value(snapshot.object_store.backend) }}</strong></div>
-          <div><span>Gateway</span><strong>{{ value(snapshot.model_gateway_provider.default_gateway) }}</strong></div>
+          <div><span>{{ t("database") }}</span><strong>{{ snapshot.database_mode }}</strong></div>
+          <div><span>{{ t("queue") }}</span><strong>{{ snapshot.queue_backend }}</strong></div>
+          <div><span>{{ t("objectStore") }}</span><strong>{{ value(snapshot.object_store.backend) }}</strong></div>
+          <div><span>{{ t("gateway") }}</span><strong>{{ value(snapshot.model_gateway_provider.default_gateway) }}</strong></div>
         </div>
         <p v-if="snapshot.runtime_write_protected" class="warning-copy">
-          Production mode keeps organization and project defaults read-only.
+          {{ t("productionReadOnlyCopy") }}
         </p>
       </section>
 
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Safety</p>
-            <h2>Production safety</h2>
+            <p class="page-kicker">{{ t("safety") }}</p>
+            <h2>{{ t("productionSafety") }}</h2>
           </div>
         </header>
         <div class="panel-body">
           <StatusBadge :status="snapshot.production_safety.status === 'safe' ? 'ready' : 'failed'" :label="snapshot.production_safety.status" />
           <ul class="warning-list">
             <li v-for="warning in snapshot.production_safety.warnings" :key="warning">{{ warning }}</li>
-            <li v-if="snapshot.production_safety.warnings.length === 0">No active production safety warnings.</li>
+            <li v-if="snapshot.production_safety.warnings.length === 0">{{ t("noProductionSafetyWarnings") }}</li>
           </ul>
         </div>
       </section>
@@ -48,13 +48,13 @@
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Defaults</p>
-            <h2>Environment defaults</h2>
+            <p class="page-kicker">{{ t("defaults") }}</p>
+            <h2>{{ t("environmentDefaults") }}</h2>
           </div>
         </header>
         <form class="panel-body form-grid" @submit.prevent="saveEnvironmentDefaults">
           <label>
-            <span>Deployment strategy</span>
+            <span>{{ t("deploymentStrategy") }}</span>
             <select v-model="environmentStrategy" class="select">
               <option value="rolling">rolling</option>
               <option value="blue_green">blue_green</option>
@@ -62,33 +62,33 @@
             </select>
           </label>
           <label>
-            <span>Route visibility</span>
+            <span>{{ t("routeVisibility") }}</span>
             <select v-model="routeVisibility" class="select">
               <option value="internal">internal</option>
               <option value="public">public</option>
             </select>
           </label>
           <label>
-            <span>Audit reason</span>
+            <span>{{ t("auditReason") }}</span>
             <input v-model="auditReason" class="input" />
           </label>
           <p v-if="saveMessage" class="success-copy">{{ saveMessage }}</p>
-          <button class="button primary" type="submit" :disabled="saving">Save environment defaults</button>
+          <button class="button primary" type="submit" :disabled="saving">{{ t("saveEnvironmentDefaults") }}</button>
         </form>
       </section>
 
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Scopes</p>
-            <h2>Configuration boundaries</h2>
+            <p class="page-kicker">{{ t("settingsScopes") }}</p>
+            <h2>{{ t("configurationBoundaries") }}</h2>
           </div>
         </header>
         <div class="panel-body scope-grid">
           <article v-for="setting in snapshot.scope_defaults" :key="setting.scope_kind" class="scope-card">
             <div class="scope-card-header">
               <strong>{{ scopeTitle(setting.scope_kind) }}</strong>
-              <span class="scope-mode">{{ setting.scope_kind === 'environment' ? 'editable' : readonlyLabel }}</span>
+              <span class="scope-mode">{{ setting.scope_kind === 'environment' ? t("editable") : t("readOnly") }}</span>
             </div>
             <dl class="scope-values">
               <div v-for="(entryValue, entryKey) in setting.config" :key="String(entryKey)">
@@ -115,7 +115,9 @@ import {
 } from "../../api/client";
 import ApiState from "../../components/ApiState.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { useI18n } from "../../i18n/useI18n";
 
+const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const saving = ref(false);
@@ -125,7 +127,6 @@ const environmentStrategy = ref("rolling");
 const routeVisibility = ref("internal");
 const auditReason = ref("Tune environment defaults for controlled rollout.");
 const saveMessage = ref("");
-const readonlyLabel = "read-only";
 
 function value(input: unknown) {
   return typeof input === "string" || typeof input === "number" ? String(input) : "n/a";
@@ -134,11 +135,11 @@ function value(input: unknown) {
 function scopeTitle(scopeKind: string) {
   switch (scopeKind) {
     case "organization":
-      return "Organization defaults";
+      return t("organizationDefaults");
     case "project":
-      return "Project defaults";
+      return t("projectDefaults");
     case "environment":
-      return "Environment defaults";
+      return t("environmentDefaults");
     default:
       return scopeKind;
   }
@@ -176,7 +177,7 @@ async function saveEnvironmentDefaults() {
       },
       auditReason.value,
     );
-    saveMessage.value = "Environment defaults updated.";
+    saveMessage.value = t("environmentDefaultsUpdated");
     await load();
   } catch (caught) {
     error.value = toConsoleApiError(caught);

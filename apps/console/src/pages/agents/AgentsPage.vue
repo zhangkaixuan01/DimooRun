@@ -1180,7 +1180,7 @@ onMounted(loadAgents);
 label {
   display: grid;
   gap: 6px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 label span {
@@ -1220,8 +1220,8 @@ label span {
 
 .field-help-button:hover,
 .field-help-button:focus-visible {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
   outline: none;
 }
 
@@ -1243,6 +1243,7 @@ label span {
   color: var(--color-text);
   padding: 10px 12px;
   font: inherit;
+  font-weight: 400;
 }
 
 .code-textarea {

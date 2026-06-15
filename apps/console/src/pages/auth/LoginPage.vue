@@ -66,11 +66,7 @@ async function submit() {
   display: grid;
   min-height: 100vh;
   grid-template-rows: auto 1fr;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--color-page-grid) 38%, transparent) 1px, transparent 1px),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-page-grid) 34%, transparent) 1px, transparent 1px),
-    var(--color-page);
-  background-size: 28px 28px;
+  background: var(--color-page);
 }
 
 .login-topbar {
@@ -95,10 +91,9 @@ async function submit() {
   height: 38px;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-info));
+  background: var(--color-accent);
   color: oklch(98% 0.006 255);
   font-weight: 800;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 .brand-lockup strong {
@@ -136,19 +131,17 @@ async function submit() {
 .login-panel {
   align-self: center;
   justify-self: center;
-  width: min(420px, calc(100% - 40px));
+  width: min(408px, calc(100% - 32px));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-quiet) 82%, transparent), transparent 56%),
-    var(--color-surface);
+  background: var(--color-surface);
   box-shadow: var(--shadow-popover);
 }
 
 .login-form {
   display: grid;
   gap: 15px;
-  padding: 28px;
+  padding: 24px;
 }
 
 .form-heading {
@@ -157,7 +150,8 @@ async function submit() {
 
 .form-heading h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
+  font-weight: 760;
   line-height: 1.16;
 }
 
@@ -200,7 +194,7 @@ async function submit() {
 
   .login-panel {
     align-self: start;
-    width: min(420px, calc(100% - 28px));
+    width: min(408px, calc(100% - 28px));
     margin-top: 34px;
   }
 

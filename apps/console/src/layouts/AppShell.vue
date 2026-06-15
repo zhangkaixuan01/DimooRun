@@ -1,15 +1,26 @@
 <template>
   <div class="shell">
     <aside class="sidebar" :aria-label="t('primaryNav')">
-      <RouterLink class="brand" to="/dashboard">
-        <span class="brand-mark">D</span>
-        <span>
-          <strong>DimooRun</strong>
-          <small>{{ t("runtimeControlPlane") }}</small>
-        </span>
-      </RouterLink>
+      <div class="sidebar-head">
+        <RouterLink class="brand" to="/dashboard">
+          <span class="brand-mark">D</span>
+          <span>
+            <strong>DimooRun</strong>
+            <small>{{ t("runtimeControlPlane") }}</small>
+          </span>
+        </RouterLink>
+        <button
+          class="button mobile-nav-toggle"
+          type="button"
+          :aria-expanded="mobileNavOpen"
+          :aria-label="t('primaryNav')"
+          @click="mobileNavOpen = !mobileNavOpen"
+        >
+          {{ mobileNavOpen ? t("close") : t("menu") }}
+        </button>
+      </div>
 
-      <nav class="nav">
+      <nav class="nav" :class="{ open: mobileNavOpen }">
         <section v-for="group in navGroups" :key="group.label">
           <p>{{ group.label }}</p>
           <RouterLink v-for="item in group.items" :key="item.to" class="nav-item" :to="item.to">
@@ -53,7 +64,19 @@
         </div>
 
         <div class="actions">
-          <input class="input search" :placeholder="t('globalSearch')" />
+          <form class="search-form" role="search" @submit.prevent="submitGlobalSearch">
+            <input
+              v-model="searchQuery"
+              class="input search"
+              list="global-search-routes"
+              :aria-label="t('globalSearchLabel')"
+              :placeholder="t('globalSearch')"
+            />
+            <datalist id="global-search-routes">
+              <option v-for="item in searchableRoutes" :key="item.to" :value="item.label" />
+            </datalist>
+            <span v-if="searchError" class="search-error" role="status">{{ searchError }}</span>
+          </form>
           <button class="button" type="button" @click="preferences.toggleLiveRefresh()">
             {{ preferences.liveRefresh ? t("pauseRefresh") : t("resumeRefresh") }}
           </button>
@@ -90,7 +113,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 import { apiMode } from "../api/client";
 import { useI18n } from "../i18n/useI18n";
@@ -103,8 +126,12 @@ const auth = useAuthStore();
 const scope = useScopeStore();
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const contentRef = ref<HTMLElement | null>(null);
 const scopeVersion = ref(0);
+const mobileNavOpen = ref(false);
+const searchQuery = ref("");
+const searchError = ref("");
 const mode = apiMode();
 const modeLabel = computed(() => (mode === "live" ? t("live") : t("offline")));
 const showScopeSelector = computed(() => {
@@ -114,6 +141,7 @@ const showScopeSelector = computed(() => {
   return true;
 });
 let ctx: gsap.Context | undefined;
+let refreshTimer: number | undefined;
 
 preferences.hydrateDocument();
 if (auth.operator) scope.initialize(auth.operator.allowed_scopes);
@@ -127,14 +155,14 @@ const navGroups = computed(() => [
     label: t("runtime"),
     items: [
       { label: t("agents"), to: "/agents", icon: "A" },
-      { label: "Packages", to: "/packages/register", icon: "K" },
+      { label: t("packages"), to: "/packages/register", icon: "K" },
       { label: t("deployments"), to: "/deployments", icon: "D" },
       { label: t("publishedSurfaces"), to: "/published-surfaces", icon: "P" },
-      { label: "Workers", to: "/runtime/workers", icon: "W" },
-      { label: "Agent Instances", to: "/runtime/agent-instances", icon: "I" },
-      { label: "Capacity", to: "/runtime/capacity", icon: "C" },
-      { label: "Scheduled Runs", to: "/runtime/schedules", icon: "S" },
-      { label: "Batch Runs", to: "/runtime/batches", icon: "U" },
+      { label: t("workers"), to: "/runtime/workers", icon: "W" },
+      { label: t("agentInstances"), to: "/runtime/agent-instances", icon: "I" },
+      { label: t("capacity"), to: "/runtime/capacity", icon: "C" },
+      { label: t("scheduledRuns"), to: "/runtime/schedules", icon: "S" },
+      { label: t("batchRuns"), to: "/runtime/batches", icon: "U" },
       { label: t("runs"), to: "/runs", icon: "R" },
       { label: t("tasks"), to: "/tasks", icon: "T" },
     ],
@@ -195,9 +223,9 @@ const navGroups = computed(() => [
   {
     label: t("platform"),
     items: [
-      { label: "Platform Settings", to: "/settings/platform", icon: "P" },
-      { label: "Provider Status", to: "/settings/providers", icon: "V" },
-      { label: "Danger Zone", to: "/settings/danger-zone", icon: "!" },
+      { label: t("platformSettings"), to: "/settings/platform", icon: "P" },
+      { label: t("providerStatus"), to: "/settings/providers", icon: "V" },
+      { label: t("dangerZone"), to: "/settings/danger-zone", icon: "!" },
       { label: t("semanticStoreProviders"), to: "/settings/semantic-store", icon: "E" },
       { label: t("observabilityExporters"), to: "/settings/observability-exporters", icon: "O" },
       { label: t("sandboxPolicies"), to: "/settings/sandbox-policies", icon: "X" },
@@ -206,6 +234,8 @@ const navGroups = computed(() => [
     ],
   },
 ]);
+
+const searchableRoutes = computed(() => navGroups.value.flatMap((group) => group.items));
 
 function toggleTheme() {
   preferences.setTheme(preferences.theme === "light" ? "dark" : "light");
@@ -218,6 +248,26 @@ function toggleLocale() {
 async function logout() {
   await auth.logout();
   window.location.href = "/login";
+}
+
+function submitGlobalSearch() {
+  const query = searchQuery.value.trim().toLowerCase();
+  searchError.value = "";
+  if (!query) return;
+
+  const match = searchableRoutes.value.find((item) => {
+    const label = item.label.toLowerCase();
+    const path = item.to.toLowerCase();
+    return label === query || path === query || label.includes(query) || path.includes(query);
+  });
+
+  if (!match) {
+    searchError.value = t("searchNoMatch");
+    return;
+  }
+
+  searchQuery.value = "";
+  router.push(match.to);
 }
 
 function setTenant(event: Event) {
@@ -251,16 +301,43 @@ function animateContent() {
   }, contentRef.value);
 }
 
-onMounted(animateContent);
+function refreshCurrentView() {
+  if (route.meta.public) return;
+  scopeVersion.value += 1;
+}
+
+function startLiveRefresh() {
+  stopLiveRefresh();
+  if (!preferences.liveRefresh) return;
+  refreshTimer = window.setInterval(refreshCurrentView, 30000);
+}
+
+function stopLiveRefresh() {
+  if (refreshTimer === undefined) return;
+  window.clearInterval(refreshTimer);
+  refreshTimer = undefined;
+}
+
+onMounted(() => {
+  animateContent();
+  startLiveRefresh();
+});
 watch(() => route.fullPath, animateContent, { flush: "post" });
-onUnmounted(() => ctx?.revert());
+watch(() => route.fullPath, () => {
+  mobileNavOpen.value = false;
+});
+watch(() => preferences.liveRefresh, startLiveRefresh);
+onUnmounted(() => {
+  stopLiveRefresh();
+  ctx?.revert();
+});
 </script>
 
 <style scoped>
 .shell {
   display: grid;
   min-height: 100vh;
-  grid-template-columns: 284px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -269,10 +346,8 @@ onUnmounted(() => ctx?.revert());
   height: 100vh;
   overflow: auto;
   border-right: 1px solid var(--color-sidebar-border);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-sidebar-raised) 56%, transparent), transparent 28%),
-    var(--color-sidebar);
-  padding: 16px 12px;
+  background: var(--color-sidebar);
+  padding: 14px 10px;
   scrollbar-width: thin;
 }
 
@@ -286,16 +361,26 @@ onUnmounted(() => ctx?.revert());
   text-decoration: none;
 }
 
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mobile-nav-toggle {
+  display: none;
+}
+
 .brand-mark {
   display: grid;
   width: 36px;
   height: 36px;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-info));
+  background: var(--color-accent);
   color: oklch(98% 0.006 255);
   font-weight: 800;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 .brand strong,
@@ -379,7 +464,7 @@ onUnmounted(() => ctx?.revert());
   gap: 12px;
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 90%, transparent);
-  padding: 11px 22px;
+  padding: 10px 18px;
   backdrop-filter: blur(12px);
 }
 
@@ -435,8 +520,28 @@ label {
   padding: 7px 9px;
 }
 
+.search-form {
+  position: relative;
+  min-width: min(300px, 24vw);
+}
+
 .search {
-  width: min(330px, 28vw);
+  width: min(300px, 24vw);
+}
+
+.search-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 8px;
+  white-space: nowrap;
 }
 
 .icon-button {
@@ -444,10 +549,10 @@ label {
 }
 
 .content {
-  padding: 22px 24px 30px;
+  padding: 18px 20px 28px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1080px) {
   .shell {
     grid-template-columns: 1fr;
   }
@@ -474,14 +579,33 @@ label {
     flex-wrap: wrap;
   }
 
+  .search-form,
   .search {
     width: 100%;
   }
 }
 
 @media (max-width: 720px) {
+  .sidebar {
+    padding: 10px;
+  }
+
+  .mobile-nav-toggle {
+    display: inline-flex;
+    min-width: 74px;
+  }
+
   .nav {
+    display: none;
     grid-template-columns: 1fr;
+    margin-top: 12px;
+  }
+
+  .nav.open {
+    display: grid;
+    max-height: min(68vh, 620px);
+    overflow: auto;
+    padding-right: 2px;
   }
 
   .content {

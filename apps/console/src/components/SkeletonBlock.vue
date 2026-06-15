@@ -26,9 +26,9 @@ const props = withDefaults(defineProps<{
   display: grid;
   gap: 10px;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
-  padding: 16px;
+  padding: 14px;
 }
 
 .skeleton-block.table {
@@ -40,23 +40,7 @@ const props = withDefaults(defineProps<{
   display: block;
   height: 12px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklab, var(--color-surface) 75%, transparent) 0%,
-    color-mix(in oklab, var(--color-surface) 94%, white) 50%,
-    color-mix(in oklab, var(--color-surface) 75%, transparent) 100%
-  );
+  background: color-mix(in srgb, var(--color-surface) 72%, var(--color-border));
   background-size: 220% 100%;
-  animation: shimmer 1.2s linear infinite;
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 200% 0;
-  }
-
-  to {
-    background-position: -20% 0;
-  }
 }
 </style>

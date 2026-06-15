@@ -78,12 +78,12 @@ const { t } = useI18n();
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-popover);
 }
 
 .dialog-header {
   border-bottom: 1px solid var(--color-border);
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .dialog-kicker {
@@ -96,7 +96,8 @@ const { t } = useI18n();
 
 h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 16px;
+  font-weight: 760;
 }
 
 .impact-grid {
@@ -104,7 +105,7 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .impact-grid div {
@@ -124,7 +125,7 @@ dd {
 }
 
 .audit {
-  margin: 0 18px 18px;
+  margin: 0 16px 16px;
   color: var(--color-text-muted);
 }
 
@@ -133,6 +134,6 @@ dd {
   justify-content: flex-end;
   gap: 10px;
   border-top: 1px solid var(--color-border);
-  padding: 14px 18px;
+  padding: 14px 16px;
 }
 </style>

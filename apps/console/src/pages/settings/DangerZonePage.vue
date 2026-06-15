@@ -2,8 +2,8 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Platform</p>
-        <h1 class="page-title">Danger Zone</h1>
+        <p class="page-kicker">{{ t("platform") }}</p>
+        <h1 class="page-title">{{ t("dangerZone") }}</h1>
       </div>
     </header>
 
@@ -13,30 +13,30 @@
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Preflight</p>
-            <h2>Configuration action</h2>
+            <p class="page-kicker">{{ t("preflight") }}</p>
+            <h2>{{ t("configurationAction") }}</h2>
           </div>
         </header>
         <div class="panel-body form-grid">
           <label>
-            <span>Action</span>
+            <span>{{ t("action") }}</span>
             <select v-model="selectedAction" class="select">
               <option value="rotate_object_store_credentials">rotate_object_store_credentials</option>
               <option value="freeze_environment_writes">freeze_environment_writes</option>
             </select>
           </label>
-          <button class="button" type="button" @click="loadPreview">Run preflight</button>
+          <button class="button" type="button" @click="loadPreview">{{ t("runPreflight") }}</button>
           <div v-if="preview" class="preview-box">
-            <StatusBadge :status="preview.available ? 'ready' : 'failed'" :label="preview.available ? 'ready' : 'blocked'" />
+            <StatusBadge :status="preview.available ? 'ready' : 'failed'" :label="preview.available ? t('statusReady') : t('statusBlocked')" />
             <div class="preview-meta">
               <strong>{{ preview.action }}</strong>
               <span>{{ preview.scope_kind }}</span>
               <span>{{ preview.risk_level }}</span>
             </div>
             <p>{{ preview.rollback_notes }}</p>
-            <p class="confirmation-copy">Confirmation phrase: <strong>{{ preview.confirmation_phrase }}</strong></p>
+            <p class="confirmation-copy">{{ t("confirmationPhrase") }}: <strong>{{ preview.confirmation_phrase }}</strong></p>
             <div class="impact-box">
-              <strong>Affected resources</strong>
+              <strong>{{ t("affectedResources") }}</strong>
               <ul class="compact-list">
                 <li v-for="resource in preview.affected_resources" :key="resource.label">
                   {{ resource.label }}: {{ resource.count }}
@@ -45,7 +45,7 @@
             </div>
             <ul class="compact-list">
               <li v-for="reason in preview.blocked_reasons" :key="reason">{{ reason }}</li>
-              <li v-if="preview.blocked_reasons.length === 0">No blocking preflight findings.</li>
+              <li v-if="preview.blocked_reasons.length === 0">{{ t("noBlockingPreflightFindings") }}</li>
             </ul>
           </div>
         </div>
@@ -54,31 +54,31 @@
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Apply</p>
-            <h2>Audited dangerous change</h2>
+            <p class="page-kicker">{{ t("apply") }}</p>
+            <h2>{{ t("auditedDangerousChange") }}</h2>
           </div>
         </header>
         <form class="panel-body form-grid" @submit.prevent="applyAction">
           <label>
-            <span>Confirmation</span>
+            <span>{{ t("confirmation") }}</span>
             <input v-model="confirmation" class="input" :placeholder="preview?.confirmation_phrase || ''" />
           </label>
           <label>
-            <span>Rollback notes</span>
+            <span>{{ t("rollbackNotes") }}</span>
             <textarea v-model="rollbackNotes" class="textarea" rows="3"></textarea>
           </label>
           <label>
-            <span>Audit reason</span>
+            <span>{{ t("auditReason") }}</span>
             <input v-model="auditReason" class="input" />
           </label>
           <div v-if="result" class="result-box">
             <p class="success-copy">{{ result.status }}</p>
-            <p>Request ID: <strong>{{ result.request_id || "n/a" }}</strong></p>
-            <p>Rollback notes: <strong>{{ result.rollback_notes }}</strong></p>
-            <p v-if="result.scope_setting">Environment freeze_writes: <strong>{{ String(result.scope_setting.config.freeze_writes) }}</strong></p>
+            <p>{{ t("requestId") }}: <strong>{{ result.request_id || "n/a" }}</strong></p>
+            <p>{{ t("rollbackNotes") }}: <strong>{{ result.rollback_notes }}</strong></p>
+            <p v-if="result.scope_setting">{{ t("environmentFreezeWrites") }}: <strong>{{ String(result.scope_setting.config.freeze_writes) }}</strong></p>
           </div>
           <button class="button danger" type="submit" :disabled="busy || !preview || !preview.available">
-            Apply dangerous change
+            {{ t("applyDangerousChange") }}
           </button>
         </form>
       </section>
@@ -99,7 +99,9 @@ import {
 } from "../../api/client";
 import ApiState from "../../components/ApiState.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { useI18n } from "../../i18n/useI18n";
 
+const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const busy = ref(false);

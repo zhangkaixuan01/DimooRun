@@ -2,10 +2,10 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Agent Package</p>
-        <h1 class="page-title">Package Registration</h1>
+        <p class="page-kicker">{{ t("agentPackage") }}</p>
+        <h1 class="page-title">{{ t("packageRegistration") }}</h1>
         <p class="page-subtitle">
-          Validate package metadata before creating a ready AgentVersion.
+          {{ t("packageRegistrationCopy") }}
         </p>
       </div>
     </header>
@@ -15,16 +15,16 @@
     <div class="grid cols-2">
       <form class="panel package-form" @submit.prevent="validatePackage">
         <div class="panel-header">
-          <h2 class="panel-title">Validation request</h2>
+          <h2 class="panel-title">{{ t("validationRequest") }}</h2>
         </div>
         <div class="panel-body form-stack">
           <label>
-            <span>Package URI</span>
+            <span>{{ t("packageUriLabel") }}</span>
             <input v-model="form.packageUri" class="input" />
           </label>
           <div class="form-grid">
             <label>
-              <span>Framework</span>
+              <span>{{ t("frameworkLabel") }}</span>
               <select v-model="form.framework" class="select">
                 <option value="langgraph">langgraph</option>
                 <option value="langchain-agent">langchain-agent</option>
@@ -32,7 +32,7 @@
               </select>
             </label>
             <label>
-              <span>Adapter</span>
+              <span>{{ t("adapterLabel") }}</span>
               <select v-model="form.adapter" class="select">
                 <option value="langgraph">langgraph</option>
                 <option value="langchain-agent">langchain-agent</option>
@@ -41,65 +41,65 @@
             </label>
           </div>
           <label>
-            <span>Entrypoint</span>
+            <span>{{ t("entrypointLabel") }}</span>
             <input v-model="form.entrypoint" class="input" />
           </label>
           <label>
-            <span>Required secret refs</span>
+            <span>{{ t("requiredSecretRefs") }}</span>
             <input v-model="form.requiredSecretRefs" class="input" placeholder="vault://openai, vault://search" />
           </label>
           <JsonSchemaEditor
             v-model="form.manifestJson"
-            label="Manifest"
+            :label="t('manifest')"
             :error="manifestError"
             :rows="12"
           />
-          <p class="muted">Ready versions require a validation token.</p>
+          <p class="muted">{{ t("readyVersionsRequireValidationToken") }}</p>
           <button class="button primary" type="submit" :disabled="validationMutation.busy.value">
-            {{ validationMutation.busy.value ? "Validating" : "Validate package" }}
+            {{ validationMutation.busy.value ? t("validating") : t("validatePackage") }}
           </button>
         </div>
       </form>
 
       <section class="panel">
         <div class="panel-header">
-          <h2 class="panel-title">Validation result</h2>
+          <h2 class="panel-title">{{ t("packageValidationResult") }}</h2>
           <StatusBadge v-if="result" :status="result.ready ? 'ready' : 'degraded'" :label="result.status" />
         </div>
         <div class="panel-body result-stack">
-          <p v-if="!result" class="muted">No validation has run yet.</p>
+          <p v-if="!result" class="muted">{{ t("noValidationRunYet") }}</p>
           <template v-else>
             <dl>
               <div>
-                <dt>Status</dt>
+                <dt>{{ t("status") }}</dt>
                 <dd>{{ result.status }}</dd>
               </div>
               <div>
-                <dt>Validation token</dt>
-                <dd class="mono">{{ result.validationToken || "none" }}</dd>
+                <dt>{{ t("validationToken") }}</dt>
+                <dd class="mono">{{ result.validationToken || t("none") }}</dd>
               </div>
               <div>
-                <dt>Next action</dt>
+                <dt>{{ t("nextAction") }}</dt>
                 <dd>{{ result.nextAction }}</dd>
               </div>
             </dl>
             <div v-if="result.errors.length > 0" class="result-list">
-              <h3>Validation errors</h3>
+              <h3>{{ t("validationErrors") }}</h3>
               <p v-for="item in result.errors" :key="item.code">
                 <strong>{{ item.code }}</strong>
                 <span>{{ item.message }}</span>
               </p>
             </div>
             <div v-if="result.warnings.length > 0" class="result-list warning-list">
-              <h3>Dependency warnings</h3>
+              <h3>{{ t("dependencyWarnings") }}</h3>
               <p v-for="item in result.warnings" :key="item">{{ item }}</p>
             </div>
             <div v-if="result.missingSecretRefs.length > 0" class="result-list">
-              <h3>Missing secret refs</h3>
+              <h3>{{ t("missingSecretRefs") }}</h3>
               <p v-for="item in result.missingSecretRefs" :key="item">{{ item }}</p>
             </div>
             <div class="result-list">
-              <h3>Capabilities</h3>
+              <h3>{{ t("capabilities") }}</h3>
               <pre>{{ formatJson(result.capabilities) }}</pre>
             </div>
             <button
@@ -108,7 +108,7 @@
               type="button"
               @click="continueToReadyVersion"
             >
-              Create ready version
+              {{ t("createReadyVersion") }}
             </button>
           </template>
         </div>
@@ -128,10 +128,12 @@ import ApiState from "../../components/ApiState.vue";
 import JsonSchemaEditor from "../../components/JsonSchemaEditor.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { isJsonParseFailure, parseJsonObject, type JsonParseFailure } from "../../forms/jsonForm";
+import { useI18n } from "../../i18n/useI18n";
 import { clearReadyVersionDraft, writeReadyVersionDraft } from "../../workflows/packageValidationDraft";
 
 const mode = apiMode();
 const router = useRouter();
+const { t } = useI18n();
 const error = ref<ConsoleApiError | null>(null);
 const manifestError = ref<JsonParseFailure | null>(null);
 const result = ref<PackageValidationResult | null>(null);

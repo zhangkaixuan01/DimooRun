@@ -20,15 +20,13 @@ defineProps<{
 <style scoped>
 .metric-card {
   display: flex;
-  min-height: 106px;
+  min-height: 92px;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-quiet) 72%, transparent), transparent 64%),
-    var(--color-surface);
+  background: var(--color-surface);
   padding: 15px 16px;
   box-shadow: var(--shadow-panel);
 }
@@ -42,8 +40,8 @@ defineProps<{
 
 .metric-value {
   display: block;
-  font-size: 26px;
-  font-weight: 780;
+  font-size: 24px;
+  font-weight: 760;
   line-height: 1.1;
   letter-spacing: 0;
 }

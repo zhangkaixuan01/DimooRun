@@ -108,7 +108,7 @@ function selectRow(row: TableRow) {
 
 .data-table-row.selectable:hover,
 .data-table-row.selectable:focus-visible {
-  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  background: color-mix(in srgb, var(--color-accent-soft) 54%, transparent);
   outline: none;
 }
 
@@ -124,7 +124,7 @@ function selectRow(row: TableRow) {
 
 .data-table-row.selected td:first-child,
 .data-table-row[data-selected="true"] td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-primary) !important;
+  box-shadow: inset 3px 0 0 var(--color-accent) !important;
 }
 
 .align-center {
@@ -164,7 +164,7 @@ function selectRow(row: TableRow) {
 
   .data-table tr {
     border: 1px solid var(--color-border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     background: var(--color-surface);
     overflow: hidden;
   }

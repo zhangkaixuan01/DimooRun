@@ -38,18 +38,14 @@ const { t } = useI18n();
   gap: 7px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-quiet) 72%, transparent), transparent 64%),
-    var(--color-surface);
+  background: var(--color-surface);
   box-shadow: var(--shadow-panel);
-  padding: 18px 20px;
+  padding: 14px 16px;
 }
 
 .state-panel.error {
   border-color: var(--color-danger);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-danger-soft) 44%, transparent), transparent),
-    var(--color-surface);
+  background: color-mix(in srgb, var(--color-danger-soft) 50%, var(--color-surface));
 }
 
 .state-panel span,
@@ -58,6 +54,6 @@ const { t } = useI18n();
 }
 
 .state-panel strong {
-  font-size: 15px;
+  font-size: 14px;
 }
 </style>

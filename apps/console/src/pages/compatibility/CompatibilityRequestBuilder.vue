@@ -2,32 +2,32 @@
   <section class="panel builder-panel">
     <header class="panel-header">
       <div>
-        <p class="section-kicker">Runtime explorer</p>
-        <h2 class="panel-title">LangGraph compatibility request builder</h2>
+        <p class="section-kicker">{{ t("runtimeExplorer") }}</p>
+        <h2 class="panel-title">{{ t("compatibilityRequestBuilder") }}</h2>
       </div>
     </header>
 
     <div class="builder-grid">
       <form class="workflow-panel" @submit.prevent="$emit('createAssistant')">
-        <h3>Create assistant</h3>
+        <h3>{{ t("createAssistant") }}</h3>
         <label>
-          <span>Name</span>
+          <span>{{ t("name") }}</span>
           <input :value="assistantName" class="input" @input="$emit('update:assistantName', eventValue($event))" />
         </label>
-        <button class="button primary" type="submit" :disabled="busy">Create assistant</button>
+        <button class="button primary" type="submit" :disabled="busy">{{ t("createAssistant") }}</button>
       </form>
 
       <form class="workflow-panel" @submit.prevent="$emit('createThread')">
-        <h3>Create thread</h3>
+        <h3>{{ t("createThread") }}</h3>
         <label>
-          <span>Metadata label</span>
+          <span>{{ t("metadataLabel") }}</span>
           <input :value="threadLabel" class="input" @input="$emit('update:threadLabel', eventValue($event))" />
         </label>
-        <button class="button primary" type="submit" :disabled="busy">Create thread</button>
+        <button class="button primary" type="submit" :disabled="busy">{{ t("createThread") }}</button>
       </form>
 
       <form class="workflow-panel" @submit.prevent="$emit('createRun')">
-        <h3>Create run</h3>
+        <h3>{{ t("createRun") }}</h3>
         <label>
           <span>Assistant ID</span>
           <input :value="assistantId" class="input" @input="$emit('update:assistantId', eventValue($event))" />
@@ -37,24 +37,24 @@
           <input :value="threadId" class="input" @input="$emit('update:threadId', eventValue($event))" />
         </label>
         <label>
-          <span>Input message</span>
+          <span>{{ t("inputMessage") }}</span>
           <input :value="inputMessage" class="input" @input="$emit('update:inputMessage', eventValue($event))" />
         </label>
         <div class="action-row">
-          <button class="button primary" type="submit" :disabled="busy || !assistantId || !threadId">Create run</button>
-          <button class="button" type="button" :disabled="busy || !assistantId || !threadId" @click="$emit('probeStream')">Stream probe</button>
+          <button class="button primary" type="submit" :disabled="busy || !assistantId || !threadId">{{ t("createRun") }}</button>
+          <button class="button" type="button" :disabled="busy || !assistantId || !threadId" @click="$emit('probeStream')">{{ t("streamProbe") }}</button>
         </div>
       </form>
 
       <section class="workflow-panel">
-        <h3>Run controls</h3>
+        <h3>{{ t("runControls") }}</h3>
         <label>
           <span>Run ID</span>
           <input :value="runId" class="input" @input="$emit('update:runId', eventValue($event))" />
         </label>
         <div class="action-row">
-          <button class="button" type="button" :disabled="busy || !threadId || !runId" @click="$emit('joinRun')">Join run</button>
-          <button class="button danger" type="button" :disabled="busy || !threadId || !runId" @click="$emit('cancelRun')">Cancel run</button>
+          <button class="button" type="button" :disabled="busy || !threadId || !runId" @click="$emit('joinRun')">{{ t("joinRun") }}</button>
+          <button class="button danger" type="button" :disabled="busy || !threadId || !runId" @click="$emit('cancelRun')">{{ t("cancelRun") }}</button>
         </div>
       </section>
     </div>
@@ -62,6 +62,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from "../../i18n/useI18n";
+
 defineProps<{
   assistantName: string;
   threadLabel: string;
@@ -71,6 +73,8 @@ defineProps<{
   inputMessage: string;
   busy: boolean;
 }>();
+
+const { t } = useI18n();
 
 defineEmits<{
   (event: "update:assistantName", value: string): void;
@@ -116,7 +120,7 @@ function eventValue(event: Event): string {
 .section-kicker {
   color: var(--color-text-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   margin: 0 0 4px;
   text-transform: uppercase;
 }
@@ -134,7 +138,7 @@ label {
 label span {
   color: var(--color-text-muted);
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .action-row {

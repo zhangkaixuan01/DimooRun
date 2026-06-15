@@ -11,67 +11,83 @@
       <TimeRangePicker />
     </header>
 
-    <div class="grid cols-4">
+    <div class="overview-strip">
       <MetricCard :label="t('todayRuns')" :value="formatNumber(summary.runCountToday)" :delta="modeLabel" tone="neutral" />
       <MetricCard :label="t('successRate')" :value="formatPercent(summary.successRate)" :delta="modeLabel" tone="neutral" />
       <MetricCard :label="t('p95Latency')" :value="formatLatency(summary.p95LatencyMs)" :delta="t('noTrendData')" tone="neutral" />
       <MetricCard :label="t('monthlyCost')" :value="formatCurrency(summary.monthlyCostUsd)" :delta="t('noCostData')" tone="neutral" />
     </div>
 
-    <div class="grid cols-2">
-      <section class="panel">
-        <div class="panel-header">
-          <h2 class="panel-title">{{ t("runVolumeSuccessRate") }}</h2>
-          <StatusBadge :status="mode === 'live' ? 'running' : mode" :label="modeLabel" />
-        </div>
-        <div v-if="trendPoints.length > 0" class="panel-body"><RuntimeTrendChart :trend-points="trendPoints" /></div>
-        <div v-else class="panel-body empty-panel">{{ t("noTrendData") }}</div>
-      </section>
+    <div class="workbench-grid">
+      <div class="workbench-main">
+        <section class="panel trend-panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">{{ t("runVolumeSuccessRate") }}</h2>
+              <p class="panel-copy">{{ t("dashboardTrendCopy") }}</p>
+            </div>
+            <StatusBadge :status="mode === 'live' ? 'running' : mode" :label="modeLabel" />
+          </div>
+          <div v-if="trendPoints.length > 0" class="panel-body"><RuntimeTrendChart :trend-points="trendPoints" /></div>
+          <div v-else class="panel-body empty-panel">{{ t("noTrendData") }}</div>
+        </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <h2 class="panel-title">{{ t("workerHealth") }}</h2>
-          <StatusBadge :status="summary.workerReady === summary.workerTotal ? 'ready' : 'degraded'" :label="`${summary.workerReady} / ${summary.workerTotal} ready`" />
-        </div>
-        <div class="panel-body health-grid">
-          <div><strong>{{ summary.queueBacklog }}</strong><span>{{ t("queueBacklog") }}</span></div>
-          <div><strong>{{ summary.runningRuns }}</strong><span>{{ t("runningRuns") }}</span></div>
-          <div><strong>{{ summary.workerTotal }}</strong><span>{{ t("agentInstances") }}</span></div>
-        </div>
-      </section>
-    </div>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">{{ t("recentFailures") }}</h2>
+              <p class="panel-copy">{{ t("recentFailuresCopy") }}</p>
+            </div>
+          </div>
+          <div class="panel-body compact-list">
+            <p v-for="run in failedRuns" :key="run.runId">
+              <ResourceLink :to="`/runs/${run.runId}`">{{ run.runId }}</ResourceLink>
+              <span>{{ run.errorSummary }}</span>
+            </p>
+            <p v-if="failedRuns.length === 0" class="muted">{{ t("emptyState") }}</p>
+          </div>
+        </section>
+      </div>
 
-    <div class="grid cols-3">
-      <section class="panel">
-        <div class="panel-header"><h2 class="panel-title">{{ t("recentFailures") }}</h2></div>
-        <div class="panel-body compact-list">
-          <p v-for="run in failedRuns" :key="run.runId">
-            <ResourceLink :to="`/runs/${run.runId}`">{{ run.runId }}</ResourceLink>
-            <span>{{ run.errorSummary }}</span>
-          </p>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-header"><h2 class="panel-title">{{ t("activeAlerts") }}</h2></div>
-        <div class="panel-body compact-list">
-          <p v-for="failure in failedRuns" :key="failure.runId">
-            <StatusBadge :status="failure.status" :label="failure.status" />
-            <span>{{ failure.errorSummary }}</span>
-          </p>
-          <p v-if="failedRuns.length === 0" class="muted">{{ t("emptyState") }}</p>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-header"><h2 class="panel-title">{{ t("pendingApprovals") }}</h2></div>
-        <div class="panel-body compact-list">
-          <p v-for="action in pendingActions" :key="`${action.action}-${action.resourceId}`">
-            <ResourceLink to="/deployments">{{ action.resourceId }}</ResourceLink>
-            <span>{{ action.action }}</span>
-            <small v-if="action.disabledReason">{{ action.disabledReason }}</small>
-          </p>
-          <p v-if="pendingActions.length === 0" class="muted">{{ t("emptyState") }}</p>
-        </div>
-      </section>
+      <aside class="workbench-side">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">{{ t("workerHealth") }}</h2>
+              <p class="panel-copy">{{ t("workerHealthCopy") }}</p>
+            </div>
+            <StatusBadge :status="summary.workerReady === summary.workerTotal ? 'ready' : 'degraded'" :label="`${summary.workerReady} / ${summary.workerTotal} ready`" />
+          </div>
+          <div class="panel-body health-grid">
+            <div><strong>{{ summary.queueBacklog }}</strong><span>{{ t("queueBacklog") }}</span></div>
+            <div><strong>{{ summary.runningRuns }}</strong><span>{{ t("runningRuns") }}</span></div>
+            <div><strong>{{ summary.workerTotal }}</strong><span>{{ t("agentInstances") }}</span></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header"><h2 class="panel-title">{{ t("activeAlerts") }}</h2></div>
+          <div class="panel-body compact-list">
+            <p v-for="failure in failedRuns" :key="failure.runId">
+              <StatusBadge :status="failure.status" :label="failure.status" />
+              <span>{{ failure.errorSummary }}</span>
+            </p>
+            <p v-if="failedRuns.length === 0" class="muted">{{ t("emptyState") }}</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header"><h2 class="panel-title">{{ t("pendingApprovals") }}</h2></div>
+          <div class="panel-body compact-list">
+            <p v-for="action in pendingActions" :key="`${action.action}-${action.resourceId}`">
+              <ResourceLink to="/deployments">{{ action.resourceId }}</ResourceLink>
+              <span>{{ action.action }}</span>
+              <small v-if="action.disabledReason">{{ action.disabledReason }}</small>
+            </p>
+            <p v-if="pendingActions.length === 0" class="muted">{{ t("emptyState") }}</p>
+          </div>
+        </section>
+      </aside>
     </div>
     <ApiState :mode="mode" :loading="loading" :error="error" />
   </section>
@@ -157,20 +173,23 @@ onMounted(loadDashboard);
 <style scoped>
 .health-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 
 .health-grid div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-surface-raised) 78%, var(--color-surface-muted));
-  padding: 14px;
+  padding: 10px 12px;
 }
 
 .health-grid strong {
-  display: block;
-  font-size: 24px;
+  font-size: 22px;
+  font-weight: 650;
 }
 
 .health-grid span,
@@ -184,12 +203,17 @@ onMounted(loadDashboard);
 }
 
 .compact-list p {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(100px, 0.7fr) minmax(0, 1.3fr);
   min-width: 0;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   margin: 0;
+}
+
+.compact-list small {
+  grid-column: 2;
+  color: var(--color-text-muted);
 }
 
 .empty-panel {

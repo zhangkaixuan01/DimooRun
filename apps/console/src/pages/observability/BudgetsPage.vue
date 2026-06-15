@@ -71,7 +71,7 @@
               Save policy
             </button>
             <button class="button primary" type="submit" :disabled="loading || !hasPreviewInput">
-              {{ loading ? "Previewing" : "Preview budget policy" }}
+              {{ loading ? t("previewing") : t("previewBudgetPolicy") }}
             </button>
           </div>
         </div>

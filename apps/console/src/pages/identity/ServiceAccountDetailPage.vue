@@ -3,11 +3,11 @@
     <header class="page-header">
       <div>
         <p class="page-kicker">{{ t("identity") }}</p>
-        <h1 class="page-title">Service Account Detail</h1>
-        <p class="page-subtitle">Machine identity dependencies, key lifecycle, scope drift, and forced expiry controls.</p>
+        <h1 class="page-title">{{ t("serviceAccountDetail") }}</h1>
+        <p class="page-subtitle">{{ t("serviceAccountDetailCopy") }}</p>
       </div>
       <div class="header-actions">
-        <RouterLink class="button" to="/identity/machine-identities">Back to machine identities</RouterLink>
+        <RouterLink class="button" to="/identity/machine-identities">{{ t("backToMachineIdentities") }}</RouterLink>
         <button class="button" type="button" :disabled="busy || !detail" @click="toggleAccountStatus">
           {{ detail?.item.status === "disabled" ? t("enable") : t("disable") }}
         </button>
@@ -19,25 +19,25 @@
     <div v-if="mode !== 'offline' && !loading && !error && detail" class="detail-layout">
       <section class="panel hero-panel">
         <div>
-          <p class="section-kicker">Service account</p>
+          <p class="section-kicker">{{ t("serviceAccount") }}</p>
           <h2 class="panel-title">{{ detail.item.name }}</h2>
           <p class="muted">tenant={{ detail.item.tenant_id }} / project={{ detail.item.project_id ?? "*" }}</p>
         </div>
         <div class="summary-grid">
           <div>
-            <span>Status</span>
+            <span>{{ t("status") }}</span>
             <strong>{{ detail.item.status }}</strong>
           </div>
           <div>
-            <span>Last used</span>
+            <span>{{ t("lastUsed") }}</span>
             <strong>{{ formatDateTime(detail.item.last_used_at) }}</strong>
           </div>
           <div>
-            <span>Permissions</span>
+            <span>{{ t("permissions") }}</span>
             <strong>{{ detail.item.permissions.length }}</strong>
           </div>
           <div>
-            <span>Dependent deployments</span>
+            <span>{{ t("dependentDeployments") }}</span>
             <strong>{{ detail.item.dependent_deployments.length }}</strong>
           </div>
         </div>
@@ -46,7 +46,7 @@
       <InlineApiError :error="mutationError" />
 
       <div v-if="plainKey" class="secret-once">
-        <strong>One-time secret</strong>
+        <strong>{{ t("serviceOneTimeSecret") }}</strong>
         <code>{{ plainKey }}</code>
       </div>
 
@@ -54,27 +54,27 @@
         <section class="panel">
           <header class="panel-header">
             <div>
-              <p class="section-kicker">Key creation</p>
-              <h3 class="panel-title">Create API key</h3>
+              <p class="section-kicker">{{ t("keyCreation") }}</p>
+              <h3 class="panel-title">{{ t("createServiceApiKey") }}</h3>
             </div>
           </header>
           <form class="panel-form" @submit.prevent="createKey">
             <label class="field">
-              <span>Name</span>
+              <span>{{ t("name") }}</span>
               <input v-model.trim="createForm.name" class="input" placeholder="runtime-key" required />
             </label>
             <label class="field">
-              <span>Scopes</span>
+              <span>{{ t("scopes") }}</span>
               <select v-model="createForm.scopes" class="select" multiple>
                 <option v-for="permission in detail.item.permissions" :key="permission" :value="permission">{{ permission }}</option>
               </select>
             </label>
             <label class="field">
-              <span>Expires</span>
+              <span>{{ t("expires") }}</span>
               <input v-model="createForm.expires_at" class="input" type="datetime-local" />
             </label>
             <div class="form-actions">
-              <button class="button primary" type="submit" :disabled="busy || createForm.name.length === 0">Create key</button>
+              <button class="button primary" type="submit" :disabled="busy || createForm.name.length === 0">{{ t("createKey") }}</button>
             </div>
           </form>
         </section>
@@ -82,8 +82,8 @@
         <section class="panel">
           <header class="panel-header">
             <div>
-              <p class="section-kicker">Dependencies</p>
-              <h3 class="panel-title">Published surfaces and deployments</h3>
+              <p class="section-kicker">{{ t("dependencies") }}</p>
+              <h3 class="panel-title">{{ t("publishedSurfacesAndDeployments") }}</h3>
             </div>
           </header>
           <div class="dependency-list">
@@ -98,7 +98,7 @@
                 {{ surfaceNames(deployment.published_surfaces) }}
               </span>
             </article>
-            <p v-if="detail.item.dependent_deployments.length === 0" class="muted">No dependent deployments or published surfaces.</p>
+            <p v-if="detail.item.dependent_deployments.length === 0" class="muted">{{ t("noDependentDeployments") }}</p>
           </div>
         </section>
       </div>
@@ -106,20 +106,20 @@
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="section-kicker">API key lifecycle</p>
-            <h3 class="panel-title">Rotation, expiry, and scope drift</h3>
+            <p class="section-kicker">{{ t("apiKeyLifecycle") }}</p>
+            <h3 class="panel-title">{{ t("apiKeyLifecycleCopy") }}</h3>
           </div>
         </header>
         <div class="table-wrap embedded">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Prefix</th>
-                <th>Status</th>
-                <th>Last used</th>
-                <th>Scope diff</th>
-                <th>Actions</th>
+                <th>{{ t("name") }}</th>
+                <th>{{ t("prefix") }}</th>
+                <th>{{ t("status") }}</th>
+                <th>{{ t("lastUsed") }}</th>
+                <th>{{ t("scopeDiff") }}</th>
+                <th>{{ t("actions") }}</th>
               </tr>
             </thead>
             <tbody>
@@ -132,12 +132,12 @@
                 <td>{{ key.status || "-" }}</td>
                 <td>{{ formatDateTime(key.last_used_at) }}</td>
                 <td class="scope-cell">
-                  <div>added: {{ listValue(key.scope_diff?.added) }}</div>
-                  <div>removed: {{ listValue(key.scope_diff?.removed) }}</div>
+                  <div>{{ t("added") }}: {{ listValue(key.scope_diff?.added) }}</div>
+                  <div>{{ t("removed") }}: {{ listValue(key.scope_diff?.removed) }}</div>
                 </td>
                 <td>
                   <div class="row-actions">
-                    <button class="button" type="button" :disabled="busy" @click="openRotate(key)">Rotate</button>
+                    <button class="button" type="button" :disabled="busy" @click="openRotate(key)">{{ t("rotateKey") }}</button>
                     <button
                       v-if="key.status === 'disabled'"
                       class="button"
@@ -156,12 +156,12 @@
                     >
                       {{ t("disable") }}
                     </button>
-                    <button class="button danger" type="button" :disabled="busy" @click="openExpire(key)">Force expire</button>
+                    <button class="button danger" type="button" :disabled="busy" @click="openExpire(key)">{{ t("forceExpire") }}</button>
                   </div>
                 </td>
               </tr>
               <tr v-if="detail.item.api_keys.length === 0">
-                <td colspan="6" class="muted">No API keys.</td>
+                <td colspan="6" class="muted">{{ t("noApiKeys") }}</td>
               </tr>
             </tbody>
           </table>
@@ -174,35 +174,35 @@
         <aside class="drawer" role="dialog" aria-modal="true">
           <header class="drawer-header">
             <div>
-              <p class="section-kicker">{{ drawerMode === "rotate" ? "Rotate key" : "Force expire key" }}</p>
+              <p class="section-kicker">{{ drawerMode === "rotate" ? t("rotateKey") : t("forceExpire") }}</p>
               <h2>{{ selectedKey?.name || selectedKey?.id }}</h2>
             </div>
           </header>
           <form class="drawer-form" @submit.prevent="submitDrawerAction">
             <template v-if="drawerMode === 'rotate'">
               <label class="field">
-                <span>New key name</span>
+                <span>{{ t("newKeyName") }}</span>
                 <input v-model.trim="rotateForm.name" class="input" required />
               </label>
               <label class="field">
-                <span>Scopes</span>
+                <span>{{ t("scopes") }}</span>
                 <select v-model="rotateForm.scopes" class="select" multiple>
                   <option v-for="permission in detail?.item.permissions || []" :key="String(permission)" :value="permission">{{ permission }}</option>
                 </select>
               </label>
               <label class="field">
-                <span>Expires</span>
+                <span>{{ t("expires") }}</span>
                 <input v-model="rotateForm.expires_at" class="input" type="datetime-local" />
               </label>
             </template>
             <label class="field">
-              <span>Audit reason</span>
-              <input v-model.trim="auditReason" class="input" placeholder="Explain the credential change" required />
+              <span>{{ t("auditReason") }}</span>
+              <input v-model.trim="auditReason" class="input" :placeholder="t('explainCredentialChange')" required />
             </label>
             <div class="form-actions">
               <button class="button" type="button" @click="closeActionDrawer">{{ t("cancel") }}</button>
               <button class="button primary" type="submit" :disabled="busy || auditReason.length === 0">
-                {{ drawerMode === "rotate" ? "Rotate key" : "Force expire" }}
+                {{ drawerMode === "rotate" ? t("rotateKey") : t("forceExpire") }}
               </button>
             </div>
           </form>
@@ -395,7 +395,7 @@ function listValue(value: unknown): string {
 }
 
 function surfaceNames(value: unknown): string {
-  if (!Array.isArray(value) || value.length === 0) return "No published surfaces";
+  if (!Array.isArray(value) || value.length === 0) return t("noPublishedSurfaces");
   return value.map((surface) => String((surface as Record<string, unknown>).name || (surface as Record<string, unknown>).id || "-")).join(", ");
 }
 

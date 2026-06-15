@@ -92,7 +92,7 @@ defineEmits<{
 .confirm-header,
 .confirm-body,
 .confirm-actions {
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .confirm-header {
@@ -101,7 +101,8 @@ defineEmits<{
 
 .confirm-header h2 {
   margin: 0;
-  font-size: 19px;
+  font-size: 16px;
+  font-weight: 760;
 }
 
 .confirm-body {

@@ -14,46 +14,46 @@
       <form class="panel migration-form" @submit.prevent="runMigrationReport">
         <header class="panel-header">
           <div>
-            <p class="section-kicker">Migration report</p>
-            <h2 class="panel-title">Evaluate migration effort</h2>
+            <p class="section-kicker">{{ t("migrationReport") }}</p>
+            <h2 class="panel-title">{{ t("evaluateMigrationEffort") }}</h2>
           </div>
         </header>
         <div class="form-grid">
           <label>
-            <span>Framework</span>
+            <span>{{ t("framework") }}</span>
             <input v-model="migrationForm.framework" class="input" />
           </label>
           <label>
-            <span>Adapter</span>
+            <span>{{ t("adapter") }}</span>
             <input v-model="migrationForm.adapter" class="input" />
           </label>
           <label>
-            <span>Capabilities</span>
+            <span>{{ t("capabilities") }}</span>
             <input v-model="migrationForm.capabilities" class="input" placeholder="assistants,threads,runs" />
           </label>
           <label>
-            <span>Streaming modes</span>
+            <span>{{ t("streamEvents") }}</span>
             <input v-model="migrationForm.streamingModes" class="input" placeholder="events,updates" />
           </label>
           <label>
-            <span>Required secrets</span>
+            <span>{{ t("secrets") }}</span>
             <input v-model="migrationForm.requiredSecrets" class="input" placeholder="secret://openai" />
           </label>
           <label>
-            <span>Custom tools</span>
+            <span>{{ t("tools") }}</span>
             <input v-model="migrationForm.customTools" class="input" placeholder="pagerduty.lookup" />
           </label>
           <label class="checkbox">
             <input v-model="migrationForm.usesCheckpointing" type="checkbox" />
-            <span>Uses checkpointing</span>
+            <span>Checkpoint</span>
           </label>
           <label class="checkbox">
             <input v-model="migrationForm.requiresInterrupts" type="checkbox" />
-            <span>Requires interrupts</span>
+            <span>Interrupt</span>
           </label>
         </div>
         <div class="action-row">
-          <button class="button primary" type="submit" :disabled="busy">Generate migration report</button>
+          <button class="button primary" type="submit" :disabled="busy">{{ t("generateMigrationReport") }}</button>
         </div>
       </form>
 
@@ -62,8 +62,8 @@
       <section v-if="migrationGoldenRecord" class="panel">
         <header class="panel-header">
           <div>
-            <p class="section-kicker">Migration report</p>
-            <h2 class="panel-title">Golden compatibility record</h2>
+            <p class="section-kicker">{{ t("migrationReport") }}</p>
+            <h2 class="panel-title">{{ t("goldenCompatibilityRecord") }}</h2>
           </div>
         </header>
         <p class="mono">{{ JSON.stringify(migrationGoldenRecord, null, 2) }}</p>
@@ -94,23 +94,23 @@
       <section class="panel runtime-tools">
         <header class="panel-header">
           <div>
-            <p class="section-kicker">Explorer drilldown</p>
-            <h2 class="panel-title">Lookup, status, and replay</h2>
+            <p class="section-kicker">{{ t("explorerDrilldown") }}</p>
+            <h2 class="panel-title">{{ t("lookupStatusReplay") }}</h2>
           </div>
         </header>
         <div class="builder-grid">
           <section class="workflow-panel">
-            <h3>Lookup resources</h3>
+            <h3>{{ t("lookupResources") }}</h3>
             <div class="action-row">
-              <button class="button" type="button" :disabled="busy || !assistantId" @click="getAssistant">Get assistant</button>
-              <button class="button" type="button" :disabled="busy || !threadId" @click="getThread">Get thread</button>
-              <button class="button" type="button" :disabled="busy || !threadId || !runId" @click="getRun">Get run</button>
+              <button class="button" type="button" :disabled="busy || !assistantId" @click="getAssistant">{{ t("getAssistant") }}</button>
+              <button class="button" type="button" :disabled="busy || !threadId" @click="getThread">{{ t("getThread") }}</button>
+              <button class="button" type="button" :disabled="busy || !threadId || !runId" @click="getRun">{{ t("getRun") }}</button>
             </div>
           </section>
           <section class="workflow-panel">
-            <h3>Stream status</h3>
+            <h3>{{ t("streamStatus") }}</h3>
             <div class="action-row">
-              <button class="button" type="button" :disabled="busy || !threadId || !runId" @click="getStreamStatus">Load stream status</button>
+              <button class="button" type="button" :disabled="busy || !threadId || !runId" @click="getStreamStatus">{{ t("loadStreamStatus") }}</button>
             </div>
             <p v-if="latestResult?.streamStatus" class="muted">
               latest_event_id: {{ latestResult.streamStatus.latest_event_id || "none" }} /
@@ -118,13 +118,13 @@
             </p>
           </section>
           <form class="workflow-panel" @submit.prevent="replayEvents">
-            <h3>Replay from Last-Event-ID</h3>
+            <h3>{{ t("replayFromLastEventId") }}</h3>
             <label>
               <span>Last-Event-ID</span>
               <input v-model="lastEventId" class="input" placeholder="3102:1" />
             </label>
             <button class="button primary" type="submit" :disabled="busy || !threadId || !runId || !lastEventId">
-              Replay events
+              {{ t("replayEvents") }}
             </button>
           </form>
         </div>
@@ -133,13 +133,13 @@
       <section class="panel explorer-results">
         <header class="panel-header">
           <div>
-            <p class="section-kicker">Explorer results</p>
-            <h2 class="panel-title">Runtime confidence</h2>
+            <p class="section-kicker">{{ t("explorerResults") }}</p>
+            <h2 class="panel-title">{{ t("runtimeConfidence") }}</h2>
           </div>
         </header>
 
         <div v-if="assistants.length > 0" class="result-block">
-          <h3>Assistants</h3>
+          <h3>{{ t("assistants") }}</h3>
           <div class="pill-row">
             <button
               v-for="item in assistants"
@@ -167,12 +167,12 @@
         </div>
 
         <div v-if="latestResult?.goldenRecord" class="result-block">
-          <h3>Golden compatibility record</h3>
+          <h3>{{ t("goldenCompatibilityRecord") }}</h3>
           <p class="mono">{{ JSON.stringify(latestResult.goldenRecord, null, 2) }}</p>
         </div>
 
         <div v-if="latestResult?.unsupportedCapabilityExplanations.length" class="result-block">
-          <h3>Unsupported capability explanation</h3>
+          <h3>{{ t("unsupportedCapabilityExplanation") }}</h3>
           <ul class="stream-list">
             <li
               v-for="item in latestResult.unsupportedCapabilityExplanations"
@@ -184,7 +184,7 @@
         </div>
 
         <div v-if="latestResult?.streamEvents?.length" class="result-block">
-          <h3>Stream events</h3>
+          <h3>{{ t("streamEvents") }}</h3>
           <ul class="stream-list">
             <li v-for="event in latestResult.streamEvents" :key="String(event.event_id)">
               {{ event.type }} ({{ event.event_id }})
@@ -506,7 +506,7 @@ onMounted(async () => {
 .section-kicker {
   color: var(--color-text-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   margin: 0 0 4px;
   text-transform: uppercase;
 }
@@ -534,7 +534,7 @@ label {
 label span {
   color: var(--color-text-muted);
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .action-row,

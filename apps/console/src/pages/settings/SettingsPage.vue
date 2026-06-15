@@ -2,7 +2,7 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Platform</p>
+        <p class="page-kicker">{{ t("platformArea") }}</p>
         <h1 class="page-title">{{ t("settings") }}</h1>
       </div>
     </header>
@@ -11,7 +11,7 @@
         <header class="panel-header">
           <div>
             <p class="page-kicker">{{ t("consolePreferences") }}</p>
-            <h2>Preferences</h2>
+            <h2>{{ t("preferences") }}</h2>
           </div>
         </header>
         <div class="panel-body settings">
@@ -22,14 +22,14 @@
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="page-kicker">Platform workflows</p>
-            <h2>Control surfaces</h2>
+            <p class="page-kicker">{{ t("platformWorkflows") }}</p>
+            <h2>{{ t("controlSurfaces") }}</h2>
           </div>
         </header>
         <div class="panel-body link-list">
-          <RouterLink class="setting-link" to="/settings/platform">Platform Settings</RouterLink>
-          <RouterLink class="setting-link" to="/settings/providers">Provider Status</RouterLink>
-          <RouterLink class="setting-link" to="/settings/danger-zone">Danger Zone</RouterLink>
+          <RouterLink class="setting-link" to="/settings/platform">{{ t("platformSettings") }}</RouterLink>
+          <RouterLink class="setting-link" to="/settings/providers">{{ t("providerStatus") }}</RouterLink>
+          <RouterLink class="setting-link" to="/settings/danger-zone">{{ t("dangerZone") }}</RouterLink>
         </div>
       </section>
     </div>
@@ -62,7 +62,7 @@ label {
   display: grid;
   gap: 6px;
   color: var(--color-text-muted);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .link-list {

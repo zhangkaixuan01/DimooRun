@@ -2,10 +2,10 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Runtime Operations</p>
-        <h1 class="page-title">Batch Runs</h1>
+        <p class="page-kicker">{{ t("runtimeOperations") }}</p>
+        <h1 class="page-title">{{ t("batchRuns") }}</h1>
         <p class="page-subtitle">
-          Expand bulk runtime work from dataset or inline input, inspect partial failures, and cancel queued items safely.
+          {{ t("batchRunsCopy") }}
         </p>
       </div>
     </header>
@@ -16,35 +16,35 @@
       <form class="panel" @submit.prevent="createBatch">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Batch create</h2>
-            <p class="panel-copy">Choose inline inputs or dataset-backed expansion, then inspect queued and failed items immediately.</p>
+            <h2 class="panel-title">{{ t("batchCreate") }}</h2>
+            <p class="panel-copy">{{ t("batchCreateCopy") }}</p>
           </div>
         </div>
         <div class="panel-body form-stack">
           <label>
-            <span>Name</span>
+            <span>{{ t("name") }}</span>
             <input v-model="form.name" class="input" placeholder="backfill-failed-runs" />
           </label>
           <div class="form-grid">
             <label>
-              <span>Deployment ID</span>
+              <span>{{ t("deploymentIdLabel") }}</span>
               <input v-model.number="form.deploymentId" class="input" min="1" step="1" type="number" />
             </label>
             <label>
-              <span>Concurrency</span>
+              <span>{{ t("concurrency") }}</span>
               <input v-model.number="form.concurrency" class="input" min="1" step="1" type="number" />
             </label>
           </div>
           <div class="form-grid">
             <label>
-              <span>Partial failure policy</span>
+              <span>{{ t("partialFailurePolicy") }}</span>
               <select v-model="form.partialFailurePolicy" class="input">
                 <option value="continue">continue</option>
                 <option value="abort">abort</option>
               </select>
             </label>
             <label>
-              <span>Cancel policy</span>
+              <span>{{ t("cancelPolicy") }}</span>
               <select v-model="form.cancelPolicy" class="input">
                 <option value="best_effort">best_effort</option>
                 <option value="queued_only">queued_only</option>
@@ -52,16 +52,16 @@
             </label>
           </div>
           <label>
-            <span>Input items JSON</span>
+            <span>{{ t("inputItemsJson") }}</span>
             <textarea v-model="form.inputItemsJson" class="input code-field" rows="7" spellcheck="false" />
           </label>
           <label>
-            <span>Audit reason</span>
+            <span>{{ t("auditReason") }}</span>
             <input v-model="form.auditReason" class="input" placeholder="backfill failures" />
           </label>
           <div class="action-row">
             <button class="button primary" type="submit" :disabled="loading">
-              Create batch
+              {{ t("createBatch") }}
             </button>
           </div>
           <p v-if="actionMessage" class="action-message">{{ actionMessage }}</p>
@@ -71,8 +71,8 @@
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Batch inventory</h2>
-            <p class="panel-copy">Queued, partially failed, cancelled, and completed batch executions.</p>
+            <h2 class="panel-title">{{ t("batchInventory") }}</h2>
+            <p class="panel-copy">{{ t("batchInventoryCopy") }}</p>
           </div>
         </div>
         <div class="panel-body batch-list">
@@ -100,7 +100,7 @@
     <section v-if="selectedBatch" class="panel detail-panel">
       <div class="panel-header">
         <div>
-          <p class="section-kicker">Batch detail</p>
+          <p class="section-kicker">{{ t("batchDetail") }}</p>
           <h2 class="panel-title">{{ selectedBatch.name || `Batch #${selectedBatch.id}` }}</h2>
           <p class="muted">partial failure: {{ selectedBatch.partialFailurePolicy || "continue" }}</p>
         </div>
@@ -109,70 +109,70 @@
         <aside class="summary">
           <dl>
             <div>
-              <dt>Total items</dt>
+              <dt>{{ t("totalItems") }}</dt>
               <dd>{{ selectedBatch.progressSummary.totalItems }}</dd>
             </div>
             <div>
-              <dt>Queued items</dt>
+              <dt>{{ t("queuedItems") }}</dt>
               <dd>{{ selectedBatch.progressSummary.queuedItems }}</dd>
             </div>
             <div>
-              <dt>Failed items</dt>
+              <dt>{{ t("failedItems") }}</dt>
               <dd>{{ selectedBatch.progressSummary.failedItems }}</dd>
             </div>
             <div>
-              <dt>Dead-letter items</dt>
+              <dt>{{ t("deadLetterItems") }}</dt>
               <dd>{{ selectedBatch.progressSummary.deadLetterItems }}</dd>
             </div>
             <div>
-              <dt>Cancelled items</dt>
+              <dt>{{ t("cancelledItems") }}</dt>
               <dd>{{ selectedBatch.progressSummary.cancelledItems }}</dd>
             </div>
             <div>
-              <dt>Completed items</dt>
+              <dt>{{ t("completedItems") }}</dt>
               <dd>{{ selectedBatch.progressSummary.completedItems }}</dd>
             </div>
           </dl>
           <button class="button danger" type="button" :disabled="loading" @click="dialogOpen = true">
-            Cancel batch
+            {{ t("cancelBatch") }}
           </button>
         </aside>
         <div class="workspace">
           <section class="child-panel">
-            <h3>Progress summary</h3>
+            <h3>{{ t("progressSummary") }}</h3>
             <div class="summary-cards">
               <div class="summary-card">
-                <span>Queued</span>
+                <span>{{ t("queuedItems") }}</span>
                 <strong>{{ selectedBatch.progressSummary.queuedItems }}</strong>
               </div>
               <div class="summary-card">
-                <span>Running</span>
+                <span>{{ t("runningStatus") }}</span>
                 <strong>{{ selectedBatch.progressSummary.runningItems }}</strong>
               </div>
               <div class="summary-card">
-                <span>Retrying</span>
+                <span>{{ t("retry") }}</span>
                 <strong>{{ selectedBatch.progressSummary.retryingItems }}</strong>
               </div>
               <div class="summary-card">
-                <span>Failed</span>
+                <span>{{ t("failedItems") }}</span>
                 <strong>{{ selectedBatch.progressSummary.failedItems }}</strong>
               </div>
               <div class="summary-card">
-                <span>Dead-letter</span>
+                <span>{{ t("deadLetterItems") }}</span>
                 <strong>{{ selectedBatch.progressSummary.deadLetterItems }}</strong>
               </div>
               <div class="summary-card">
-                <span>Cancelled</span>
+                <span>{{ t("cancelledItems") }}</span>
                 <strong>{{ selectedBatch.progressSummary.cancelledItems }}</strong>
               </div>
               <div class="summary-card">
-                <span>Completed</span>
+                <span>{{ t("completedItems") }}</span>
                 <strong>{{ selectedBatch.progressSummary.completedItems }}</strong>
               </div>
             </div>
           </section>
           <section class="child-panel">
-            <h3>Failed item drilldown</h3>
+            <h3>{{ t("failedItemDrilldown") }}</h3>
             <div class="item-list">
               <article
                 v-for="item in selectedBatch.items"
@@ -197,13 +197,13 @@
 
     <DangerConfirmDialog
       :open="dialogOpen"
-      title="Cancel batch"
-      message="Cancel all queued items in the selected batch run."
+      :title="t('cancelBatch')"
+      :message="t('cancelBatchCopy')"
       :items="selectedBatch ? [
-        { label: 'Batch', value: String(selectedBatch.id) },
-        { label: 'Queued items', value: String(selectedBatch.progressSummary.queuedItems) },
+        { label: t('batchRuns'), value: String(selectedBatch.id) },
+        { label: t('queuedItems'), value: String(selectedBatch.progressSummary.queuedItems) },
       ] : []"
-      warning="Queued items will be marked cancelled and existing failures remain as evidence."
+      :warning="t('cancelBatchWarning')"
       :busy="loading"
       :error="error"
       confirm-label="确认"
@@ -222,7 +222,9 @@ import type { BatchRun } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { useI18n } from "../../i18n/useI18n";
 
+const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const error = ref<ConsoleApiError | null>(null);
@@ -298,7 +300,7 @@ async function cancelSelectedBatch() {
     selectedBatch.value = await consoleClient.cancelBatchRun(selectedBatch.value.id, {
       audit_reason: "cancel batch from console",
     });
-    actionMessage.value = "Batch cancelled.";
+    actionMessage.value = t("batchCancelled");
     dialogOpen.value = false;
     await loadBatches(selectedBatch.value.id);
   } catch (caught) {
@@ -352,7 +354,7 @@ onMounted(loadBatches);
 label {
   display: grid;
   gap: 6px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 label span,
@@ -412,7 +414,7 @@ label span,
 .summary dt {
   color: var(--color-text-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .summary dd {

@@ -2,11 +2,11 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Governance</p>
+        <p class="page-kicker">{{ t("governance") }}</p>
         <h1 class="page-title">{{ detail?.item.name || `${kindLabel} #${assetId}` }}</h1>
         <p class="page-subtitle">v{{ detail?.item.version || "-" }} · {{ String(detail?.item.status || "draft") }}</p>
       </div>
-      <RouterLink class="button" :to="listTo">Back</RouterLink>
+      <RouterLink class="button" :to="listTo">{{ t("back") }}</RouterLink>
     </header>
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="false" />
@@ -19,35 +19,35 @@
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Lifecycle</h2>
-            <p class="panel-copy">Validate, approve, publish, deprecate, archive, or roll back this version.</p>
+            <h2 class="panel-title">{{ t("lifecycle") }}</h2>
+            <p class="panel-copy">{{ t("assetLifecycleCopy") }}</p>
           </div>
         </div>
         <div class="panel-body form-stack">
           <div class="status-row">
             <StatusBadge :status="badgeStatus" :label="String(detail.item.status)" />
-            <span class="muted">validated: {{ detail.validation.validated_at || "never" }}</span>
+            <span class="muted">{{ t("validated") }}: {{ detail.validation.validated_at || t("never") }}</span>
           </div>
           <label>
-            <span>Audit reason</span>
-            <input v-model="auditReason" class="input" placeholder="governance change reason" />
+            <span>{{ t("auditReason") }}</span>
+            <input v-model="auditReason" class="input" :placeholder="t('auditReason')" />
           </label>
           <label>
-            <span>Rollback target</span>
+            <span>{{ t("rollbackTarget") }}</span>
             <select v-model="rollbackTarget" class="input">
-              <option value="">previous version</option>
+              <option value="">{{ t("previousVersion") }}</option>
               <option v-for="entry in rollbackOptions" :key="entry.id" :value="entry.version">
                 {{ entry.version }}
               </option>
             </select>
           </label>
           <div class="action-grid">
-            <button class="button" type="button" :disabled="mutating" @click="runValidate">Validate</button>
-            <button class="button" type="button" :disabled="mutating" @click="runAction('approve')">Approve</button>
-            <button class="button primary" type="button" :disabled="mutating" @click="runAction('publish')">Publish</button>
-            <button class="button" type="button" :disabled="mutating" @click="runAction('deprecate')">Deprecate</button>
-            <button class="button danger" type="button" :disabled="mutating" @click="runAction('archive')">Archive</button>
-            <button class="button" type="button" :disabled="mutating" @click="runAction('rollback')">Rollback</button>
+            <button class="button" type="button" :disabled="mutating" @click="runValidate">{{ t("validateAsset") }}</button>
+            <button class="button" type="button" :disabled="mutating" @click="runAction('approve')">{{ t("approve") }}</button>
+            <button class="button primary" type="button" :disabled="mutating" @click="runAction('publish')">{{ t("publish") }}</button>
+            <button class="button" type="button" :disabled="mutating" @click="runAction('deprecate')">{{ t("deprecate") }}</button>
+            <button class="button danger" type="button" :disabled="mutating" @click="runAction('archive')">{{ t("archive") }}</button>
+            <button class="button" type="button" :disabled="mutating" @click="runAction('rollback')">{{ t("rollback") }}</button>
           </div>
           <p v-if="actionMessage" class="action-message">{{ actionMessage }}</p>
         </div>
@@ -56,13 +56,13 @@
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Risk and usage</h2>
-            <p class="panel-copy">See dependency edges, used-by resources, and validation blockers.</p>
+            <h2 class="panel-title">{{ t("riskAndUsage") }}</h2>
+            <p class="panel-copy">{{ t("riskAndUsageCopy") }}</p>
           </div>
         </div>
         <div class="panel-body form-stack">
           <div>
-            <p class="section-kicker">Asset facts</p>
+            <p class="section-kicker">{{ t("assetFacts") }}</p>
             <ul class="plain-list">
               <li v-for="fact in assetFacts" :key="fact.label">
                 {{ fact.label }} · {{ fact.value }}
@@ -70,14 +70,14 @@
             </ul>
           </div>
           <div>
-            <p class="section-kicker">Risk flags</p>
+            <p class="section-kicker">{{ t("riskFlags") }}</p>
             <div class="chip-row">
               <span v-for="flag in detail.risk_flags" :key="flag" class="chip">{{ flag }}</span>
-              <span v-if="detail.risk_flags.length === 0" class="muted">none</span>
+              <span v-if="detail.risk_flags.length === 0" class="muted">{{ t("noRiskFlags") }}</span>
             </div>
           </div>
           <div v-if="runtimeRequirementFacts.length > 0">
-            <p class="section-kicker">Runtime requirements</p>
+            <p class="section-kicker">{{ t("runtimeRequirements") }}</p>
             <ul class="plain-list">
               <li v-for="fact in runtimeRequirementFacts" :key="fact.label">
                 {{ fact.label }} · {{ fact.value }}
@@ -85,30 +85,30 @@
             </ul>
           </div>
           <div>
-            <p class="section-kicker">Dependencies</p>
+            <p class="section-kicker">{{ t("dependencies") }}</p>
             <ul class="plain-list">
               <li v-for="dependency in detail.dependencies" :key="`${dependency.name}:${dependency.version}`">
                 {{ dependency.kind || dependency.asset_kind || "asset" }} · {{ dependency.name }} · {{ dependency.version }}
               </li>
-              <li v-if="detail.dependencies.length === 0" class="muted">No declared dependencies.</li>
+              <li v-if="detail.dependencies.length === 0" class="muted">{{ t("noDeclaredDependencies") }}</li>
             </ul>
           </div>
           <div>
-            <p class="section-kicker">Used by</p>
+            <p class="section-kicker">{{ t("usedBy") }}</p>
             <ul class="plain-list">
               <li v-for="usage in detail.used_by" :key="`${usage.resource_kind}-${usage.resource_id}`">
                 {{ usage.resource_kind }} #{{ usage.resource_id }} · {{ usage.status }} · {{ usage.environment || "shared" }}
               </li>
-              <li v-if="detail.used_by.length === 0" class="muted">No scoped references detected.</li>
+              <li v-if="detail.used_by.length === 0" class="muted">{{ t("noScopedReferences") }}</li>
             </ul>
           </div>
           <div>
-            <p class="section-kicker">Validation issues</p>
+            <p class="section-kicker">{{ t("validationIssues") }}</p>
             <ul class="plain-list">
               <li v-for="issue in detail.validation.issues || []" :key="`${issue.code}-${issue.field}`">
                 {{ issue.code }} · {{ issue.field }} · {{ issue.message }}
               </li>
-              <li v-if="(detail.validation.issues || []).length === 0" class="muted">No validation issues.</li>
+              <li v-if="(detail.validation.issues || []).length === 0" class="muted">{{ t("noValidationIssues") }}</li>
             </ul>
           </div>
         </div>
@@ -118,13 +118,13 @@
     <section v-if="detail" class="panel detail-panel">
       <div class="panel-header">
         <div>
-          <h2 class="panel-title">Version history</h2>
-          <p class="panel-copy">Open the diff page to inspect the current version against its previous sibling.</p>
+          <h2 class="panel-title">{{ t("versionHistory") }}</h2>
+          <p class="panel-copy">{{ t("versionHistoryCopy") }}</p>
         </div>
-        <RouterLink class="button" :to="diffTo">Open diff</RouterLink>
+        <RouterLink class="button" :to="diffTo">{{ t("openDiff") }}</RouterLink>
       </div>
       <div class="panel-body">
-        <DataTable :columns="historyColumns" :rows="detail.version_history" row-key="id" label="Version history">
+        <DataTable :columns="historyColumns" :rows="detail.version_history" row-key="id" :label="t('versionHistory')">
           <template #cell-version="{ row }">
             <span class="mono">{{ row.version }}</span>
           </template>
@@ -132,7 +132,7 @@
             <StatusBadge :status="row.version === detail.item.version ? badgeStatus : 'neutral'" :label="String(row.status)" />
           </template>
           <template #cell-actions="{ row }">
-            <RouterLink class="button" :to="detailRoute(Number(row.id))">Open</RouterLink>
+            <RouterLink class="button" :to="detailRoute(Number(row.id))">{{ t("open") }}</RouterLink>
           </template>
         </DataTable>
       </div>
@@ -150,6 +150,7 @@ import ApiState from "../../components/ApiState.vue";
 import DataTable from "../../components/DataTable.vue";
 import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { useI18n } from "../../i18n/useI18n";
 
 const props = defineProps<{
   kind: AssetCatalogKind;
@@ -160,6 +161,7 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
+const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const mutating = ref(false);
@@ -169,17 +171,17 @@ const auditReason = ref("govern asset lifecycle");
 const rollbackTarget = ref("");
 const actionMessage = ref("");
 
-const historyColumns = [
-  { key: "version", label: "Version" },
-  { key: "status", label: "Status" },
-  { key: "actions", label: "Actions" },
-];
+const historyColumns = computed(() => [
+  { key: "version", label: t("version") },
+  { key: "status", label: t("status") },
+  { key: "actions", label: t("actions") },
+]);
 
 const kindLabel = computed(() => ({
-  catalog: "Catalog item",
-  prompt: "Prompt asset",
-  config: "Config asset",
-  template: "Template asset",
+  catalog: t("catalogItem"),
+  prompt: t("promptAsset"),
+  config: t("configAsset"),
+  template: t("templateAsset"),
 })[props.kind]);
 
 const badgeStatus = computed(() => {
@@ -198,13 +200,13 @@ const assetFacts = computed(() => {
   if (!detail.value) return [];
   const item = detail.value.item;
   const facts = [
-    { label: "Kind", value: props.kind },
-    { label: "Shape", value: stringValue(item.type) },
-    { label: "Provider", value: stringValue(item.provider) },
-    { label: "Risk level", value: stringValue(item.risk_level) },
-    { label: "Visibility", value: stringValue(item.visibility_level) },
-    { label: "Environment", value: stringValue(item.environment) },
-    { label: "Content ref", value: stringValue(item.content_ref) },
+    { label: t("kind"), value: props.kind },
+    { label: t("shape"), value: stringValue(item.type) },
+    { label: t("provider"), value: stringValue(item.provider) },
+    { label: t("riskLevel"), value: stringValue(item.risk_level) },
+    { label: t("visibility"), value: stringValue(item.visibility_level) },
+    { label: t("environment"), value: stringValue(item.environment) },
+    { label: t("contentRefLabel"), value: stringValue(item.content_ref) },
   ];
   return facts.filter((entry) => entry.value !== "-");
 });
@@ -257,7 +259,7 @@ async function runValidate() {
   actionMessage.value = "";
   try {
     const response = await consoleClient.validateGovernedAsset(props.kind, props.assetId, auditReason.value);
-    actionMessage.value = `validation ${response.validation?.status || "completed"}`;
+    actionMessage.value = `${t("validationCompleted")}: ${response.validation?.status || "completed"}`;
     await loadDetail();
   } catch (caught) {
     error.value = toConsoleApiError(caught);
@@ -276,7 +278,7 @@ async function runAction(action: "approve" | "publish" | "deprecate" | "archive"
       payload.target_version = rollbackTarget.value;
     }
     const response = await consoleClient.mutateGovernedAsset(props.kind, props.assetId, action, payload);
-    actionMessage.value = `${action} -> ${String(response.item.status)}`;
+    actionMessage.value = `${t("assetActionCompleted")}: ${action} -> ${String(response.item.status)}`;
     if (response.item.id !== props.assetId) {
       await router.replace({ name: props.detailRouteName, params: { assetId: response.item.id } });
       return;

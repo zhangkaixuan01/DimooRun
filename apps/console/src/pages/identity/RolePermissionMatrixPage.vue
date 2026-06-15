@@ -3,8 +3,8 @@
     <header class="page-header">
       <div>
         <p class="page-kicker">{{ t("identity") }}</p>
-        <h1 class="page-title">Role Permission Matrix</h1>
-        <p class="page-subtitle">Preview effective permission changes, affected operators, and self-lockout risk before applying access changes.</p>
+        <h1 class="page-title">{{ t("rolePermissionMatrix") }}</h1>
+        <p class="page-subtitle">{{ t("rolePermissionMatrixCopy") }}</p>
       </div>
     </header>
 
@@ -13,7 +13,7 @@
     <div v-if="mode !== 'offline' && !loading && !error && roles.length > 0" class="matrix-layout">
       <aside class="role-list panel">
         <div class="list-header">
-          <input v-model.trim="roleQuery" class="input" placeholder="Search roles" aria-label="Search roles" />
+          <input v-model.trim="roleQuery" class="input" :placeholder="t('searchRoles')" :aria-label="t('searchRoles')" />
         </div>
         <button
           v-for="role in filteredRoles"
@@ -24,32 +24,32 @@
           @click="selectRole(role)"
         >
           <strong>{{ role.name }}</strong>
-          <span>{{ permissionCount(role) }} permissions</span>
+          <span>{{ permissionCount(role) }} {{ t("permissionsCount") }}</span>
         </button>
       </aside>
 
       <section class="panel">
         <header class="panel-header">
           <div>
-            <p class="section-kicker">Role matrix</p>
-            <h2 class="panel-title">{{ selectedRole?.name || "Role" }}</h2>
-            <p class="muted">Grouped permissions with preview-backed save guardrails.</p>
+            <p class="section-kicker">{{ t("roleMatrix") }}</p>
+            <h2 class="panel-title">{{ selectedRole?.name || t("role") }}</h2>
+            <p class="muted">{{ t("roleMatrixCopy") }}</p>
           </div>
           <div class="panel-actions">
             <button class="button" type="button" :disabled="!selectedRole || previewLoading" @click="refreshPreview">
-              {{ previewLoading ? t("loading") : "Preview impact" }}
+              {{ previewLoading ? t("loading") : t("previewImpact") }}
             </button>
             <button class="button primary" type="button" :disabled="saveDisabled" @click="applyMatrix">
-              {{ saving ? t("loading") : "Apply matrix" }}
+              {{ saving ? t("loading") : t("applyMatrix") }}
             </button>
           </div>
         </header>
 
         <div class="toolbar">
-          <input v-model.trim="permissionQuery" class="input" placeholder="Search permissions" aria-label="Search permissions" />
+          <input v-model.trim="permissionQuery" class="input" :placeholder="t('searchPermissions')" :aria-label="t('searchPermissions')" />
           <label class="audit-field">
-            <span>Audit reason</span>
-            <input v-model.trim="auditReason" class="input" placeholder="Explain why this role change is needed" aria-label="Audit reason" />
+            <span>{{ t("auditReason") }}</span>
+            <input v-model.trim="auditReason" class="input" :placeholder="t('explainRoleChange')" :aria-label="t('auditReason')" />
           </label>
         </div>
 
@@ -80,41 +80,41 @@
           <aside class="preview-panel">
             <header class="preview-header">
               <div>
-                <p class="section-kicker">Effective permission preview</p>
-                <h3>Change summary</h3>
+                <p class="section-kicker">{{ t("effectivePermissionPreview") }}</p>
+                <h3>{{ t("changeSummary") }}</h3>
               </div>
             </header>
 
             <div v-if="preview" class="preview-body">
               <dl class="diff-grid">
                 <div>
-                  <dt>Added</dt>
+                  <dt>{{ t("added") }}</dt>
                   <dd>{{ preview.change.added.length }}</dd>
                 </div>
                 <div>
-                  <dt>Removed</dt>
+                  <dt>{{ t("removed") }}</dt>
                   <dd>{{ preview.change.removed.length }}</dd>
                 </div>
                 <div>
-                  <dt>Affected operators</dt>
+                  <dt>{{ t("affectedOperators") }}</dt>
                   <dd>{{ preview.affected_operators.length }}</dd>
                 </div>
               </dl>
 
               <section class="delta-section">
-                <h4>Permission diff</h4>
+                <h4>{{ t("permissionDiff") }}</h4>
                 <p class="delta-row">
-                  <strong>added:</strong>
+                  <strong>{{ t("added") }}:</strong>
                   <span>{{ listOrDash(preview.change.added) }}</span>
                 </p>
                 <p class="delta-row">
-                  <strong>removed:</strong>
+                  <strong>{{ t("removed") }}:</strong>
                   <span>{{ listOrDash(preview.change.removed) }}</span>
                 </p>
               </section>
 
               <section v-if="preview.warnings.length > 0" class="delta-section">
-                <h4>Warnings</h4>
+                <h4>{{ t("warnings") }}</h4>
                 <article v-for="(warning, index) in preview.warnings" :key="index" class="warning-card">
                   <strong>{{ warning.code || "warning" }}</strong>
                   <p>{{ warning.message || "-" }}</p>
@@ -122,8 +122,8 @@
               </section>
 
               <section class="delta-section">
-                <h4>Affected operators</h4>
-                <div v-if="preview.affected_operators.length === 0" class="muted">No operators are currently assigned to this role.</div>
+                <h4>{{ t("affectedOperators") }}</h4>
+                <div v-if="preview.affected_operators.length === 0" class="muted">{{ t("noOperatorsAssignedToRole") }}</div>
                 <article
                   v-for="operator in preview.affected_operators"
                   :key="operator.operator_id"
@@ -137,7 +137,7 @@
                 </article>
               </section>
             </div>
-            <p v-else class="muted">Select a role and preview the impact before applying changes.</p>
+            <p v-else class="muted">{{ t("selectRolePreviewCopy") }}</p>
           </aside>
         </div>
       </section>
@@ -206,9 +206,9 @@ const previewHasSelfLockout = computed(() =>
   preview.value?.warnings.some((warning) => String(warning.code || "") === "self_lockout_risk") ?? false,
 );
 const saveDisabledReason = computed(() => {
-  if (!selectedRole.value) return "Select a role first.";
-  if (previewHasSelfLockout.value) return "Current operator cannot apply a role change that removes required identity governance permissions.";
-  if (!auditReason.value.trim()) return "Audit reason is required.";
+  if (!selectedRole.value) return t("selectRoleFirst");
+  if (previewHasSelfLockout.value) return t("roleSelfLockoutWarning");
+  if (!auditReason.value.trim()) return t("auditReasonRequired");
   return "";
 });
 const saveDisabled = computed(() => !selectedRole.value || saving.value || previewLoading.value || Boolean(saveDisabledReason.value));

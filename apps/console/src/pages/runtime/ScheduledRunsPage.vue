@@ -2,10 +2,10 @@
   <section class="page">
     <header class="page-header">
       <div>
-        <p class="page-kicker">Runtime Operations</p>
-        <h1 class="page-title">Scheduled Runs</h1>
+        <p class="page-kicker">{{ t("runtimeOperations") }}</p>
+        <h1 class="page-title">{{ t("scheduledRuns") }}</h1>
         <p class="page-subtitle">
-          Preview next-fire behavior, bind Deployments, and pause, resume, or manually trigger periodic runtime work.
+          {{ t("scheduledRunsCopy") }}
         </p>
       </div>
     </header>
@@ -16,45 +16,45 @@
       <form class="panel" @submit.prevent="createSchedule">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Schedule preview</h2>
-            <p class="panel-copy">Validate timezone, next-fire time, and missed-run policy before creating the schedule.</p>
+            <h2 class="panel-title">{{ t("schedulePreview") }}</h2>
+            <p class="panel-copy">{{ t("schedulePreviewCopy") }}</p>
           </div>
         </div>
         <div class="panel-body form-stack">
           <label>
-            <span>Name</span>
+            <span>{{ t("name") }}</span>
             <input v-model="form.name" class="input" placeholder="nightly-eval" />
           </label>
           <div class="form-grid">
             <label>
-              <span>Schedule type</span>
+              <span>{{ t("scheduleType") }}</span>
               <select v-model="form.scheduleType" class="input">
                 <option value="interval">interval</option>
                 <option value="cron">cron</option>
               </select>
             </label>
             <label>
-              <span>Timezone</span>
+              <span>{{ t("timezone") }}</span>
               <input v-model="form.timezone" class="input" placeholder="UTC" />
             </label>
           </div>
           <div class="form-grid">
             <label v-if="form.scheduleType === 'interval'">
-              <span>Interval minutes</span>
+              <span>{{ t("intervalMinutes") }}</span>
               <input v-model.number="form.intervalMinutes" class="input" min="1" step="1" type="number" />
             </label>
             <label v-else>
-              <span>Cron expression</span>
+              <span>{{ t("cronExpression") }}</span>
               <input v-model="form.cronExpression" class="input" placeholder="*/15 * * * *" />
             </label>
             <label>
-              <span>Deployment ID</span>
+              <span>{{ t("deploymentIdLabel") }}</span>
               <input v-model.number="form.deploymentId" class="input" min="1" step="1" type="number" />
             </label>
           </div>
           <div class="form-grid">
             <label>
-              <span>Backfill policy</span>
+              <span>{{ t("backfillPolicy") }}</span>
               <select v-model="form.backfillPolicy" class="input">
                 <option value="none">none</option>
                 <option value="latest">latest</option>
@@ -62,7 +62,7 @@
               </select>
             </label>
             <label>
-              <span>Missed-run policy</span>
+              <span>{{ t("missedRunPolicy") }}</span>
               <select v-model="form.missedRunPolicy" class="input">
                 <option value="skip">skip</option>
                 <option value="run_once">run_once</option>
@@ -71,23 +71,23 @@
             </label>
           </div>
           <label>
-            <span>Input template JSON</span>
+            <span>{{ t("inputTemplateJson") }}</span>
             <textarea v-model="form.inputTemplateJson" class="input code-field" rows="5" spellcheck="false" />
           </label>
           <label>
-            <span>Audit reason</span>
+            <span>{{ t("auditReason") }}</span>
             <input v-model="form.auditReason" class="input" placeholder="create nightly schedule" />
           </label>
           <div class="action-row">
             <button class="button" type="button" :disabled="loading" @click="previewSchedule">
-              Preview schedule
+              {{ t("previewSchedule") }}
             </button>
             <button class="button primary" type="submit" :disabled="loading">
-              Create schedule
+              {{ t("createSchedule") }}
             </button>
           </div>
           <section v-if="preview" class="preview-card">
-            <strong>Next-run timeline</strong>
+            <strong>{{ t("nextRunTimeline") }}</strong>
             <p class="muted">next fire: {{ preview.nextFireTime }}</p>
             <p class="muted">timezone: {{ preview.timezone }}</p>
             <p class="muted">shape: {{ preview.scheduleType }}</p>
@@ -99,8 +99,8 @@
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title">Schedules</h2>
-            <p class="panel-copy">Active and paused runtime schedules in the current scope.</p>
+            <h2 class="panel-title">{{ t("scheduleInventory") }}</h2>
+            <p class="panel-copy">{{ t("scheduleInventoryCopy") }}</p>
           </div>
         </div>
         <div class="panel-body schedule-list">
@@ -126,7 +126,7 @@
     <section v-if="selectedSchedule" class="panel detail-panel">
       <div class="panel-header">
         <div>
-          <p class="section-kicker">Schedule detail</p>
+          <p class="section-kicker">{{ t("scheduleDetail") }}</p>
           <h2 class="panel-title">{{ selectedSchedule.name || `Schedule #${selectedSchedule.id}` }}</h2>
           <p class="muted">{{ selectedSchedule.timezone }} · {{ selectedSchedule.missedRunPolicy || "skip" }}</p>
         </div>
@@ -135,19 +135,19 @@
         <aside class="summary">
           <dl>
             <div>
-              <dt>Next fire</dt>
+              <dt>{{ t("nextFire") }}</dt>
               <dd>{{ selectedSchedule.nextFireTime || "n/a" }}</dd>
             </div>
             <div>
-              <dt>Pause reason</dt>
+              <dt>{{ t("pauseReason") }}</dt>
               <dd>{{ selectedSchedule.pauseReason || "none" }}</dd>
             </div>
             <div>
-              <dt>Last triggered</dt>
+              <dt>{{ t("lastTriggered") }}</dt>
               <dd>{{ selectedSchedule.lastTriggeredAt || "never" }}</dd>
             </div>
             <div>
-              <dt>Last run</dt>
+              <dt>{{ t("lastRun") }}</dt>
               <dd>
                 <ResourceLink v-if="selectedSchedule.lastRunId" :to="`/runs/${selectedSchedule.lastRunId}`">
                   Run #{{ selectedSchedule.lastRunId }}
@@ -156,14 +156,14 @@
               </dd>
             </div>
             <div>
-              <dt>Trigger count</dt>
+              <dt>{{ t("triggerCount") }}</dt>
               <dd>{{ selectedSchedule.triggerCount }}</dd>
             </div>
           </dl>
         </aside>
         <div class="workspace">
           <section class="child-panel">
-            <h3>Manual controls</h3>
+            <h3>{{ t("manualControls") }}</h3>
             <div class="action-row">
               <button
                 class="button"
@@ -171,7 +171,7 @@
                 :disabled="loading || selectedSchedule.status === 'paused'"
                 @click="pauseSelected"
               >
-                Pause schedule
+                {{ t("pauseSchedule") }}
               </button>
               <button
                 class="button"
@@ -179,10 +179,10 @@
                 :disabled="loading || selectedSchedule.status !== 'paused'"
                 @click="resumeSelected"
               >
-                Resume schedule
+                {{ t("resumeSchedule") }}
               </button>
               <button class="button primary" type="button" :disabled="loading" @click="triggerSelected">
-                Trigger schedule
+                {{ t("triggerSchedule") }}
               </button>
             </div>
             <p class="muted">backfill: {{ selectedSchedule.backfillPolicy || "none" }}</p>
@@ -192,7 +192,7 @@
             <p class="muted">last task status: {{ selectedSchedule.lastTaskStatus || "n/a" }}</p>
           </section>
           <section class="child-panel">
-            <h3>Input template</h3>
+            <h3>{{ t("inputTemplate") }}</h3>
             <pre class="json-block">{{ formatJson(selectedSchedule.inputTemplate) }}</pre>
           </section>
         </div>
@@ -209,7 +209,9 @@ import type { SchedulePreview, ScheduledRun } from "../../api/types";
 import ApiState from "../../components/ApiState.vue";
 import ResourceLink from "../../components/ResourceLink.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
+import { useI18n } from "../../i18n/useI18n";
 
+const { t } = useI18n();
 const mode = apiMode();
 const loading = ref(false);
 const error = ref<ConsoleApiError | null>(null);
@@ -311,7 +313,7 @@ async function pauseSelected() {
       audit_reason: "pause schedule from console",
       pause_reason: "maintenance",
     });
-    actionMessage.value = "Schedule paused.";
+    actionMessage.value = t("schedulePaused");
     await loadSchedules(selectedSchedule.value.id);
   } catch (caught) {
     error.value = toConsoleApiError(caught);
@@ -328,7 +330,7 @@ async function resumeSelected() {
     selectedSchedule.value = await consoleClient.resumeSchedule(selectedSchedule.value.id, {
       audit_reason: "resume schedule from console",
     });
-    actionMessage.value = "Schedule resumed.";
+    actionMessage.value = t("scheduleResumed");
     await loadSchedules(selectedSchedule.value.id);
   } catch (caught) {
     error.value = toConsoleApiError(caught);
@@ -390,7 +392,7 @@ onMounted(loadSchedules);
 label {
   display: grid;
   gap: 6px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 label span,
@@ -442,7 +444,7 @@ label span,
 .summary dt {
   color: var(--color-text-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .summary dd {
