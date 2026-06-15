@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { installConsoleApiMocks, seedConsoleSession } from "../fixtures/api";
+import { installConsoleApiMocks, seedConsoleSession, seedEnglishLocale } from "../fixtures/api";
 
 test("shows capacity recommendation and blocked drain guidance for critical attempts", async ({ page }) => {
   await seedConsoleSession(page);
@@ -68,6 +68,7 @@ test("navigates from a failed agent instance to its worker drilldown", async ({ 
 });
 
 test("phase0l readonly settings", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -102,6 +103,7 @@ test("phase0l provider outage", async ({ page }) => {
 });
 
 test("phase0l preflight blocked", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -117,6 +119,7 @@ test("phase0l preflight blocked", async ({ page }) => {
 });
 
 test("phase0l freeze applied", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 

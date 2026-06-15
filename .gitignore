@@ -43,3 +43,6 @@ data/*.db
 data/*.db-*
 logs
 .tmp-gh-cache/
+
+# Vite build cache
+data/vite-cache/

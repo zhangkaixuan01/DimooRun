@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { installConsoleApiMocks, seedConsoleSession } from "../fixtures/api";
+import { installConsoleApiMocks, seedConsoleSession, seedEnglishLocale } from "../fixtures/api";
 
 test("previews effective role permission impact before save", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -18,6 +19,7 @@ test("previews effective role permission impact before save", async ({ page }) =
 });
 
 test("blocks self-lockout role changes before apply", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -33,6 +35,7 @@ test("blocks self-lockout role changes before apply", async ({ page }) => {
 });
 
 test("revokes an operator session from the detail view", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
@@ -47,15 +50,16 @@ test("revokes an operator session from the detail view", async ({ page }) => {
 });
 
 test("rotates a service account key and shows the one-time secret", async ({ page }) => {
+  await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
 
   await page.goto("/identity/service-accounts/301");
 
   await expect(page.getByRole("heading", { name: "Service Account Detail" })).toBeVisible();
-  await page.getByRole("button", { name: "Rotate" }).first().click();
+  await page.getByRole("button", { name: "Rotate key" }).first().click();
   await page.getByLabel("Audit reason").fill("Routine key rotation");
-  await page.getByRole("button", { name: "Rotate key" }).click();
+  await page.locator(".drawer").getByRole("button", { name: "Rotate key" }).click();
 
   await expect(page.getByText("One-time secret")).toBeVisible();
   await expect(page.getByText("dmr_rotated_secret_702")).toBeVisible();

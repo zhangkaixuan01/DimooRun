@@ -29,7 +29,7 @@ test("surfaces validation failure and renders version diff for governed assets",
   await page.goto("/governance/prompt-assets/813");
 
   await expect(page.getByRole("heading", { name: "broken-prompt", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Validate" }).click();
+  await page.getByRole("button", { name: "Validate asset" }).click();
   await expect(page.getByText("explicit_version_required")).toBeVisible();
   await expect(page.getByText("secret_ref_invalid")).toBeVisible();
 
@@ -49,14 +49,14 @@ test("approves and publishes a validated asset, blocks deprecate in active use, 
   await page.goto("/governance/prompt-assets/811");
 
   await expect(page.getByRole("heading", { name: "support-prompt", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Validate" }).click();
-  await expect(page.getByText("validation passed")).toBeVisible();
+  await page.getByRole("button", { name: "Validate asset" }).click();
+  await expect(page.getByText("Validation completed: passed")).toBeVisible();
 
   await page.getByRole("button", { name: "Approve" }).click();
-  await expect(page.getByText("approve -> approved")).toBeVisible();
+  await expect(page.getByText("Asset action completed: approve -> approved")).toBeVisible();
 
   await page.getByRole("button", { name: "Publish" }).click();
-  await expect(page.getByText("publish -> published")).toBeVisible();
+  await expect(page.getByText("Asset action completed: publish -> published")).toBeVisible();
   await expect(page.getByText("published").first()).toBeVisible();
 
   await page.goto("/governance/prompt-assets/812");
