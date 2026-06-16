@@ -1,7 +1,9 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
+
+from _pytest.monkeypatch import MonkeyPatch
 
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentResult
@@ -77,7 +79,10 @@ def test_worker_entrypoint_default_adapters_include_langgraph() -> None:
     assert adapters["langgraph"].framework == "langgraph"
 
 
-def test_worker_entrypoint_run_once_executes_sqlalchemy_task(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_worker_entrypoint_run_once_executes_sqlalchemy_task(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
     database_url = f"sqlite:///{tmp_path / 'worker-entrypoint.db'}"
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("DIMOORUN_NATIVE_RUNTIME_STORE", "sqlalchemy")
@@ -126,7 +131,7 @@ def test_worker_entrypoint_run_once_executes_sqlalchemy_task(tmp_path, monkeypat
     assert task.status == "succeeded"
 
 
-def test_worker_entrypoint_default_main_uses_forever_mode(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_worker_entrypoint_default_main_uses_forever_mode(monkeypatch: MonkeyPatch) -> None:
     add_project_root_to_path()
     from apps.worker.dimoo_run_worker import main
 
@@ -143,8 +148,8 @@ def test_worker_entrypoint_default_main_uses_forever_mode(monkeypatch) -> None: 
 
 
 def test_worker_entrypoint_run_forever_commits_each_sqlalchemy_iteration(
-    monkeypatch,
-) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch: MonkeyPatch,
+) -> None:
     add_project_root_to_path()
     from apps.worker.dimoo_run_worker import main
 
@@ -174,7 +179,7 @@ def test_worker_entrypoint_run_forever_commits_each_sqlalchemy_iteration(
             self.closed += 1
 
     class FakeWorkerLoop:
-        last_instance = None
+        last_instance: ClassVar["FakeWorkerLoop | None"] = None
 
         def __init__(self, **_: Any) -> None:
             self.stopped = False
@@ -217,6 +222,7 @@ def test_worker_entrypoint_run_forever_commits_each_sqlalchemy_iteration(
     assert fake_session.commits == 1
     assert fake_session.rollbacks == 0
     assert fake_session.closed == 1
+    assert FakeWorkerLoop.last_instance is not None
     assert FakeWorkerLoop.last_instance.calls == 1
 
 
