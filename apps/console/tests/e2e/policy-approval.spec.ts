@@ -18,10 +18,12 @@ test("simulates, activates, rolls back, and shows policy denied evidence", async
   await page.getByLabel("Sample environment").fill("prod");
   await page.getByLabel("Audit reason").fill("Block accidental production deletion.");
 
-  await page.getByRole("button", { name: "Simulate policy" }).click();
-  await expect(page.getByText("Decision: deny")).toBeVisible();
-  await expect(page.getByText("priority_conflict")).toBeVisible();
-  await expect(page.getByText("policy.simulate")).toBeVisible();
+  await page.getByRole("button", { name: "Simulate policy" }).nth(2).click();
+  const dialog = page.getByRole("dialog", { name: "Policy simulation" });
+  await expect(dialog.getByText("Decision: deny")).toBeVisible();
+  await expect(page.getByText("priority_conflict").first()).toBeVisible();
+  await expect(page.getByText("policy.simulate").first()).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: "Activate policy" }).click();
   await expect(page.getByText("Activated version 1")).toBeVisible();
@@ -34,8 +36,8 @@ test("simulates, activates, rolls back, and shows policy denied evidence", async
   await expect(page.getByText("Rolled back to version 1")).toBeVisible();
 
   await page.getByRole("button", { name: "Simulate denied sample" }).click();
-  await expect(page.getByText("Policy denied")).toBeVisible();
-  await expect(page.getByText("deployment #42")).toBeVisible();
+  await expect(page.getByText("Policy denied: deployment #42")).toBeVisible();
+  await expect(page.getByText("deployment #42 · delete · prod")).toBeVisible();
 });
 
 test("approves and rejects human tasks with context and resume outcome", async ({ page }) => {
