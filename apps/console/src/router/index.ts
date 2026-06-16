@@ -22,9 +22,16 @@ import OperatorsPage from "../pages/identity/OperatorsPage.vue";
 import RolePermissionMatrixPage from "../pages/identity/RolePermissionMatrixPage.vue";
 import ServiceAccountDetailPage from "../pages/identity/ServiceAccountDetailPage.vue";
 import UserAccessDetailPage from "../pages/identity/UserAccessDetailPage.vue";
+import ArtifactWorkbenchPage from "../pages/observability/ArtifactWorkbenchPage.vue";
+import AuditLogWorkbenchPage from "../pages/observability/AuditLogWorkbenchPage.vue";
 import BudgetsPage from "../pages/observability/BudgetsPage.vue";
 import CostsPage from "../pages/observability/CostsPage.vue";
+import EvaluationWorkbenchPage from "../pages/observability/EvaluationWorkbenchPage.vue";
+import FeedbackWorkbenchPage from "../pages/observability/FeedbackWorkbenchPage.vue";
+import ReplayJobsWorkbenchPage from "../pages/observability/ReplayJobsWorkbenchPage.vue";
+import AlertRulesPage from "../pages/ops/AlertRulesPage.vue";
 import BackupRestorePage from "../pages/ops/BackupRestorePage.vue";
+import WebhookSubscriptionsPage from "../pages/ops/WebhookSubscriptionsPage.vue";
 import PackageRegistrationPage from "../pages/packages/PackageRegistrationPage.vue";
 import PolicyWorkbenchPage from "../pages/policies/PolicyWorkbenchPage.vue";
 import PublishedSurfacesPage from "../pages/published/PublishedSurfacesPage.vue";
@@ -42,8 +49,12 @@ import RunDetailPage from "../pages/runs/RunDetailPage.vue";
 import RunTriagePage from "../pages/runs/RunTriagePage.vue";
 import RunsPage from "../pages/runs/RunsPage.vue";
 import DangerZonePage from "../pages/settings/DangerZonePage.vue";
+import ContainerPoolPoliciesPage from "../pages/settings/ContainerPoolPoliciesPage.vue";
+import ObservabilityExportersPage from "../pages/settings/ObservabilityExportersPage.vue";
 import PlatformSettingsPage from "../pages/settings/PlatformSettingsPage.vue";
 import ProviderStatusPage from "../pages/settings/ProviderStatusPage.vue";
+import SandboxPoliciesPage from "../pages/settings/SandboxPoliciesPage.vue";
+import SemanticStoreProvidersPage from "../pages/settings/SemanticStoreProvidersPage.vue";
 import SettingsPage from "../pages/settings/SettingsPage.vue";
 import TasksPage from "../pages/tasks/TasksPage.vue";
 import { useAuthStore } from "../stores/auth";
@@ -263,20 +274,17 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/observability/audit-logs",
     name: "audit-logs",
-    component: AdminCollectionPage,
-    props: { title: "Audit Logs", kicker: "Observability", description: "Security and governance audit facts.", resourcePath: "/v1/audit-logs", seedName: "audit-log" },
+    component: AuditLogWorkbenchPage,
   },
   {
     path: "/observability/artifacts",
     name: "artifacts-admin",
-    component: AdminCollectionPage,
-    props: { title: "Artifacts", kicker: "Observability", description: "Run artifacts and controlled download metadata.", resourcePath: "/v1/artifacts", seedName: "artifact" },
+    component: ArtifactWorkbenchPage,
   },
   {
     path: "/observability/evaluations",
     name: "evaluation-results",
-    component: AdminCollectionPage,
-    props: { title: "Evaluation Results", kicker: "Observability", description: "Evaluation outputs linked to datasets and experiments.", resourcePath: "/v1/evaluations/results", seedName: "evaluation" },
+    component: EvaluationWorkbenchPage,
   },
   {
     path: "/observability/datasets",
@@ -294,14 +302,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/observability/replay-jobs",
     name: "replay-jobs",
-    component: AdminCollectionPage,
-    props: { title: "Replay Jobs", kicker: "Observability", description: "Replay jobs created from source runs.", resourcePath: "/v1/replay-jobs", seedName: "replay-job" },
+    component: ReplayJobsWorkbenchPage,
   },
   {
     path: "/observability/feedback",
     name: "feedback",
-    component: AdminCollectionPage,
-    props: { title: "Feedback", kicker: "Observability", description: "Human and product feedback attached to runs.", resourcePath: "/v1/feedback", seedName: "feedback" },
+    component: FeedbackWorkbenchPage,
   },
   {
     path: "/ops/backup-plans",
@@ -316,8 +322,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/ops/webhooks",
     name: "webhooks",
-    component: AdminCollectionPage,
-    props: { title: "Webhook Subscriptions", kicker: "Enterprise Ops", description: "Outbound webhook subscriptions and delivery state.", resourcePath: "/v1/webhooks/subscriptions", seedName: "webhook" },
+    component: WebhookSubscriptionsPage,
   },
   {
     path: "/ops/notifications",
@@ -326,8 +331,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/ops/alerts",
     name: "alerts",
-    component: AdminCollectionPage,
-    props: { title: "Alert Rules", kicker: "Enterprise Ops", description: "Alert rules and notification routing.", resourcePath: "/v1/alerts/rules", seedName: "alert" },
+    component: AlertRulesPage,
   },
   {
     path: "/ops/incidents",
@@ -352,26 +356,22 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/settings/semantic-store",
     name: "semantic-store",
-    component: AdminCollectionPage,
-    props: { title: "Semantic Store Providers", kicker: "Settings", description: "Semantic memory provider configuration.", resourcePath: "/v1/semantic-store/providers", seedName: "semantic-store" },
+    component: SemanticStoreProvidersPage,
   },
   {
     path: "/settings/observability-exporters",
     name: "observability-exporters",
-    component: AdminCollectionPage,
-    props: { title: "Observability Exporters", kicker: "Settings", description: "Exporter destinations for traces, metrics, and events.", resourcePath: "/v1/observability/exporters", seedName: "exporter" },
+    component: ObservabilityExportersPage,
   },
   {
     path: "/settings/sandbox-policies",
     name: "sandbox-policies",
-    component: AdminCollectionPage,
-    props: { title: "Sandbox Policies", kicker: "Settings", description: "Sandbox execution policy view.", resourcePath: "/v1/sandbox/policies", seedName: "sandbox-policy" },
+    component: SandboxPoliciesPage,
   },
   {
     path: "/settings/container-pool-policies",
     name: "container-pool-policies",
-    component: AdminCollectionPage,
-    props: { title: "Container Pool Policies", kicker: "Settings", description: "Container pool policy and capacity view.", resourcePath: "/v1/container-pool/policies", seedName: "container-policy" },
+    component: ContainerPoolPoliciesPage,
   },
   { path: "/settings", name: "settings", component: SettingsPage },
 ];

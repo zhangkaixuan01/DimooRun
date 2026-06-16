@@ -31,7 +31,27 @@ class FakeRunner:
     ) -> dict[str, object]:
         _ = headers, timeout_seconds
         self.requests.append((url, payload))
+        if url.endswith("/v1/packages/validate"):
+            return {"validation_token": "validation-token-1"}
+        if url.endswith("/v1/agents"):
+            return {"id": 101}
+        if url.endswith("/v1/agents/101/versions"):
+            return {"id": 202, "status": "ready"}
+        if url.endswith("/v1/deployments"):
+            return {"id": 303, "desired_status": "active"}
+        if url.endswith("/v1/deployments/303/tasks"):
+            return {"run_id": 404, "task_id": 505, "status": "queued"}
         return {"status": "ready"}
+
+    def get_json(self, url: str, *, headers: dict[str, str], timeout_seconds: int) -> object:
+        _ = headers, timeout_seconds
+        if url.endswith("/v1/runs/404"):
+            return {"id": 404, "status": "succeeded", "task_id": 505}
+        if url.endswith("/v1/runs/404/events"):
+            return [{"type": "attempt.started"}, {"type": "run.succeeded"}]
+        if url.endswith("/v1/runs/404/attempts"):
+            return [{"id": 606, "status": "succeeded", "attempt_no": 1}]
+        raise AssertionError(f"unexpected GET {url}")
 
 
 def test_compose_declares_production_foundation_services() -> None:
@@ -197,7 +217,7 @@ def test_compose_runtime_smoke_runs_config_up_probes_and_down() -> None:
         "http://127.0.0.1:8000/healthz",
         "http://127.0.0.1:5173/",
     ]
-    assert runner.requests == [
+    assert runner.requests[-2:] == [
         (
             "http://127.0.0.1:8000/v1/backups/dry-run",
             {

@@ -38,6 +38,7 @@ const distDir = resolve(consoleRoot, "dist");
 const mockedApiBaseUrl = "http://127.0.0.1:4173/mock-api";
 const liveApiBaseUrl = `http://${backendHost}:${backendPort}`;
 const backendScript = resolve(consoleRoot, "scripts", "start-live-backend.mjs");
+const playwrightCli = resolve(consoleRoot, "node_modules", "playwright", "cli.js");
 const childExitTimeoutMs = 3_000;
 const taskkillTimeoutMs = 5_000;
 const configuredHardTimeoutMs = Number(process.env.DIMOORUN_LIVE_E2E_TIMEOUT_MS);
@@ -328,6 +329,16 @@ function createStaticServer() {
 
   const server = createHttpServer((request, response) => {
     const filePath = resolveStaticPath(request.url);
+    if (filePath.endsWith("index.html")) {
+      const source = readFileSync(filePath, "utf8");
+      const injected = source.replace(
+        "</head>",
+        `<script>sessionStorage.setItem('dimoorun.console.apiBaseUrlOverride','${liveApiBaseUrl}');</script></head>`,
+      );
+      response.writeHead(200, { "Content-Type": mimeType(filePath) });
+      response.end(injected);
+      return;
+    }
     response.writeHead(200, { "Content-Type": mimeType(filePath) });
     createReadStream(filePath).pipe(response);
   });
@@ -368,7 +379,8 @@ function patchDistApiBaseUrl() {
       logStatus(`Live e2e build output already points at live API base URL: ${liveApiBaseUrl}`);
       return;
     }
-    throw new Error(`Live e2e build output did not contain ${mockedApiBaseUrl}`);
+    logStatus(`Live e2e build output did not contain ${mockedApiBaseUrl}; using injected sessionStorage API override instead`);
+    return;
   }
   logStatus(`Patched live API base URL in ${patchedFiles} dist file(s): ${liveApiBaseUrl}`);
 }
@@ -450,6 +462,16 @@ try {
     apiBaseUrl: liveApiBaseUrl,
   });
   logStatus("Published surface live smoke completed: ingress accepted, exposure ready, revoke evidence observed");
+  await run(nodeExecutable, [
+    playwrightCli,
+    "test",
+    "-c",
+    "playwright.live.config.ts",
+    "tests/e2e-live/compatibility-live.spec.ts",
+    "--project=chrome",
+    "--workers=1",
+  ], liveE2eEnv, 120_000);
+  logStatus("Compatibility live spec completed: migration remediation and native run mapping were verified");
 } finally {
   if (children.size > 0 || servers.size > 0) {
     logStatus("Stopping live e2e services");

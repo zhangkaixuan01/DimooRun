@@ -10,6 +10,35 @@
     <ApiState :mode="mode" :loading="busy" :error="error" />
 
     <div v-if="mode !== 'offline'" class="grid cols-2">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">{{ t("policyList") }}</h2>
+            <p class="panel-copy">{{ t("policyWorkbenchCopy") }}</p>
+          </div>
+        </div>
+        <div class="panel-body result-stack">
+          <article v-for="item in policyInventory" :key="item.name" class="inventory-card">
+            <div class="inventory-head">
+              <div>
+                <strong>{{ item.name }}</strong>
+                <p class="muted">{{ item.scope }}</p>
+              </div>
+              <StatusBadge :status="item.status === 'active' ? 'ready' : 'neutral'" :label="item.status" />
+            </div>
+            <p class="muted">{{ t("decision") }}: {{ item.decision }}</p>
+            <div class="ops">
+              <button class="button" type="button" :disabled="busy" @click="applyInventory(item)">
+                {{ t("loadDraft") }}
+              </button>
+              <button class="button primary" type="button" :disabled="busy" @click="simulateFromInventory(item)">
+                {{ t("simulatePolicy") }}
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <form class="panel" @submit.prevent="simulate">
         <div class="panel-header">
           <h2 class="panel-title">{{ t("policyDraft") }}</h2>
@@ -127,6 +156,29 @@
         </div>
       </section>
     </div>
+
+    <Teleport to="body">
+      <div v-if="dialogOpen" class="dialog-layer" @click.self="dialogOpen = false">
+        <section class="dialog-card" role="dialog" aria-modal="true" :aria-label="t('policySimulation')">
+          <header class="panel-header">
+            <h2 class="panel-title">{{ t("policySimulation") }}</h2>
+          </header>
+          <div class="panel-body result-stack">
+            <p v-if="simulation" class="result-line">{{ t("decision") }}: {{ simulation.decision.result }}</p>
+            <p v-if="simulation" class="result-line">{{ t("matchedRule") }}: {{ simulation.decision.policyName || form.name }}</p>
+            <p v-if="simulation?.decision.reason" class="muted">{{ simulation.decision.reason }}</p>
+            <ul v-if="simulation?.matchedResources.length" class="plain-list">
+              <li v-for="resource in simulation.matchedResources" :key="`${resource.resourceType}-${resource.resourceId}`">
+                {{ resource.resourceType }} #{{ resource.resourceId }} · {{ resource.action }} · {{ resource.environment }}
+              </li>
+            </ul>
+            <div class="ops">
+              <button class="button" type="button" @click="dialogOpen = false">{{ t("close") }}</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -147,6 +199,7 @@ const simulation = ref<PolicySimulation | null>(null);
 const activation = ref<PolicyActivation | null>(null);
 const rollbackMessage = ref("");
 const denied = ref(false);
+const dialogOpen = ref(false);
 const form = reactive({
   name: "deny-prod-delete",
   resourceType: "deployment",
@@ -159,6 +212,24 @@ const form = reactive({
   sampleEnvironment: "prod",
   auditReason: "Block accidental production deletion.",
 });
+const policyInventory = computed(() => [
+  {
+    name: "deny-prod-delete",
+    scope: "deployment.delete · prod",
+    decision: "deny",
+    status: activation.value ? "active" : "draft",
+    priority: 10,
+    riskLevel: "critical",
+  },
+  {
+    name: "require-approval-promote",
+    scope: "deployment.promote · production",
+    decision: "require_approval",
+    status: "active",
+    priority: 8,
+    riskLevel: "high",
+  },
+]);
 
 const deniedResource = computed(() => {
   if (!denied.value || !simulation.value?.matchedResources.length) return "";
@@ -205,6 +276,7 @@ async function simulate() {
   denied.value = false;
   await runWithState(async () => {
     simulation.value = await consoleClient.simulatePolicy(draftPolicy(), sample());
+    dialogOpen.value = true;
   });
 }
 
@@ -237,7 +309,20 @@ async function simulateDenied() {
   denied.value = true;
   await runWithState(async () => {
     simulation.value = await consoleClient.simulatePolicy(draftPolicy(), sample());
+    dialogOpen.value = true;
   });
+}
+
+function applyInventory(item: { name: string; decision: string; priority: number; riskLevel: string }) {
+  form.name = item.name;
+  form.decision = item.decision;
+  form.priority = item.priority;
+  form.riskLevel = item.riskLevel;
+}
+
+async function simulateFromInventory(item: { name: string; decision: string; priority: number; riskLevel: string }) {
+  applyInventory(item);
+  await simulate();
 }
 
 function formatRecord(value: Record<string, unknown>): string {
@@ -258,6 +343,36 @@ function formatComparisonValue(value: unknown): string {
 .result-stack {
   display: grid;
   gap: 14px;
+}
+
+.inventory-card,
+.dialog-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: 14px;
+}
+
+.inventory-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.dialog-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: oklch(18% 0.017 248 / 36%);
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .form-grid {

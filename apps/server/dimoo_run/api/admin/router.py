@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, Response
+from fastapi import APIRouter, Body, Depends, Request, Response
 from sqlalchemy import Boolean, Float, Integer, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -931,6 +931,7 @@ def _list_audit_logs(
     request_id: str | None,
     tenant_id: int | None = None,
     project_id: int | None = None,
+    filters: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     session = _open_scope_session()
     try:
@@ -940,7 +941,10 @@ def _list_audit_logs(
         if project_id is not None:
             query = query.where(AuditLog.project_id == project_id)
         items = list(session.scalars(query))
-        serialized = [_serialize_audit_log(item) for item in items]
+        serialized = _apply_admin_filters(
+            [_serialize_audit_log(item) for item in items],
+            filters or {},
+        )
         return {"items": serialized, "count": len(serialized), "request_id": request_id}
     finally:
         session.close()
@@ -1158,6 +1162,43 @@ def _serialize_db_admin_record(record: Any, spec: AdminDbCollectionSpec) -> dict
     return item
 
 
+def _apply_admin_filters(
+    items: list[dict[str, Any]],
+    filters: dict[str, str],
+) -> list[dict[str, Any]]:
+    active_filters = {
+        key: value
+        for key, value in filters.items()
+        if key in {"actor", "run_id", "deployment_id", "status", "sentiment"}
+        and value not in {"", None}
+    }
+    if not active_filters:
+        return items
+    return [item for item in items if _admin_item_matches_filters(item, active_filters)]
+
+
+def _admin_item_matches_filters(item: dict[str, Any], filters: dict[str, str]) -> bool:
+    for key, expected in filters.items():
+        if key == "actor":
+            actor_values = [
+                item.get("actor"),
+                item.get("actor_id"),
+                item.get("actor_type"),
+                item.get("created_by"),
+                item.get("updated_by"),
+            ]
+            if not any(expected.lower() in str(value or "").lower() for value in actor_values):
+                return False
+            continue
+        if key == "run_id":
+            value = item.get("run_id", item.get("source_run_id"))
+        else:
+            value = item.get(key)
+        if str(value or "") != expected:
+            return False
+    return True
+
+
 def _decorate_human_task_item(item: dict[str, Any]) -> dict[str, Any]:
     task_id = int(item["id"])
     context = dict(_HUMAN_TASK_CONTEXT.get(task_id) or {})
@@ -1294,6 +1335,7 @@ def _list_db_collection(
     tenant_id: int | None,
     project_id: int | None,
     environment: str | None,
+    filters: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     spec = _DB_COLLECTIONS[collection]
     session = _open_scope_session()
@@ -1315,7 +1357,10 @@ def _list_db_collection(
             for record in session.scalars(statement)
             if _db_record_in_scope(record, resolved_tenant_id, resolved_project_id, environment)
         ]
-        items = [_serialize_db_admin_record(record, spec) for record in records]
+        items = _apply_admin_filters(
+            [_serialize_db_admin_record(record, spec) for record in records],
+            filters or {},
+        )
         return {"items": items, "count": len(items), "request_id": request_id}
     finally:
         session.close()
@@ -1535,20 +1580,22 @@ def _list(
     tenant_id: int | None = None,
     project_id: int | None = None,
     environment: str | None = None,
+    filters: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if collection in {"tenants", "projects", "environments"}:
         return _list_scope_collection(collection, request_id, tenant_id, project_id)
     if collection in {"roles", "permissions"}:
         return _list_console_identity_collection(collection, request_id)
     if collection == "audit_logs":
-        return _list_audit_logs(request_id, tenant_id, project_id)
+        return _list_audit_logs(request_id, tenant_id, project_id, filters)
     if collection in _DB_COLLECTIONS:
-        return _list_db_collection(collection, request_id, tenant_id, project_id, environment)
+        return _list_db_collection(collection, request_id, tenant_id, project_id, environment, filters)
     items = [
         item
         for item in _COLLECTIONS[collection].values()
         if _resource_in_scope(item, tenant_id, project_id, environment)
     ]
+    items = _apply_admin_filters(items, filters or {})
     return {"items": items, "count": len(items), "request_id": request_id}
 
 
@@ -2394,12 +2441,14 @@ def _get_service_account_api_key(service_account_id: int, key_id: int) -> Any | 
 
 def register_collection_routes(path: str, collection: str) -> None:
     async def get_items(
+        request: Request,
         x_request_id: RequestIdHeader = None,
         x_tenant_id: TenantIdHeader = None,
         x_project_id: ProjectIdHeader = None,
         x_environment: EnvironmentHeader = None,
     ) -> dict[str, Any]:
-        return _list(collection, x_request_id, x_tenant_id, x_project_id, x_environment)
+        filters = {key: value for key, value in request.query_params.items()}
+        return _list(collection, x_request_id, x_tenant_id, x_project_id, x_environment, filters)
 
     async def create_item(
         response: Response,

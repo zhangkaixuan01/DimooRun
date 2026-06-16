@@ -267,6 +267,16 @@ function governedAssetBasePath(kind: AssetCatalogKind): string {
   }
 }
 
+function withQueryFilters(path: string, filters: Record<string, string | number | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === "") continue;
+    params.set(key, String(value));
+  }
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 const TOKEN_KEY = "dimoorun.console.token";
 const OPERATOR_KEY = "dimoorun.console.operator";
 const API_BASE_OVERRIDE_KEY = "dimoorun.console.apiBaseUrlOverride";
@@ -1375,6 +1385,9 @@ function mapCompatibilityMigrationResponse(result: Record<string, unknown>): Com
       recommendedActions: Array.isArray(report.recommended_actions)
         ? report.recommended_actions.map(String)
         : [],
+      remediationSteps: Array.isArray(report.remediation_steps)
+        ? report.remediation_steps.filter(isRecord)
+        : [],
     },
     goldenRecord: isRecord(result.golden_record) ? result.golden_record : {},
     requestId: typeof result.request_id === "string" ? result.request_id : null,
@@ -1849,6 +1862,18 @@ export const liveConsoleClient = {
     );
     return mapRestoreDryRun(response as Record<string, unknown>);
   },
+  async testAlertRule(ruleId: ResourceId, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    return nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/alerts/rules/${ruleId}/test`,
+      payload,
+    );
+  },
+  async validateWebhookSubscription(subscriptionId: ResourceId, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    return nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
+      `/v1/webhooks/subscriptions/${subscriptionId}/validate`,
+      payload,
+    );
+  },
   async validatePublishedSurface(payload: Record<string, unknown>): Promise<PublishValidationResult> {
     const response = await nativeClient(crypto.randomUUID()).postAdminAction<Record<string, unknown>>(
       "/v1/published-surfaces/validate",
@@ -2102,6 +2127,21 @@ export const liveConsoleClient = {
     const payload = await nativeClient(undefined, scopeOverride).listAdminCollection<AdminResource>(path);
     return page(payload.items);
   },
+  async listAuditLogs(filters: Record<string, string | number | undefined> = {}): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection(withQueryFilters("/v1/audit-logs", filters));
+  },
+  async listArtifacts(filters: Record<string, string | number | undefined> = {}): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection(withQueryFilters("/v1/artifacts", filters));
+  },
+  async listEvaluationResults(filters: Record<string, string | number | undefined> = {}): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection(withQueryFilters("/v1/evaluations/results", filters));
+  },
+  async listFeedback(filters: Record<string, string | number | undefined> = {}): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection(withQueryFilters("/v1/feedback", filters));
+  },
+  async listReplayJobs(filters: Record<string, string | number | undefined> = {}): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection(withQueryFilters("/v1/replay-jobs", filters));
+  },
   async listGovernedAssets(kind: AssetCatalogKind): Promise<CursorPage<AdminResource>> {
     return this.listAdminCollection(governedAssetBasePath(kind));
   },
@@ -2346,6 +2386,74 @@ export const liveConsoleClient = {
       {
         method: "POST",
         body: JSON.stringify(payload),
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async listSemanticStoreProviders(): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection("/v1/semantic-store/providers");
+  },
+  async listObservabilityExporters(): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection("/v1/observability/exporters");
+  },
+  async listSandboxPolicies(): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection("/v1/sandbox/policies");
+  },
+  async listContainerPoolPolicies(): Promise<CursorPage<AdminResource>> {
+    return this.listAdminCollection("/v1/container-pool/policies");
+  },
+  async validateObservabilityExporter(exporterId: ResourceId, auditReason: string): Promise<AdminResource> {
+    const response = await requestConsolePath<{ item: AdminResource; request_id: string | null }>(
+      `/v1/console/settings/observability-exporters/${exporterId}/validate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ audit_reason: auditReason }),
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async validateSemanticStoreProvider(providerId: ResourceId, auditReason: string): Promise<AdminResource> {
+    const response = await requestConsolePath<{ item: AdminResource; request_id: string | null }>(
+      `/v1/console/settings/semantic-store-providers/${providerId}/validate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ audit_reason: auditReason }),
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async previewSandboxPolicy(
+    policyId: ResourceId,
+    payload: { capabilities: string[] },
+    auditReason: string,
+  ): Promise<AdminResource> {
+    const response = await requestConsolePath<{ item: AdminResource; request_id: string | null }>(
+      `/v1/console/settings/sandbox-policies/${policyId}/preview`,
+      {
+        method: "POST",
+        body: JSON.stringify({ ...payload, audit_reason: auditReason }),
+      },
+      undefined,
+      { auditReason },
+    );
+    return response.item;
+  },
+  async estimateContainerPoolPolicy(
+    policyId: ResourceId,
+    payload: { requested_workers: number },
+    auditReason: string,
+  ): Promise<AdminResource> {
+    const response = await requestConsolePath<{ item: AdminResource; request_id: string | null }>(
+      `/v1/console/settings/container-pool-policies/${policyId}/estimate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ ...payload, audit_reason: auditReason }),
       },
       undefined,
       { auditReason },

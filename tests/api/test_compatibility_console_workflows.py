@@ -108,6 +108,32 @@ def test_console_compatibility_migration_report_explains_unsupported_features() 
     assert golden["divergence_reason"] == "compatibility_not_supported"
 
 
+def test_console_compatibility_migration_report_includes_actionable_remediation() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key(scopes={"agent:read"})
+
+    response = client.post(
+        "/v1/console/compatibility/migration-report",
+        headers=auth_headers(key),
+        json={
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "capabilities": ["assistants", "threads", "runs", "hosted_deployments"],
+            "streaming_modes": ["events"],
+        },
+    )
+
+    assert response.status_code == 200
+    report = response.json()["report"]
+    step = report["remediation_steps"][0]
+    assert step["capability"] == "hosted_deployments"
+    assert step["severity"] == "manual_migration_required"
+    assert step["target_files"] == ["dimoorun.yaml", "manifest.yaml"]
+    assert step["recommended_action"] == "Use native deployments for hosted runtime behavior"
+    assert step["verification_command"] == "uv run dimoorun deployment create --help"
+    assert step["native_route"] == "/deployments"
+
+
 def test_console_compatibility_explorer_maps_assistant_thread_run_and_stream_probe() -> None:
     client = TestClient(create_app())
     key, _ = create_api_key()

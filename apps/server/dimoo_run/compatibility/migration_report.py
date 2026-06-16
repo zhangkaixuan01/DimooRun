@@ -15,6 +15,30 @@ _SUPPORTED_CAPABILITIES = {
 _SUPPORTED_STREAMING_MODES = {"events", "updates"}
 
 
+def _hosted_deployments_remediation() -> dict[str, Any]:
+    return {
+        "capability": "hosted_deployments",
+        "reason": "compatibility_not_supported",
+        "severity": "manual_migration_required",
+        "target_files": ["dimoorun.yaml", "manifest.yaml"],
+        "recommended_action": "Use native deployments for hosted runtime behavior",
+        "verification_command": "uv run dimoorun deployment create --help",
+        "native_route": "/deployments",
+    }
+
+
+def _stream_mode_remediation(mode: str) -> dict[str, Any]:
+    return {
+        "capability": f"stream:{mode}",
+        "reason": "compatibility_not_supported",
+        "severity": "configuration_change_required",
+        "target_files": ["dimoorun.yaml"],
+        "recommended_action": "Use event or update streaming modes in the compatibility bridge",
+        "verification_command": "uv run pytest tests/compat/test_langgraph_compat_api.py -q",
+        "native_route": "/compatibility",
+    }
+
+
 def build_migration_report(payload: dict[str, Any] | None) -> dict[str, Any]:
     data = payload or {}
     framework = str(data.get("framework") or "langgraph")
@@ -27,17 +51,19 @@ def build_migration_report(payload: dict[str, Any] | None) -> dict[str, Any]:
     requires_interrupts = bool(data.get("requires_interrupts"))
 
     unsupported_capabilities = []
+    remediation_steps: list[dict[str, Any]] = []
     for capability in capabilities:
         if capability not in _SUPPORTED_CAPABILITIES:
-            unsupported_capabilities.append(
-                {
-                    "capability": capability,
-                    "reason": "compatibility_not_supported",
-                    "recommended_workaround": (
-                        "Use native DimooRun runtime semantics for this feature."
-                    ),
-                }
-            )
+            entry = {
+                "capability": capability,
+                "reason": "compatibility_not_supported",
+                "recommended_workaround": (
+                    "Use native DimooRun runtime semantics for this feature."
+                ),
+            }
+            unsupported_capabilities.append(entry)
+            if capability == "hosted_deployments":
+                remediation_steps.append(_hosted_deployments_remediation())
 
     unsupported_streaming_modes = [
         mode for mode in streaming_modes if mode not in _SUPPORTED_STREAMING_MODES
@@ -52,6 +78,7 @@ def build_migration_report(payload: dict[str, Any] | None) -> dict[str, Any]:
                 ),
             }
         )
+        remediation_steps.append(_stream_mode_remediation(mode))
 
     required_config = [
         "project.name",
@@ -123,6 +150,7 @@ def build_migration_report(payload: dict[str, Any] | None) -> dict[str, Any]:
         },
         "governance_implications": governance_implications,
         "recommended_actions": recommended_actions,
+        "remediation_steps": remediation_steps,
     }
 
 

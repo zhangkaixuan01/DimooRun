@@ -1,0 +1,6 @@
+{
+  "graphs": {
+    "support": "./agent.py:build_graph"
+  },
+  "env": ".env"
+}

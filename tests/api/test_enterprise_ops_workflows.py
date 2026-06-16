@@ -15,10 +15,10 @@ def setup_function() -> None:
     reset_native_runtime()
 
 
-def admin_headers() -> dict[str, str]:
+def admin_headers(request_id: str = "req_ops") -> dict[str, str]:
     return {
         "Authorization": "Bearer dev-local-key",
-        "X-Request-Id": "req_ops",
+        "X-Request-Id": request_id,
         "X-Tenant-Id": "1",
         "X-Project-Id": "1",
         "X-Environment": "local",
@@ -325,6 +325,66 @@ def test_notification_test_send_records_delivery_attempt_visibility() -> None:
     assert body["delivery_attempt"]["visible_to_operator"] is True
     assert body["delivery_attempt"]["redacted_payload"]["message"] == "Synthetic notification probe"
     assert body["audit"]["action"] == "notification.test_send"
+
+
+def test_alert_rule_test_records_delivery_attempt() -> None:
+    client = TestClient(create_app())
+    channel = client.post(
+        "/v1/notifications/channels",
+        headers=admin_headers("req_alert_channel"),
+        json={"name": "ops-alerts", "target_ref": "slack://ops-alerts", "type": "webhook"},
+    )
+    assert channel.status_code == 201
+    rule = client.post(
+        "/v1/alerts/rules",
+        headers=admin_headers("req_alert_rule"),
+        json={
+            "name": "runtime error burst",
+            "signal": "runtime.error_rate",
+            "threshold": 2,
+            "channel_id": channel.json()["item"]["id"],
+        },
+    )
+    assert rule.status_code == 201
+
+    response = client.post(
+        f"/v1/alerts/rules/{rule.json()['item']['id']}/test",
+        headers=admin_headers("req_alert_test"),
+        json={"audit_reason": "verify alert route"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["delivery_attempt"]["visible_to_operator"] is True
+    assert body["request_id"] == "req_alert_test"
+
+
+def test_webhook_validate_redacts_secret_reference() -> None:
+    client = TestClient(create_app())
+    subscription = client.post(
+        "/v1/webhooks/subscriptions",
+        headers=admin_headers("req_webhook_create"),
+        json={
+            "name": "runtime events",
+            "target_url": "https://hooks.example.test/runtime",
+            "secret_ref": "secret:prod/webhooks/runtime",
+            "event_types": ["run.failed"],
+        },
+    )
+    assert subscription.status_code == 201
+
+    response = client.post(
+        f"/v1/webhooks/subscriptions/{subscription.json()['item']['id']}/validate",
+        headers=admin_headers("req_webhook_validate"),
+        json={"audit_reason": "verify webhook target"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    body_text = str(body).lower()
+    assert "secret:prod/webhooks/runtime" not in body_text
+    assert "[redacted]" in body_text
+    assert body["audit"]["action"] == "webhook_subscription.validate"
 
 
 def test_notification_test_send_blocks_missing_target_ref() -> None:

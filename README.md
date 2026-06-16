@@ -163,16 +163,11 @@ governance, compatibility, and observability live in
 
 ## Screenshot Evidence
 
-Generated product screenshots are not maintained as committed public docs right
-now. Console browser tests can still produce local Playwright reports and
-attachments, but README should not embed placeholder images or link to stale
-gallery files.
+Generated product evidence is indexed in
+[docs/readiness/evidence-gallery.md](docs/readiness/evidence-gallery.md).
+Hosted/public screenshots are still incomplete unless the gallery row links to a
+current artifact.
 
-- Required capture set: dashboard, agent detail, deployment workflow, run
-  workbench, gateway route tester, approval queue, settings danger zone, and docs
-  quickstart.
-- Current state: real generated product screenshots and hosted browser evidence
-  are still incomplete.
 - Readiness status: [docs/readiness/scorecard.md](docs/readiness/scorecard.md).
 
 ## Supported Modes

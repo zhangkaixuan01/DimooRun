@@ -40,7 +40,7 @@
               <span class="mono muted">{{ scopeLabel(row) }}</span>
             </template>
             <template #cell-actions="{ row }">
-              <RouterLink class="button" :to="detailTo(Number(row.id))">{{ t("open") }}</RouterLink>
+              <RouterLink class="button" :to="detailTo(Number(row.id))">{{ openLabel }}</RouterLink>
             </template>
           </DataTable>
         </div>
@@ -178,6 +178,11 @@ const summaryCards = computed(() => {
     label,
     count: counts.get(label) || 0,
   }));
+});
+const openLabel = computed(() => {
+  if (props.kind === "template") return t("openTemplate");
+  if (props.kind === "config") return t("openAsset");
+  return t("open");
 });
 
 function badgeStatus(item: AdminResource): string {

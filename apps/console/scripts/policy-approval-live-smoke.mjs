@@ -146,7 +146,7 @@ export async function runPolicyApprovalLiveSmoke({
     await waitForDashboard(page);
 
     await page.goto(`${frontendBaseUrl}/governance/policies`);
-    await page.getByRole("heading", { name: "Policy workbench" }).waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByRole("heading", { name: "Policy Workbench" }).waitFor({ state: "visible", timeout: 10_000 });
     await page.getByLabel("Policy name").fill(`deny-prod-delete-${unique}`);
     await page.getByLabel("Resource type").fill("deployment");
     await page.getByLabel("Action").fill("delete");
@@ -154,8 +154,10 @@ export async function runPolicyApprovalLiveSmoke({
     await page.getByLabel("Sample resource id").fill("42");
     await page.getByLabel("Sample environment").fill("prod");
     await page.getByLabel("Audit reason").fill("Block accidental production deletion.");
-    await page.getByRole("button", { name: "Simulate policy" }).click();
-    await page.getByText("Decision: deny").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByRole("button", { name: "Simulate policy" }).nth(2).click();
+    const simulationDialog = page.getByRole("dialog", { name: "Policy simulation" });
+    await simulationDialog.getByText("Decision: deny").waitFor({ state: "visible", timeout: 10_000 });
+    await simulationDialog.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Activate policy" }).click();
     await page.getByText("Activated version 1").waitFor({ state: "visible", timeout: 10_000 });
     await page.getByText("Audit comparison").waitFor({ state: "visible", timeout: 10_000 });

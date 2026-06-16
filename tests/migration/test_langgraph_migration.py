@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from dimoo_run.migration.aegra import migrate_aegra_project
@@ -114,3 +115,19 @@ def test_langgraph_platform_migration_report_declares_source_specific_limitation
     assert report.source_type == "langgraph-platform"
     assert "source type: langgraph-platform" in report_text
     assert "hosted deployment settings require manual review" in report_text
+
+
+def test_langgraph_compatibility_example_migrates_to_dimoorun_manifest() -> None:
+    source = Path("examples/compatibility/langgraph-basic/source")
+    output = source.parent / ".generated"
+    if output.exists():
+        shutil.rmtree(output)
+
+    report = migrate_langgraph_project(source, output, project_name="compatibility-basic")
+
+    assert report.detected_entrypoint == "agent:build_graph"
+    assert (output / "manifest.yaml").exists()
+    assert (output / "dimoorun.yaml").exists()
+    report_text = (output / "migration_report.md").read_text(encoding="utf-8")
+    assert "langgraph.json" in report_text
+    assert "support -> agent:build_graph" in report_text

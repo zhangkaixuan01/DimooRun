@@ -230,6 +230,42 @@ def test_docs_quality_rejects_stale_deleted_doc_references(tmp_path: Path) -> No
     )
 
 
+def test_compatibility_examples_are_runnable_and_documented() -> None:
+    root = ROOT / "examples/compatibility/langgraph-basic"
+    assert (root / "README.md").exists()
+    assert (root / "compat_flow.py").exists()
+    assert (root / "source" / "langgraph.json").exists()
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    required = [
+        "Create assistant",
+        "Create thread",
+        "Create run",
+        "Stream events",
+        "Replay events",
+        "Cancel run",
+        "Migration report",
+        "Native Run and Task evidence",
+    ]
+    for phrase in required:
+        assert phrase in readme
+
+
+def test_evidence_gallery_lists_required_product_screens() -> None:
+    gallery = (ROOT / "docs/readiness/evidence-gallery.md").read_text(encoding="utf-8")
+    required = [
+        "Dashboard",
+        "Agent detail",
+        "Deployment workflow",
+        "Run workbench",
+        "Published surface route tester",
+        "Approval queue",
+        "Settings danger zone",
+        "Quickstart activation path",
+    ]
+    for item in required:
+        assert item in gallery
+
+
 def _write_minimal_docs_tree(root: Path) -> Path:
     minimal_docs = {
         relative_path: "\n\n".join(sections) + "\n"

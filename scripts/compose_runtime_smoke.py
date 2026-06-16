@@ -12,8 +12,10 @@ from typing import Any, Protocol, cast
 
 SERVER_HEALTH_URL = "http://127.0.0.1:8000/healthz"
 CONSOLE_URL = "http://127.0.0.1:5173/"
+API_BASE_URL = "http://127.0.0.1:8000"
 BACKUP_DRY_RUN_URL = "http://127.0.0.1:8000/v1/backups/dry-run"
 RESTORE_DRY_RUN_URL = "http://127.0.0.1:8000/v1/backups/restore-dry-run"
+TERMINAL_RUN_STATUSES = {"succeeded", "failed", "timeout", "canceled", "cancelled"}
 ADMIN_HEADERS = {
     "Authorization": "Bearer dev-local-key",
     "X-Tenant-Id": "1",
@@ -74,6 +76,23 @@ class ComposeRuntimeRunner:
             error_body = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"{url} returned HTTP {exc.code}: {error_body}") from exc
 
+    def get_json(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> object:
+        request = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"{url} returned HTTP {response.status}")
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"{url} returned HTTP {exc.code}: {error_body}") from exc
+
 
 class RuntimeSmokeRunner(Protocol):
     def run(self, command: list[str], timeout_seconds: int) -> None: ...
@@ -89,15 +108,25 @@ class RuntimeSmokeRunner(Protocol):
         timeout_seconds: int,
     ) -> dict[str, Any]: ...
 
+    def get_json(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> object: ...
+
 
 def run_compose_runtime_smoke(
     root: Path,
     *,
     runner: RuntimeSmokeRunner | None = None,
+    evidence_dir: Path | None = None,
     retries: int = 30,
     probe_delay_seconds: float = 2.0,
 ) -> ComposeRuntimeSmokeResult:
     active_runner = runner or ComposeRuntimeRunner(root)
+    active_evidence_dir = evidence_dir or root / "compose-diagnostics"
     errors: list[str] = []
     checked_steps: list[str] = []
     created_env_file = False
@@ -114,6 +143,7 @@ def run_compose_runtime_smoke(
         checked_steps.append("server-health")
         _wait_for_url(active_runner, CONSOLE_URL, retries, probe_delay_seconds)
         checked_steps.append("console-health")
+        checked_steps.append("activation:console health checked")
         active_runner.run(
             [
                 "docker",
@@ -147,6 +177,19 @@ def run_compose_runtime_smoke(
             60,
         )
         checked_steps.append("minio-ready")
+        activation_evidence = _activation_smoke(
+            active_runner,
+            root=root,
+            retries=retries,
+            delay_seconds=probe_delay_seconds,
+        )
+        checked_steps.extend(activation_evidence["checked_steps"])
+        _write_activation_evidence_index(
+            active_evidence_dir,
+            root=root,
+            evidence=activation_evidence,
+        )
+        checked_steps.append("activation:evidence index written")
         _backup_restore_smoke(active_runner)
         checked_steps.append("backup-restore-dry-run")
         active_runner.run(["docker", "compose", "ps"], 60)
@@ -164,6 +207,218 @@ def run_compose_runtime_smoke(
                 env_path.unlink()
 
     return ComposeRuntimeSmokeResult(errors=errors, checked_steps=checked_steps)
+
+
+def _activation_smoke(
+    runner: RuntimeSmokeRunner,
+    *,
+    root: Path,
+    retries: int,
+    delay_seconds: float,
+) -> dict[str, Any]:
+    package_uri = "file:///workspace/examples/langgraph/support-agent"
+    manifest = _support_agent_manifest()
+    validation = runner.request_json(
+        f"{API_BASE_URL}/v1/packages/validate",
+        payload={
+            "package_uri": package_uri,
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:build_graph",
+            "manifest": manifest,
+            "required_secret_refs": [],
+        },
+        headers=ADMIN_HEADERS,
+        timeout_seconds=30,
+    )
+    validation_token = validation.get("validation_token")
+    checked_steps = ["activation:package validation completed"]
+
+    agent = runner.request_json(
+        f"{API_BASE_URL}/v1/agents",
+        payload={
+            "name": "compose-smoke-support-agent",
+            "description": "Compose runtime smoke activation agent",
+        },
+        headers=ADMIN_HEADERS,
+        timeout_seconds=30,
+    )
+    agent_id = _required_id(agent, "agent")
+
+    version = runner.request_json(
+        f"{API_BASE_URL}/v1/agents/{agent_id}/versions",
+        payload={
+            "version": "0.1.0-compose-smoke",
+            "package_uri": package_uri,
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:build_graph",
+            "manifest": manifest | {"validation_token": validation_token},
+            "capabilities": manifest["capabilities"],
+            "status": "ready",
+        },
+        headers=ADMIN_HEADERS,
+        timeout_seconds=30,
+    )
+    version_id = _required_id(version, "agent version")
+    checked_steps.append("activation:agent version created")
+
+    deployment = runner.request_json(
+        f"{API_BASE_URL}/v1/deployments",
+        payload={
+            "agent_id": agent_id,
+            "agent_version_id": version_id,
+            "environment": "local",
+            "desired_status": "active",
+            "replicas": 1,
+            "config": {},
+        },
+        headers=ADMIN_HEADERS,
+        timeout_seconds=30,
+    )
+    deployment_id = _required_id(deployment, "deployment")
+    checked_steps.append("activation:deployment created")
+
+    task = runner.request_json(
+        f"{API_BASE_URL}/v1/deployments/{deployment_id}/tasks",
+        payload={
+            "input": {"message": "compose smoke activation path"},
+            "thread_id": "compose-runtime-smoke",
+        },
+        headers=ADMIN_HEADERS | {"Idempotency-Key": "compose-runtime-smoke-task"},
+        timeout_seconds=30,
+    )
+    run_id = task.get("run_id")
+    task_id = task.get("task_id")
+    if run_id is None:
+        raise RuntimeError("deployment task response did not include run_id")
+    checked_steps.append("activation:deployment task submitted")
+
+    run = _wait_for_terminal_run(runner, run_id, retries, delay_seconds)
+    checked_steps.append("activation:run reached terminal state")
+    events = runner.get_json(
+        f"{API_BASE_URL}/v1/runs/{run_id}/events",
+        headers=ADMIN_HEADERS,
+        timeout_seconds=30,
+    )
+    checked_steps.append("activation:run events inspected")
+    attempts = runner.get_json(
+        f"{API_BASE_URL}/v1/runs/{run_id}/attempts",
+        headers=ADMIN_HEADERS,
+        timeout_seconds=30,
+    )
+    checked_steps.append("activation:run attempts inspected")
+
+    return {
+        "checked_steps": checked_steps,
+        "package_uri": package_uri,
+        "agent_id": agent_id,
+        "agent_version_id": version_id,
+        "deployment_id": deployment_id,
+        "task_id": task_id,
+        "run_id": run_id,
+        "terminal_status": _run_status(run),
+        "event_count": len(events) if isinstance(events, list) else 0,
+        "attempt_count": len(attempts) if isinstance(attempts, list) else 0,
+        "repository_root": str(root),
+    }
+
+
+def _support_agent_manifest() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "name": "support-agent",
+        "version": "0.1.0",
+        "runtime": {
+            "framework": "langgraph",
+            "adapter": "langgraph",
+            "entrypoint": "agent:build_graph",
+            "python": ">=3.11",
+        },
+        "capabilities": {
+            "invoke": True,
+            "stream": True,
+            "checkpoint": True,
+            "resume": True,
+            "interrupt": True,
+            "human_in_loop": True,
+            "tool_events": True,
+            "model_events": True,
+            "token_usage": True,
+            "filesystem": False,
+            "subagents": False,
+        },
+    }
+
+
+def _required_id(payload: dict[str, Any], label: str) -> object:
+    value = payload.get("id")
+    if value is None:
+        raise RuntimeError(f"{label} response did not include id")
+    return value
+
+
+def _wait_for_terminal_run(
+    runner: RuntimeSmokeRunner,
+    run_id: object,
+    retries: int,
+    delay_seconds: float,
+) -> dict[str, Any]:
+    last_run: dict[str, Any] | None = None
+    for attempt in range(retries):
+        run = runner.get_json(
+            f"{API_BASE_URL}/v1/runs/{run_id}",
+            headers=ADMIN_HEADERS,
+            timeout_seconds=30,
+        )
+        if not isinstance(run, dict):
+            raise RuntimeError(f"run {run_id} response was not an object")
+        last_run = run
+        if _run_status(run) in TERMINAL_RUN_STATUSES:
+            return run
+        if attempt < retries - 1:
+            time.sleep(delay_seconds)
+    raise RuntimeError(f"run {run_id} did not reach terminal state: {last_run}")
+
+
+def _run_status(run: dict[str, Any]) -> str:
+    status = run.get("status")
+    return str(status or "unknown")
+
+
+def _write_activation_evidence_index(
+    evidence_dir: Path,
+    *,
+    root: Path,
+    evidence: dict[str, Any],
+) -> None:
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "workflow: integration.yml",
+        "smoke-command: uv run python scripts/compose_runtime_smoke.py",
+        "artifact-name: compose-evidence-index",
+        "package validation completed",
+        "agent version created",
+        "deployment created",
+        "deployment task submitted",
+        "run reached terminal state",
+        "console health checked",
+        "evidence index written",
+    ]
+    for key in [
+        "package_uri",
+        "agent_id",
+        "agent_version_id",
+        "deployment_id",
+        "task_id",
+        "run_id",
+        "terminal_status",
+        "event_count",
+        "attempt_count",
+    ]:
+        lines.append(f"{key}: {evidence.get(key)}")
+    content = "\n".join(lines) + "\n"
+    (evidence_dir / "compose-evidence-index.txt").write_text(content, encoding="utf-8")
 
 
 def _ensure_compose_env(root: Path) -> bool:

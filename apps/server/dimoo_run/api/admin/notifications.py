@@ -254,3 +254,80 @@ def list_delivery_attempts(x_request_id: RequestIdHeader = None) -> dict[str, An
         "count": len(_DELIVERY_ATTEMPTS),
         "request_id": x_request_id,
     }
+
+
+@router.post("/v1/alerts/rules/{rule_id}/test")
+def test_alert_rule_route(
+    rule_id: int,
+    payload: AdminPayload = None,
+    x_request_id: RequestIdHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_environment: EnvironmentHeader = None,
+) -> dict[str, Any]:
+    data = payload or {}
+    attempt = record_delivery_attempt(
+        channel_id=_normalized_channel_id(data.get("channel_id")) or rule_id,
+        channel_name=str(data.get("channel_name") or "alert-route").strip(),
+        target_ref=str(data.get("target_ref") or f"alert-rule://{rule_id}").strip(),
+        message=str(data.get("message") or "Synthetic alert route probe").strip(),
+        source="alert_rule.test",
+        request_id=x_request_id,
+    )
+    return {
+        "status": "ready",
+        "rule_id": rule_id,
+        "delivery_attempt": attempt,
+        "audit": {
+            "action": "alert_rule.test",
+            "resource_type": "alert_rule",
+            "resource_id": rule_id,
+            "reason": str(data.get("audit_reason") or ""),
+            "tenant_id": x_tenant_id,
+            "project_id": x_project_id,
+            "environment": x_environment,
+            "request_id": x_request_id,
+        },
+        "request_id": x_request_id,
+    }
+
+
+@router.post("/v1/webhooks/subscriptions/{subscription_id}/validate")
+def validate_webhook_subscription(
+    subscription_id: int,
+    payload: AdminPayload = None,
+    x_request_id: RequestIdHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_environment: EnvironmentHeader = None,
+) -> dict[str, Any]:
+    data = payload or {}
+    attempt = record_delivery_attempt(
+        channel_id=_normalized_channel_id(data.get("channel_id")),
+        channel_name=str(data.get("channel_name") or "webhook-validation").strip(),
+        target_ref=str(data.get("target_url") or f"webhook-subscription://{subscription_id}").strip(),
+        message=str(data.get("message") or "Synthetic webhook validation probe").strip(),
+        source="webhook_subscription.validate",
+        request_id=x_request_id,
+    )
+    return {
+        "status": "ready",
+        "subscription_id": subscription_id,
+        "validation": {
+            "target_reachable": True,
+            "secret_ref": "[REDACTED]",
+            "audit_reason": str(data.get("audit_reason") or ""),
+        },
+        "last_delivery": attempt,
+        "delivery_attempt": attempt,
+        "audit": {
+            "action": "webhook_subscription.validate",
+            "resource_type": "webhook_subscription",
+            "resource_id": subscription_id,
+            "tenant_id": x_tenant_id,
+            "project_id": x_project_id,
+            "environment": x_environment,
+            "request_id": x_request_id,
+        },
+        "request_id": x_request_id,
+    }

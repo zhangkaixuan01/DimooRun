@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { installConsoleApiMocks, seedConsoleSession } from "../fixtures/api";
+import { installConsoleApiMocks, seedConsoleSession, seedEnglishLocale } from "../fixtures/api";
 
 test("acknowledges and resolves an incident with evidence and delivery attempts", async ({ page }) => {
   await seedConsoleSession(page);
@@ -79,4 +79,34 @@ test("previews backup and restore dry runs with destructive restore guardrails",
   await page.getByRole("button", { name: "Preview restore" }).click();
   await expect(page.getByText("Restore dry-run ready")).toBeVisible();
   await expect(page.getByText("restore.dry_run")).toBeVisible();
+});
+
+test("creates alert rule and sends a routed notification probe", async ({ page }) => {
+  await seedEnglishLocale(page);
+  await seedConsoleSession(page);
+  await installConsoleApiMocks(page);
+
+  await page.goto("/ops/alerts");
+
+  await expect(page.getByRole("heading", { name: "Alert Rules" })).toBeVisible();
+  await page.getByRole("button", { name: "New alert rule" }).click();
+  await page.getByLabel("Name").fill("runtime error burst");
+  await page.getByLabel("Signal").fill("runtime.error_rate");
+  await page.getByLabel("Threshold").fill("2");
+  await page.getByRole("button", { name: "Save alert rule" }).click();
+  await expect(page.getByText("runtime error burst")).toBeVisible();
+  await page.getByRole("button", { name: "Test notification" }).click();
+  await expect(page.getByText("delivery attempt")).toBeVisible();
+});
+
+test("webhook workbench validates target and shows last delivery state", async ({ page }) => {
+  await seedEnglishLocale(page);
+  await seedConsoleSession(page);
+  await installConsoleApiMocks(page);
+
+  await page.goto("/ops/webhooks");
+
+  await expect(page.getByRole("heading", { name: "Webhook Subscriptions" })).toBeVisible();
+  await page.getByRole("button", { name: "Validate webhook" }).first().click();
+  await expect(page.getByText("last delivery")).toBeVisible();
 });

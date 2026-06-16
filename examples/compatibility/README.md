@@ -8,3 +8,8 @@
 - threads
 - runs
 - stream
+
+当前入口：
+
+- `examples/compatibility/langgraph-basic`
+- `docs/reference/compatibility.md`

@@ -14,7 +14,7 @@ External production-grade platform: not yet.
 | Milestone | Status | Evidence | Remaining gap |
 |---|---|---|---|
 | Milestone A: Internal Alpha | partial | Core runtime, Console, CLI, SDK, examples, docs, and local verification paths exist. | Current hosted proof and generated screenshot evidence are still incomplete. |
-| Milestone B: Production Beta | partial | Worker hardening, governance, observability, Docker, Helm, operations, and trust docs exist. | Clean-machine Compose, ephemeral Kubernetes, release, and broader external evidence are not complete. |
+| Milestone B: Production Beta | partial | Worker hardening, governance, observability, Docker, Helm, operations, trust docs, and local Compose activation evidence exist. | Ephemeral Kubernetes, release, hosted monitoring, and broader external evidence are not complete. |
 | Milestone C: External GA | missing | Some GA-shaped surfaces exist, including SDKs, CLI, compatibility, identity, admin, and deployment assets. | External hosted proof, release proof, trust verification, and full workflow evidence are missing. |
 | Milestone D: Competitive Excellence | missing | Product direction is clear around adapter-first runtime control. | Guided activation, polished operator workflows, exhaustive examples, and differentiated product proof remain incomplete. |
 
@@ -25,13 +25,15 @@ External production-grade platform: not yet.
   attempts, artifacts, replay, policy, approvals, and audit evidence.
 - Console, CLI, Python SDK, TypeScript SDK, Docker Compose, Helm, and example
   agent paths are present.
+- The local Compose activation path is proven by the integration workflow artifact
+  `compose-evidence-index`.
 - Trust, security, operations, comparison, roadmap, FAQ, demo, contribution, and
   security policy docs are present.
 
 ## Remaining Gaps
 
 - Hosted CI proof is not yet enough to support external production-grade claims.
-- Clean-machine Compose and ephemeral Kubernetes smoke results are not complete.
+- Ephemeral Kubernetes smoke and hosted proof results are not complete.
 - Generated screenshot evidence is not maintained as a public docs gallery.
 - Release attestation, externally hosted trust verification, and full operator
   workflow proof still need closure.

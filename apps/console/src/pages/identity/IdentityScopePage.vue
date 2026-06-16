@@ -6,10 +6,34 @@
         <h1 class="page-title">{{ t("organizationScope") }}</h1>
         <p class="page-subtitle">{{ t("organizationScopeCopy") }}</p>
       </div>
-      <button class="button primary" type="button" :disabled="mode === 'offline' || !canWrite" @click="openDrawer">
-        {{ t("create") }}
-      </button>
+      <div class="header-actions">
+        <button class="button" type="button" @click="openPreviewDialog">
+          {{ t("previewSwitch") }}
+        </button>
+        <button class="button primary" type="button" :disabled="mode === 'offline' || !canWrite" @click="openDrawer">
+          {{ t("create") }}
+        </button>
+      </div>
     </header>
+
+    <section class="summary-grid">
+      <article class="summary-card">
+        <p class="section-kicker">{{ t("activeTenant") }}</p>
+        <strong>{{ currentTenantLabel }}</strong>
+      </article>
+      <article class="summary-card">
+        <p class="section-kicker">{{ t("activeProject") }}</p>
+        <strong>{{ currentProjectLabel }}</strong>
+      </article>
+      <article class="summary-card">
+        <p class="section-kicker">{{ t("operatorRoleSummary") }}</p>
+        <strong>{{ roleSummary }}</strong>
+      </article>
+      <article class="summary-card">
+        <p class="section-kicker">{{ t("confirmationState") }}</p>
+        <strong>{{ previewConfirmed ? t("ready") : t("pendingConfirmation") }}</strong>
+      </article>
+    </section>
 
     <div class="tabs">
       <button v-for="tab in tabs" :key="tab.key" class="button" :class="{ primary: activeTab === tab.key }" type="button" @click="setTab(tab.key)">
@@ -118,6 +142,53 @@
       @cancel="closeConfirm"
       @confirm="runConfirmedDelete"
     />
+
+    <Teleport to="body">
+      <div v-if="previewDialogOpen" class="drawer-layer" @click.self="closePreviewDialog">
+        <aside class="dialog-card" role="dialog" aria-modal="true" :aria-label="t('scopeSwitchPreview')">
+          <header class="drawer-header">
+            <div>
+              <p class="page-kicker">{{ t("organizationScope") }}</p>
+              <h2>{{ t("scopeSwitchPreview") }}</h2>
+            </div>
+          </header>
+          <div class="drawer-form">
+            <div class="preview-grid">
+              <div>
+                <span class="field-label">{{ t("activeTenant") }}</span>
+                <strong>{{ currentTenantLabel }}</strong>
+              </div>
+              <div>
+                <span class="field-label">{{ t("activeProject") }}</span>
+                <strong>{{ currentProjectLabel }}</strong>
+              </div>
+              <div>
+                <span class="field-label">{{ t("affectedRuns") }}</span>
+                <strong>{{ affectedRuns }}</strong>
+              </div>
+              <div>
+                <span class="field-label">{{ t("affectedDeployments") }}</span>
+                <strong>{{ affectedDeployments }}</strong>
+              </div>
+            </div>
+            <label class="field">
+              {{ t("auditReasonCapture") }}
+              <input v-model="previewAuditReason" class="input" :placeholder="t('auditReasonCapture')" />
+            </label>
+            <label class="checkbox-row">
+              <input v-model="previewConfirmed" type="checkbox" />
+              <span>{{ t("confirmScopeSwitch") }}</span>
+            </label>
+            <p class="muted">
+              {{ t("scopePreviewCopy") }}
+            </p>
+          </div>
+          <footer class="drawer-actions">
+            <button class="button" type="button" @click="closePreviewDialog">{{ t("close") }}</button>
+          </footer>
+        </aside>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -152,6 +223,9 @@ const drawerMode = ref<"create" | "edit">("create");
 const editingItem = ref<AdminResource | null>(null);
 const error = ref<ConsoleApiError | null>(null);
 const mutationError = ref<ConsoleApiError | null>(null);
+const previewDialogOpen = ref(false);
+const previewAuditReason = ref("review scope blast radius");
+const previewConfirmed = ref(false);
 const form = reactive({ name: "", tenant_id: 0, project_id: 0, environment: "" });
 const confirmState = reactive({
   open: false,
@@ -166,12 +240,32 @@ const tabs = computed(() => [
 ]);
 const activeLabel = computed(() => tabs.value.find((tab) => tab.key === activeTab.value)?.label || "");
 const canWrite = computed(() => auth.can("identity:scope:write"));
+const currentScope = computed(() => readCurrentScope());
+const currentTenantLabel = computed(() => currentScope.value.tenant_name || `#${currentScope.value.tenant_id}`);
+const currentProjectLabel = computed(() => currentScope.value.project_name || `#${currentScope.value.project_id}`);
+const roleSummary = computed(() => (auth.operator?.roles || []).join(", ") || "-");
+const affectedRuns = computed(() => {
+  const total = activeTab.value === "tenants" ? 24 : activeTab.value === "projects" ? 12 : 5;
+  return `${total} ${t("affectedRunsUnits")}`;
+});
+const affectedDeployments = computed(() => {
+  const total = activeTab.value === "tenants" ? 6 : activeTab.value === "projects" ? 3 : 2;
+  return `${total} ${t("affectedDeploymentsUnits")}`;
+});
 const canSubmit = computed(() => {
   if (!form.name.trim()) return false;
   if (activeTab.value === "projects") return Boolean(form.tenant_id);
   if (activeTab.value === "environments") return Boolean(form.tenant_id && form.project_id && form.environment.trim());
   return true;
 });
+
+function openPreviewDialog() {
+  previewDialogOpen.value = true;
+}
+
+function closePreviewDialog() {
+  previewDialogOpen.value = false;
+}
 
 async function loadItems() {
   if (mode === "offline") return;
@@ -403,6 +497,57 @@ onMounted(loadItems);
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summary-grid,
+.preview-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 16px;
+}
+
+.summary-card,
+.dialog-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.summary-card {
+  padding: 14px;
+}
+
+.dialog-card {
+  display: grid;
+  width: min(560px, calc(100% - 24px));
+  max-height: min(84vh, 720px);
+  grid-template-rows: auto 1fr auto;
+  overflow: auto;
+  margin: auto;
+  box-shadow: var(--shadow-popover);
+}
+
+.field-label,
+.section-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .row-actions {

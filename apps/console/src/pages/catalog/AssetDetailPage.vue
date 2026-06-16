@@ -44,10 +44,10 @@
           <div class="action-grid">
             <button class="button" type="button" :disabled="mutating" @click="runValidate">{{ t("validateAsset") }}</button>
             <button class="button" type="button" :disabled="mutating" @click="runAction('approve')">{{ t("approve") }}</button>
-            <button class="button primary" type="button" :disabled="mutating" @click="runAction('publish')">{{ t("publish") }}</button>
+            <button class="button primary" type="button" :disabled="mutating" @click="runAction('publish')">{{ publishLabel }}</button>
             <button class="button" type="button" :disabled="mutating" @click="runAction('deprecate')">{{ t("deprecate") }}</button>
             <button class="button danger" type="button" :disabled="mutating" @click="runAction('archive')">{{ t("archive") }}</button>
-            <button class="button" type="button" :disabled="mutating" @click="runAction('rollback')">{{ t("rollback") }}</button>
+            <button class="button" type="button" :disabled="mutating" @click="runAction('rollback')">{{ rollbackLabel }}</button>
           </div>
           <p v-if="actionMessage" class="action-message">{{ actionMessage }}</p>
         </div>
@@ -85,6 +85,18 @@
             </ul>
           </div>
           <div>
+            <p class="section-kicker">{{ t("validationState") }}</p>
+            <p class="muted">{{ detail.validation.status || "unknown" }}</p>
+          </div>
+          <div>
+            <p class="section-kicker">{{ t("versionEvidence") }}</p>
+            <ul class="plain-list">
+              <li>{{ t("currentVersion") }} · {{ detail.item.version }}</li>
+              <li>{{ t("validationState") }} · {{ detail.validation.status || "unknown" }}</li>
+              <li>{{ t("rollbackTarget") }} · {{ rollbackOptions[0]?.version || t("previousVersion") }}</li>
+            </ul>
+          </div>
+          <div>
             <p class="section-kicker">{{ t("dependencies") }}</p>
             <ul class="plain-list">
               <li v-for="dependency in detail.dependencies" :key="`${dependency.name}:${dependency.version}`">
@@ -94,7 +106,7 @@
             </ul>
           </div>
           <div>
-            <p class="section-kicker">{{ t("usedBy") }}</p>
+            <p class="section-kicker">{{ linkedUsageLabel }}</p>
             <ul class="plain-list">
               <li v-for="usage in detail.used_by" :key="`${usage.resource_kind}-${usage.resource_id}`">
                 {{ usage.resource_kind }} #{{ usage.resource_id }} · {{ usage.status }} · {{ usage.environment || "shared" }}
@@ -191,6 +203,9 @@ const badgeStatus = computed(() => {
   if (status === "deprecated" || status === "archived") return "disabled";
   return "neutral";
 });
+const publishLabel = computed(() => props.kind === "template" || props.kind === "config" ? t("promoteVersion") : t("publish"));
+const rollbackLabel = computed(() => props.kind === "template" || props.kind === "config" ? t("rollbackVersion") : t("rollback"));
+const linkedUsageLabel = computed(() => props.kind === "config" ? t("linkedDeployments") : props.kind === "template" ? t("linkedCatalogItems") : t("usedBy"));
 
 const rollbackOptions = computed(() =>
   (detail.value?.version_history || []).filter((entry) => entry.id !== detail.value?.item.id),

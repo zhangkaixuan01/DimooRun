@@ -487,3 +487,82 @@ def test_batch_detail_marks_completed_when_all_tasks_are_terminal() -> None:
     assert item["status"] == "completed"
     assert item["progress_summary"]["completed_items"] == 2
     assert item["progress_summary"]["terminal_items"] == 2
+
+
+def test_schedule_detail_exposes_hardened_runtime_fields() -> None:
+    client = TestClient(create_app())
+    api_key = create_api_key()
+    deployment_id = create_deployment(client, api_key)
+
+    created = client.post(
+        "/v1/schedules",
+        headers=admin_headers("req_schedule_hardened_create"),
+        json={
+            "name": "hardened-schedule",
+            "interval_minutes": 15,
+            "timezone": "UTC",
+            "deployment_id": deployment_id,
+            "input_template": {"message": "scheduled"},
+            "backfill_policy": "latest",
+            "missed_run_policy": "run_once",
+            "audit_reason": "create hardened schedule",
+        },
+    )
+    assert created.status_code == 201
+
+    response = client.get(
+        f"/v1/schedules/{created.json()['item']['id']}",
+        headers=admin_headers("req_schedule_detail"),
+    )
+    assert response.status_code == 200
+    body = response.json()["item"]
+    assert "next_fire_time" in body
+    assert "next_fire_at" in body
+    assert "trigger_count" in body
+    assert "pause_reason" in body
+    assert body["schedule_type"] == "interval"
+    assert body["timezone"] == "UTC"
+    assert body["missed_run_policy"] == "run_once"
+    assert body["backfill_policy"] == "latest"
+
+
+def test_batch_detail_exposes_hardened_summary_fields() -> None:
+    client = TestClient(create_app())
+    api_key = create_api_key()
+    deployment_id = create_deployment(client, api_key)
+
+    created = client.post(
+        "/v1/batch-runs",
+        headers=admin_headers("req_batch_hardened_create"),
+        json={
+            "name": "hardened-batch",
+            "deployment_id": deployment_id,
+            "input_items": [{"message": "one"}, "bad-item", {"message": "two"}],
+            "concurrency": 2,
+            "retry_policy": {"max_attempts": 2},
+            "cancel_policy": "best_effort",
+            "partial_failure_policy": "continue",
+            "audit_reason": "create hardened batch",
+        },
+    )
+    assert created.status_code == 201
+
+    response = client.get(
+        f"/v1/batch-runs/{created.json()['item']['id']}",
+        headers=admin_headers("req_batch_detail"),
+    )
+    assert response.status_code == 200
+    body = response.json()["item"]
+    for key in [
+        "deployment_id",
+        "total_items",
+        "queued_items",
+        "completed_items",
+        "failed_items",
+        "dead_letter_items",
+    ]:
+        assert key in body
+    assert body["deployment_id"] == deployment_id
+    assert body["total_items"] == 3
+    assert body["queued_items"] == 2
+    assert body["failed_items"] == 1

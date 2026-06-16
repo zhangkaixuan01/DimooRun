@@ -502,6 +502,66 @@ export async function installConsoleApiMocks(
     { provider: "notification_transport", status: "degraded", summary: "notification channels", reason: "0 channel(s) configured." },
     { provider: "observability_exporter", status: "healthy", summary: "otlp", reason: "1 exporter record(s) configured." },
   ];
+  const observabilityExporters: Array<Record<string, unknown>> = [
+    {
+      id: 1401,
+      name: "primary-otel",
+      exporter_type: "otlp",
+      target_ref: "http://otel.internal:4318",
+      target_ref_redacted: "http://otel:4318",
+      status: "active",
+      metadata: { blocked_reason: null },
+      tenant_id: 1,
+      project_id: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ];
+  const semanticStoreProviders: Array<Record<string, unknown>> = [
+    {
+      id: 1501,
+      name: "tenant-memory",
+      embedding_model: "text-embedding-3-large",
+      connection_ref: "postgresql://vector-store",
+      status: "active",
+      metadata: { index_coverage: { runs: 92, artifacts: 81 } },
+      tenant_id: 1,
+      project_id: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ];
+  const sandboxPolicies: Array<Record<string, unknown>> = [
+    {
+      id: 1601,
+      name: "restricted-egress",
+      isolation_level: "container",
+      network_policy: "deny_all",
+      filesystem_policy: "read_only",
+      status: "active",
+      metadata: { affected_surfaces: ["published_surfaces", "replay_jobs"] },
+      tenant_id: 1,
+      project_id: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ];
+  const containerPoolPolicies: Array<Record<string, unknown>> = [
+    {
+      id: 1701,
+      name: "default-pool",
+      max_containers: 6,
+      cpu_limit: "1000m",
+      memory_limit: "1Gi",
+      idle_timeout_seconds: 300,
+      status: "active",
+      metadata: { warm_capacity: 2, worker_pools: ["default", "gpu-burst"] },
+      tenant_id: 1,
+      project_id: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ];
   const notificationChannels: Array<Record<string, unknown>> = [
     {
       id: 901,
@@ -526,6 +586,24 @@ export async function installConsoleApiMocks(
       tenant_id: 1,
       project_id: 1,
       environment: "local",
+    },
+  ];
+  const alertRules: Array<Record<string, unknown>> = [];
+  const webhookSubscriptions: Array<Record<string, unknown>> = [
+    {
+      id: 1101,
+      name: "runtime-events",
+      target_url: "https://hooks.example.test/runtime",
+      event_types: ["run.failed", "incident.created"],
+      retry_policy: "3 attempts",
+      secret_ref: "secret:runtime/webhook",
+      status: "active",
+      last_delivery_status: "sent",
+      tenant_id: 1,
+      project_id: 1,
+      environment: "local",
+      created_at: createdAt,
+      updated_at: createdAt,
     },
   ];
   const costBudgetPolicies: Array<Record<string, unknown>> = [
@@ -770,6 +848,18 @@ export async function installConsoleApiMocks(
         request_id: "e2e-request",
       });
     }
+    if (path === "/v1/observability/exporters" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(observabilityExporters));
+    }
+    if (path === "/v1/semantic-store/providers" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(semanticStoreProviders));
+    }
+    if (path === "/v1/sandbox/policies" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(sandboxPolicies));
+    }
+    if (path === "/v1/container-pool/policies" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(containerPoolPolicies));
+    }
     if (path === "/v1/console/costs/summary" && route.request().method() === "GET") {
       return fulfillJson(route, costSummaryResponse(url));
     }
@@ -841,6 +931,22 @@ export async function installConsoleApiMocks(
     if (dangerActionMatch && route.request().method() === "POST") {
       return fulfillPlatformDangerAction(route, dangerActionMatch[1], platformScopedSettings, platformSnapshot);
     }
+    const exporterValidateMatch = path.match(/^\/v1\/console\/settings\/observability-exporters\/(\d+)\/validate$/);
+    if (exporterValidateMatch && route.request().method() === "POST") {
+      return fulfillObservabilityExporterValidation(route, observabilityExporters, Number(exporterValidateMatch[1]));
+    }
+    const semanticValidateMatch = path.match(/^\/v1\/console\/settings\/semantic-store-providers\/(\d+)\/validate$/);
+    if (semanticValidateMatch && route.request().method() === "POST") {
+      return fulfillSemanticStoreValidation(route, semanticStoreProviders, Number(semanticValidateMatch[1]));
+    }
+    const sandboxPreviewMatch = path.match(/^\/v1\/console\/settings\/sandbox-policies\/(\d+)\/preview$/);
+    if (sandboxPreviewMatch && route.request().method() === "POST") {
+      return fulfillSandboxPolicyPreview(route, sandboxPolicies, Number(sandboxPreviewMatch[1]));
+    }
+    const containerEstimateMatch = path.match(/^\/v1\/console\/settings\/container-pool-policies\/(\d+)\/estimate$/);
+    if (containerEstimateMatch && route.request().method() === "POST") {
+      return fulfillContainerPoolEstimate(route, containerPoolPolicies, Number(containerEstimateMatch[1]));
+    }
     const rolePreviewMatch = path.match(/^\/v1\/identity\/workflows\/roles\/(\d+)\/(preview|apply)$/);
     if (rolePreviewMatch && route.request().method() === "POST") {
       return fulfillIdentityRolePreview(route, identityRoles, identityOperators, Number(rolePreviewMatch[1]), rolePreviewMatch[2]);
@@ -865,6 +971,59 @@ export async function installConsoleApiMocks(
     }
     if (path === "/v1/notifications/channels" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(notificationChannels));
+    }
+    if (path === "/v1/alerts/rules" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(alertRules));
+    }
+    if (path === "/v1/alerts/rules" && route.request().method() === "POST") {
+      const body = parseRequestBody(route);
+      const item = {
+        id: nextNumericId(alertRules as Array<{ id: number }>),
+        name: String(body.name || "alert-rule"),
+        signal: String(body.signal || "runtime.error_rate"),
+        threshold: Number(body.threshold || 1),
+        channel_id: Number(body.channel_id || 901),
+        status: "active",
+        last_triggered_at: null,
+        tenant_id: 1,
+        project_id: 1,
+        environment: "local",
+        created_at: createdAt,
+        updated_at: createdAt,
+      };
+      alertRules.unshift(item);
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        json: { item, request_id: "e2e-request" },
+      });
+    }
+    const alertTestMatch = path.match(/^\/v1\/alerts\/rules\/(\d+)\/test$/);
+    if (alertTestMatch && route.request().method() === "POST") {
+      return fulfillJson(route, {
+        status: "ready",
+        rule_id: Number(alertTestMatch[1]),
+        delivery_attempt: {
+          id: 7001,
+          status: "sent",
+          visible_to_operator: true,
+          redacted_payload: { message: "Synthetic alert route probe" },
+        },
+        request_id: "e2e-request",
+      });
+    }
+    if (path === "/v1/webhooks/subscriptions" && route.request().method() === "GET") {
+      return fulfillJson(route, makeAdminCollection(webhookSubscriptions));
+    }
+    const webhookValidateMatch = path.match(/^\/v1\/webhooks\/subscriptions\/(\d+)\/validate$/);
+    if (webhookValidateMatch && route.request().method() === "POST") {
+      return fulfillJson(route, {
+        status: "ready",
+        subscription_id: Number(webhookValidateMatch[1]),
+        validation: { secret_ref: "[REDACTED]", target_reachable: true },
+        last_delivery: { id: 7101, status: "sent", visible_to_operator: true },
+        request_id: "e2e-request",
+      });
     }
     if (path === "/v1/costs/budgets" && route.request().method() === "GET") {
       return fulfillJson(route, makeAdminCollection(costBudgetPolicies));
@@ -3490,6 +3649,19 @@ function compatibilityMigrationReportResponse(route: Route): unknown {
       recommended_actions: [
         "Run the compatibility explorer to confirm native Run and Task creation.",
       ],
+      remediation_steps: unsupported.length > 0
+        ? [
+          {
+            capability: "hosted_deployments",
+            reason: "compatibility_not_supported",
+            severity: "manual_migration_required",
+            target_files: ["dimoorun.yaml", "manifest.yaml"],
+            recommended_action: "Use native deployments for hosted runtime behavior",
+            verification_command: "uv run dimoorun deployment create --help",
+            native_route: "/deployments",
+          },
+        ]
+        : [],
     },
     golden_record: {
       operation: "migration.report",
@@ -3785,6 +3957,11 @@ function responseForPath(path: string, api: DashboardApiFixture): unknown {
   if (path === "/v1/runs") return api.runs;
   if (path === "/v1/human-tasks") return api.humanTasks;
   if (path === "/v1/incidents") return api.incidents;
+  if (path === "/v1/audit-logs") return observabilityAuditLogs();
+  if (path === "/v1/artifacts") return observabilityArtifacts();
+  if (path === "/v1/evaluations/results") return observabilityEvaluationResults();
+  if (path === "/v1/feedback") return observabilityFeedback();
+  if (path === "/v1/replay-jobs") return observabilityReplayJobs();
   const versionsMatch = path.match(/^\/v1\/agents\/(\d+)\/versions$/);
   if (versionsMatch) {
     return api.versions.filter((item) => item.agent_id === Number(versionsMatch[1]));
@@ -3806,6 +3983,106 @@ function responseForPath(path: string, api: DashboardApiFixture): unknown {
     ]);
   }
   return makeAdminCollection([]);
+}
+
+function observabilityAuditLogs(): AdminCollectionResponse<Record<string, unknown>> {
+  return makeAdminCollection([
+    {
+      id: 1401,
+      action: "policy.activate",
+      actor: "operator",
+      resource_type: "policy",
+      resource_id: 42,
+      policy_id: 42,
+      run_id: 1001,
+      deployment_id: 10,
+      status: "allowed",
+      request_id: "req-policy-activate",
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ]);
+}
+
+function observabilityArtifacts(): AdminCollectionResponse<Record<string, unknown>> {
+  return makeAdminCollection([
+    {
+      id: 1501,
+      name: "failure-trace.json",
+      artifact_type: "trace",
+      status: "active",
+      run_id: 1001,
+      deployment_id: 10,
+      storage_ref: "s3://dimoorun-artifacts/runs/1001/failure-trace.json",
+      metadata: { content_type: "application/json", bytes: 2048 },
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ]);
+}
+
+function observabilityEvaluationResults(): AdminCollectionResponse<Record<string, unknown>> {
+  return makeAdminCollection([
+    {
+      id: 1601,
+      name: "refund-policy-regression",
+      status: "failed",
+      result: "failed",
+      metric: "Pass rate",
+      pass_rate: 0.66,
+      run_id: 1001,
+      deployment_id: 10,
+      dataset_name: "support-regression",
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+    {
+      id: 1602,
+      name: "checkout-latency",
+      status: "succeeded",
+      result: "passed",
+      metric: "Accuracy",
+      pass_rate: 1,
+      run_id: 1002,
+      deployment_id: 10,
+      dataset_name: "latency-baseline",
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ]);
+}
+
+function observabilityFeedback(): AdminCollectionResponse<Record<string, unknown>> {
+  return makeAdminCollection([
+    {
+      id: 1701,
+      name: "refund answer missed policy",
+      source: "console",
+      status: "open",
+      sentiment: "negative",
+      run_id: 1001,
+      deployment_id: 10,
+      comment: "Agent skipped the required retention explanation.",
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ]);
+}
+
+function observabilityReplayJobs(): AdminCollectionResponse<Record<string, unknown>> {
+  return makeAdminCollection([
+    {
+      id: 1801,
+      name: "refund-policy-replay",
+      status: "failed",
+      run_id: 1001,
+      source_run_id: 1001,
+      deployment_id: 10,
+      replay_run_id: 1004,
+      created_at: createdAt,
+      updated_at: createdAt,
+    },
+  ]);
 }
 
 function fulfillIdentityRolePreview(
@@ -4860,6 +5137,90 @@ function fulfillPlatformDangerAction(
       status: "applied",
       scope_setting: environmentDefaults,
       rollback_notes: String(body.rollback_notes || ""),
+      request_id: "e2e-request",
+    },
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillObservabilityExporterValidation(
+  route: Route,
+  exporters: Array<Record<string, unknown>>,
+  exporterId: number,
+) {
+  const exporter = exporters.find((entry) => Number(entry.id) === exporterId) ?? exporters[0];
+  return fulfillJson(route, {
+    item: {
+      exporter_id: exporter?.id,
+      name: exporter?.name,
+      validation_status: "reachable",
+      last_proof_at: "2026-06-15T00:00:00Z",
+      target_ref_redacted: exporter?.target_ref_redacted,
+      blocked_reason: null,
+      request_id: "e2e-request",
+    },
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillSemanticStoreValidation(
+  route: Route,
+  providers: Array<Record<string, unknown>>,
+  providerId: number,
+) {
+  const provider = providers.find((entry) => Number(entry.id) === providerId) ?? providers[0];
+  return fulfillJson(route, {
+    item: {
+      provider_id: provider?.id,
+      name: provider?.name,
+      provider_status: "degraded",
+      embedding_model: provider?.embedding_model,
+      index_coverage: provider?.metadata?.index_coverage ?? { runs: 0, artifacts: 0 },
+      last_validation_proof: "2026-06-15T00:00:00Z",
+      request_id: "e2e-request",
+    },
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillSandboxPolicyPreview(
+  route: Route,
+  policies: Array<Record<string, unknown>>,
+  policyId: number,
+) {
+  const policy = policies.find((entry) => Number(entry.id) === policyId) ?? policies[0];
+  const body = parseRequestBody(route);
+  const capabilities = Array.isArray(body.capabilities) ? body.capabilities : [];
+  return fulfillJson(route, {
+    item: {
+      policy_id: policy?.id,
+      name: policy?.name,
+      blocked_capabilities: capabilities.filter((capability) => capability === "network" || capability === "filesystem"),
+      audit_required: true,
+      affected_runtime_surfaces: policy?.metadata?.affected_surfaces ?? [],
+      request_id: "e2e-request",
+    },
+    request_id: "e2e-request",
+  });
+}
+
+function fulfillContainerPoolEstimate(
+  route: Route,
+  policies: Array<Record<string, unknown>>,
+  policyId: number,
+) {
+  const policy = policies.find((entry) => Number(entry.id) === policyId) ?? policies[0];
+  const body = parseRequestBody(route);
+  const requestedWorkers = Number(body.requested_workers ?? 0);
+  const scaleLimit = Number(policy?.max_containers ?? 0);
+  return fulfillJson(route, {
+    item: {
+      policy_id: policy?.id,
+      name: policy?.name,
+      warm_capacity: policy?.metadata?.warm_capacity ?? 0,
+      scale_limit: scaleLimit,
+      estimated_saturation: scaleLimit > 0 ? Math.min(1, requestedWorkers / scaleLimit) : 1,
+      affected_worker_pools: policy?.metadata?.worker_pools ?? [],
       request_id: "e2e-request",
     },
     request_id: "e2e-request",

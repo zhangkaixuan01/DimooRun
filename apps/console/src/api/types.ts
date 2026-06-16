@@ -825,6 +825,7 @@ export type CompatibilityMigrationReport = {
   streamingSupport: Record<string, unknown>;
   governanceImplications: string[];
   recommendedActions: string[];
+  remediationSteps: Array<Record<string, unknown>>;
 };
 
 export type CompatibilityMigrationResponse = {

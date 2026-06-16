@@ -837,6 +837,55 @@ def test_top_level_api_keys_lists_accessible_machine_keys_without_plain_secret()
     assert "plain_key" not in body["items"][0]
 
 
+def test_audit_logs_filter_by_actor() -> None:
+    client = TestClient(create_app())
+
+    service_account = client.post(
+        "/v1/identity/service-accounts",
+        headers=admin_headers("req_actor_seed"),
+        json={"name": "audit-filter-sa", "permissions": ["run:read"]},
+    )
+    assert service_account.status_code == 201
+
+    response = client.get(
+        "/v1/audit-logs?actor=dev_console",
+        headers=admin_headers("req_audit_filter"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"]
+    assert all("dev_console" in str(item.get("actor_id", "")) for item in response.json()["items"])
+
+
+def test_admin_collection_filters_by_run_and_deployment_ids() -> None:
+    client = TestClient(create_app())
+
+    first = client.post(
+        "/v1/identity/users",
+        headers=admin_headers("req_replay_filter_first"),
+        json={"name": "run-1001-operator", "run_id": 1001, "deployment_id": 10},
+    )
+    second = client.post(
+        "/v1/identity/users",
+        headers=admin_headers("req_replay_filter_second"),
+        json={"name": "run-1002-operator", "run_id": 1002, "deployment_id": 11},
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    by_run = client.get(
+        "/v1/identity/users?run_id=1001",
+        headers=admin_headers("req_replay_filter_run"),
+    )
+    by_deployment = client.get(
+        "/v1/identity/users?deployment_id=11",
+        headers=admin_headers("req_replay_filter_deployment"),
+    )
+
+    assert [item["id"] for item in by_run.json()["items"]] == [first.json()["item"]["id"]]
+    assert [item["id"] for item in by_deployment.json()["items"]] == [second.json()["item"]["id"]]
+
+
 def test_machine_identity_service_account_update_and_delete() -> None:
     client = TestClient(create_app())
 

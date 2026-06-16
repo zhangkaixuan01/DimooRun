@@ -10,10 +10,13 @@ from dimoo_run.api.dependencies import (
 from dimoo_run.core.config import Settings
 from dimoo_run.domain.models import (
     AuditLog,
+    ContainerPoolPolicy,
     Environment,
     ObservabilityExporter,
     PlatformControlSetting,
     Project,
+    SandboxPolicy,
+    SemanticStoreProvider,
     Tenant,
 )
 from dimoo_run.persistence.database import Base, create_session_factory
@@ -296,3 +299,132 @@ def test_dangerous_action_freezes_environment_and_writes_audit() -> None:
         )
         assert audit is not None
         assert audit.action == "platform.settings.environment.update"
+
+
+def test_observability_exporter_validation_redacts_target_and_records_proof() -> None:
+    client = TestClient(create_app())
+    api_key = create_api_key()
+    session_factory = create_session_factory(os.environ["DATABASE_URL"])
+    with session_factory() as session:
+        session.add(
+            ObservabilityExporter(
+                id=1,
+                tenant_id=1,
+                project_id=1,
+                name="primary-otel",
+                exporter_type="otlp",
+                target_ref="http://otel.internal:4318",
+                status="active",
+                metadata_json={"blocked_reason": None},
+            )
+        )
+        session.commit()
+
+    response = client.post(
+        "/v1/console/settings/observability-exporters/1/validate",
+        headers=headers(api_key, request_id="req_exporter_validate"),
+        json={"audit_reason": "verify exporter"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()["item"]
+    assert body["validation_status"] in {"reachable", "blocked", "unconfigured"}
+    assert body["request_id"] == "req_exporter_validate"
+    assert "internal" not in body["target_ref_redacted"]
+
+
+def test_semantic_store_provider_validation_reports_index_coverage() -> None:
+    client = TestClient(create_app())
+    api_key = create_api_key()
+    session_factory = create_session_factory(os.environ["DATABASE_URL"])
+    with session_factory() as session:
+        session.add(
+            SemanticStoreProvider(
+                id=1,
+                tenant_id=1,
+                project_id=1,
+                name="tenant-memory",
+                embedding_model="text-embedding-3-large",
+                connection_ref="postgresql://vector-store",
+                status="active",
+                metadata_json={"index_coverage": {"runs": 92, "artifacts": 81}},
+            )
+        )
+        session.commit()
+
+    response = client.post(
+        "/v1/console/settings/semantic-store-providers/1/validate",
+        headers=headers(api_key, request_id="req_semantic_provider_validate"),
+        json={"audit_reason": "verify semantic store"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()["item"]
+    assert body["provider_status"] in {"ready", "degraded", "unconfigured"}
+    assert "index_coverage" in body
+
+
+def test_sandbox_policy_preview_reports_blocked_capabilities() -> None:
+    client = TestClient(create_app())
+    api_key = create_api_key()
+    session_factory = create_session_factory(os.environ["DATABASE_URL"])
+    with session_factory() as session:
+        session.add(
+            SandboxPolicy(
+                id=1,
+                tenant_id=1,
+                project_id=1,
+                name="restricted-egress",
+                isolation_level="container",
+                network_policy="deny_all",
+                filesystem_policy="read_only",
+                status="active",
+                metadata_json={"affected_surfaces": ["published_surfaces", "replay_jobs"]},
+            )
+        )
+        session.commit()
+
+    response = client.post(
+        "/v1/console/settings/sandbox-policies/1/preview",
+        headers=headers(api_key, request_id="req_sandbox_preview"),
+        json={"capabilities": ["network", "filesystem"], "audit_reason": "preview sandbox"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()["item"]
+    assert "blocked_capabilities" in body
+    assert body["audit_required"] is True
+
+
+def test_container_pool_policy_estimate_reports_capacity_impact() -> None:
+    client = TestClient(create_app())
+    api_key = create_api_key()
+    session_factory = create_session_factory(os.environ["DATABASE_URL"])
+    with session_factory() as session:
+        session.add(
+            ContainerPoolPolicy(
+                id=1,
+                tenant_id=1,
+                project_id=1,
+                name="default-pool",
+                max_containers=6,
+                cpu_limit="1000m",
+                memory_limit="1Gi",
+                idle_timeout_seconds=300,
+                status="active",
+                metadata_json={"warm_capacity": 2, "worker_pools": ["default", "gpu-burst"]},
+            )
+        )
+        session.commit()
+
+    response = client.post(
+        "/v1/console/settings/container-pool-policies/1/estimate",
+        headers=headers(api_key, request_id="req_container_pool_estimate"),
+        json={"requested_workers": 4, "audit_reason": "estimate pool"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()["item"]
+    assert "warm_capacity" in body
+    assert "scale_limit" in body
+    assert body["request_id"] == "req_container_pool_estimate"

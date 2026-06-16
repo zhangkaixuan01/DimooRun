@@ -65,10 +65,19 @@ def test_integration_workflow_runs_live_compose_and_kind_smoke() -> None:
     assert "kind version" in workflow_text
     assert "uv run python scripts/helm_smoke.py --cluster-runtime kind" in workflow_text
     assert "kind-smoke" in workflow_text
-    assert "compose-runtime-smoke-index" in workflow_text
+    assert "compose-evidence-index" in workflow_text
     assert "kind-smoke-index" in workflow_text
-    assert "compose-runtime-evidence-index.txt" in workflow_text
+    assert "compose-evidence-index.txt" in workflow_text
     assert "kind-smoke-evidence-index.txt" in workflow_text
+
+
+def test_integration_workflow_uploads_compose_activation_evidence() -> None:
+    workflow_text = Path(".github/workflows/integration.yml").read_text(encoding="utf-8")
+
+    assert "compose-evidence-index" in workflow_text
+    assert "compose-evidence-index.txt" in workflow_text
+    assert "compose-runtime-smoke.log" in workflow_text
+    assert "compose-diagnostics/" in workflow_text
 
 
 def test_ci_runs_phase_0h_browser_workflow_with_managed_chromium_report() -> None:

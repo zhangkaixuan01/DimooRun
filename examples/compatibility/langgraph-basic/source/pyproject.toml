@@ -1,0 +1,7 @@
+[project]
+name = "dimoorun-compatibility-langgraph-basic"
+version = "0.1.0"
+dependencies = [
+  "langgraph>=1.0.0",
+  "langchain-core>=1.0.0"
+]

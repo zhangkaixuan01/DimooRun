@@ -58,10 +58,50 @@
         </ul>
       </div>
     </div>
+
+    <div v-if="report && report.remediationSteps.length > 0" class="remediation-block">
+      <h3>Recommended remediation</h3>
+      <div
+        v-for="step in report.remediationSteps"
+        :key="String(step.capability)"
+        class="remediation-card"
+      >
+        <div class="report-grid">
+          <div>
+            <span class="report-label">Capability</span>
+            <strong>{{ String(step.capability || "") }}</strong>
+          </div>
+          <div>
+            <span class="report-label">Severity</span>
+            <strong>{{ String(step.severity || "") }}</strong>
+          </div>
+          <div class="remediation-span">
+            <span class="report-label">Target files</span>
+            <strong>{{ joinValues(step.target_files) }}</strong>
+          </div>
+          <div class="remediation-span">
+            <span class="report-label">Recommended action</span>
+            <strong>{{ String(step.recommended_action || "") }}</strong>
+          </div>
+          <div class="remediation-span">
+            <span class="report-label">Verification command</span>
+            <code>{{ String(step.verification_command || "") }}</code>
+          </div>
+          <div>
+            <span class="report-label">Native route</span>
+            <RouterLink :to="String(step.native_route || '/compatibility')">
+              {{ String(step.native_route || "") }}
+            </RouterLink>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { RouterLink } from "vue-router";
+
 import type { CompatibilityMigrationReport } from "../../api/types";
 import { useI18n } from "../../i18n/useI18n";
 
@@ -70,6 +110,10 @@ defineProps<{
 }>();
 
 const { t } = useI18n();
+
+function joinValues(value: unknown): string {
+  return Array.isArray(value) ? value.map((item) => String(item)).join(", ") : "";
+}
 </script>
 
 <style scoped>
@@ -134,5 +178,25 @@ ul {
 
 li {
   margin-bottom: 6px;
+}
+
+.remediation-block {
+  display: grid;
+  gap: 12px;
+}
+
+.remediation-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  padding: 12px;
+}
+
+.remediation-span {
+  grid-column: 1 / -1;
+}
+
+code {
+  overflow-wrap: anywhere;
 }
 </style>

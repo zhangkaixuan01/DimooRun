@@ -12,7 +12,7 @@ async function attachScreenshot(page: Page, testInfo: TestInfo, name: string) {
   await testInfo.attach(name, { path, contentType: "image/png" });
 }
 
-test("captures desktop workflow screenshots for dashboard and run detail", async ({ page }, testInfo) => {
+test("captures desktop workflow screenshots for dashboard, agent detail, and run detail", async ({ page }, testInfo) => {
   await seedEnglishLocale(page);
   await seedConsoleSession(page);
   await installConsoleApiMocks(page);
@@ -20,11 +20,15 @@ test("captures desktop workflow screenshots for dashboard and run detail", async
 
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await attachScreenshot(page, testInfo, "dashboard-desktop.png");
+  await attachScreenshot(page, testInfo, "evidence-dashboard-desktop.png");
+
+  await page.goto("/agents");
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await attachScreenshot(page, testInfo, "evidence-agent-detail-desktop.png");
 
   await page.goto("/runs/1001");
   await expect(page.getByText("Event Timeline")).toBeVisible();
-  await attachScreenshot(page, testInfo, "run-detail-desktop.png");
+  await attachScreenshot(page, testInfo, "evidence-run-workbench-desktop.png");
 });
 
 test("captures mobile workflow screenshots for agent and deployment flows", async ({ page }, testInfo) => {
@@ -37,11 +41,15 @@ test("captures mobile workflow screenshots for agent and deployment flows", asyn
   await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
   await page.getByRole("button", { name: "Register Agent" }).click();
   await expect(page.getByRole("dialog", { name: "Register Agent" })).toBeVisible();
-  await attachScreenshot(page, testInfo, "agents-mobile-drawer.png");
+  await attachScreenshot(page, testInfo, "evidence-agent-registration-mobile.png");
 
   await page.goto("/deployments");
   await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
   await page.getByRole("tab", { name: "Submit via Deployment" }).click();
   await expect(page.getByRole("button", { name: "Submit via Deployment" })).toBeVisible();
-  await attachScreenshot(page, testInfo, "deployment-task-mobile.png");
+  await attachScreenshot(page, testInfo, "evidence-deployment-workflow-mobile.png");
+
+  await page.goto("/settings/danger-zone");
+  await expect(page.getByRole("heading", { name: "Danger Zone" })).toBeVisible();
+  await attachScreenshot(page, testInfo, "evidence-settings-danger-zone-mobile.png");
 });

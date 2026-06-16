@@ -1329,14 +1329,44 @@ def create_metadata_model(table_name: str) -> type[Base]:
     )
 
 
-for _table_name in [
-    "scheduled_runs",
-    "batch_runs",
-    "extensions",
-]:
-    globals()["".join(part.capitalize() for part in _table_name.split("_"))] = (
-        create_metadata_model(_table_name)
-    )
+class ScheduledRuns(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "scheduled_runs"
 
-ScheduledRuns = globals()["ScheduledRuns"]
-BatchRuns = globals()["BatchRuns"]
+    status: Mapped[str] = mapped_column(String(64), default="active", nullable=False)
+    schedule_type: Mapped[str | None] = mapped_column(String(64))
+    timezone: Mapped[str] = mapped_column(String(128), default="UTC", nullable=False)
+    next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_id: Mapped[int | None] = mapped_column(BigInteger)
+    last_task_id: Mapped[int | None] = mapped_column(BigInteger)
+    last_run_status: Mapped[str | None] = mapped_column(String(64))
+    missed_run_policy: Mapped[str] = mapped_column(String(64), default="skip", nullable=False)
+    backfill_policy: Mapped[str] = mapped_column(String(64), default="none", nullable=False)
+    pause_reason: Mapped[str | None] = mapped_column(String(255))
+    trigger_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class BatchRuns(IdMixin, TenantProjectMixin, TimestampMixin, Base):
+    __tablename__ = "batch_runs"
+
+    status: Mapped[str] = mapped_column(String(64), default="queued", nullable=False)
+    deployment_id: Mapped[int | None] = mapped_column(BigInteger)
+    total_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    queued_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    running_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completed_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    dead_letter_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cancelled_items: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    partial_failure_policy: Mapped[str] = mapped_column(
+        String(64),
+        default="continue",
+        nullable=False,
+    )
+    cancel_policy: Mapped[str] = mapped_column(String(64), default="queued_only", nullable=False)
+    last_recomputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+Extensions = create_metadata_model("extensions")

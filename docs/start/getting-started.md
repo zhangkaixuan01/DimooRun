@@ -31,7 +31,10 @@ The intended evaluator path is:
 7. Inspect the run, attempts, events, artifacts, and audit evidence.
 8. Try replay or failure triage if the run fails.
 
-This path is the product activation target. It is not yet fully proven by clean-machine Compose evidence.
+This path is the product activation target. It proves local activation only, not
+external production readiness.
+The local Compose activation path is proven by the integration workflow artifact
+`compose-evidence-index`.
 
 ## Evaluation Checkpoints
 
@@ -65,7 +68,7 @@ Working directory: repository root.
 docker compose up --build
 ```
 
-Use this path for the product happy path once Compose smoke evidence is attached to the readiness scorecard.
+Use this path for the product happy path covered by the readiness scorecard.
 
 ## API And SDK Path
 

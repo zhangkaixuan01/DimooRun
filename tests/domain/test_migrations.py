@@ -70,6 +70,47 @@ def test_alembic_head_matches_task_columns_required_by_orm(tmp_path) -> None:  #
     assert "metadata_json" in task_columns
 
 
+def test_alembic_head_hardens_runtime_operation_columns(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    database_path = tmp_path / "dimoorun.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path}")
+
+    upgrade(config, "head")
+    inspector = inspect(create_engine(f"sqlite:///{database_path}"))
+
+    scheduled_columns = {
+        column["name"] for column in inspector.get_columns("scheduled_runs")
+    }
+    assert {
+        "schedule_type",
+        "timezone",
+        "next_fire_at",
+        "last_triggered_at",
+        "last_run_id",
+        "last_task_id",
+        "last_run_status",
+        "missed_run_policy",
+        "backfill_policy",
+        "pause_reason",
+        "trigger_count",
+    } <= scheduled_columns
+
+    batch_columns = {column["name"] for column in inspector.get_columns("batch_runs")}
+    assert {
+        "deployment_id",
+        "total_items",
+        "queued_items",
+        "running_items",
+        "completed_items",
+        "failed_items",
+        "dead_letter_items",
+        "cancelled_items",
+        "partial_failure_policy",
+        "cancel_policy",
+        "last_recomputed_at",
+    } <= batch_columns
+
+
 def test_sqlite_metadata_create_all_autoincrements_mixin_ids() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

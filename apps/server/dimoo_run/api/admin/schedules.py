@@ -33,6 +33,56 @@ NativeRuntimeDep = Annotated[
     Depends(get_native_runtime),
 ]
 
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if value in {None, ""}:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _apply_schedule_metadata(record: ScheduledRuns) -> dict[str, Any]:
+    metadata = dict(record.metadata_json or {})
+    record.schedule_type = str(metadata.get("schedule_type") or "").strip() or None
+    record.timezone = str(metadata.get("timezone") or "UTC").strip() or "UTC"
+    record.next_fire_at = _parse_datetime(metadata.get("next_fire_time"))
+    record.last_triggered_at = _parse_datetime(metadata.get("last_triggered_at"))
+    record.last_run_id = int(metadata["last_run_id"]) if metadata.get("last_run_id") else None
+    record.last_task_id = int(metadata["last_task_id"]) if metadata.get("last_task_id") else None
+    record.last_run_status = str(metadata.get("last_run_status") or "").strip() or None
+    record.missed_run_policy = str(metadata.get("missed_run_policy") or "skip")
+    record.backfill_policy = str(metadata.get("backfill_policy") or "none")
+    record.pause_reason = str(metadata.get("pause_reason") or "").strip() or None
+    record.trigger_count = int(metadata.get("trigger_count") or 0)
+    return metadata
+
+
+def _persist_schedule_metadata(record: ScheduledRuns, metadata: dict[str, Any]) -> None:
+    if record.schedule_type:
+        metadata["schedule_type"] = record.schedule_type
+    metadata["timezone"] = record.timezone
+    metadata["next_fire_time"] = (
+        record.next_fire_at.astimezone(UTC).isoformat() if record.next_fire_at else None
+    )
+    metadata["last_triggered_at"] = (
+        record.last_triggered_at.astimezone(UTC).isoformat()
+        if record.last_triggered_at
+        else None
+    )
+    metadata["last_run_id"] = record.last_run_id
+    metadata["last_task_id"] = record.last_task_id
+    metadata["last_run_status"] = record.last_run_status
+    metadata["missed_run_policy"] = record.missed_run_policy
+    metadata["backfill_policy"] = record.backfill_policy
+    metadata["pause_reason"] = record.pause_reason
+    metadata["trigger_count"] = record.trigger_count
+    record.metadata_json = metadata
+
 def _session() -> Session:
     session_factory = create_session_factory(Settings.from_env().database.url)
     session = session_factory()
@@ -79,28 +129,31 @@ def _require_audit_reason(payload: dict[str, Any], request_id: str | None) -> JS
 
 
 def _schedule_item(record: ScheduledRuns) -> dict[str, Any]:
-    metadata = dict(record.metadata_json or {})
+    metadata = _apply_schedule_metadata(record)
     return {
         "id": record.id,
         "name": metadata.get("name"),
         "status": record.status,
-        "schedule_type": metadata.get("schedule_type"),
+        "schedule_type": record.schedule_type,
         "cron_expression": metadata.get("cron_expression"),
         "interval_minutes": metadata.get("interval_minutes"),
-        "timezone": metadata.get("timezone"),
+        "timezone": record.timezone,
         "next_fire_time": metadata.get("next_fire_time"),
+        "next_fire_at": record.next_fire_at.isoformat() if record.next_fire_at else None,
         "deployment_id": metadata.get("deployment_id"),
         "input_template": metadata.get("input_template") or {},
-        "backfill_policy": metadata.get("backfill_policy"),
-        "missed_run_policy": metadata.get("missed_run_policy"),
-        "last_triggered_at": metadata.get("last_triggered_at"),
-        "last_run_id": metadata.get("last_run_id"),
-        "last_task_id": metadata.get("last_task_id"),
-        "last_run_status": metadata.get("last_run_status"),
+        "backfill_policy": record.backfill_policy,
+        "missed_run_policy": record.missed_run_policy,
+        "last_triggered_at": (
+            record.last_triggered_at.isoformat() if record.last_triggered_at else None
+        ),
+        "last_run_id": record.last_run_id,
+        "last_task_id": record.last_task_id,
+        "last_run_status": record.last_run_status,
         "last_task_status": metadata.get("last_task_status"),
         "last_trigger_source": metadata.get("last_trigger_source"),
-        "trigger_count": metadata.get("trigger_count") or 0,
-        "pause_reason": metadata.get("pause_reason"),
+        "trigger_count": record.trigger_count,
+        "pause_reason": record.pause_reason,
         "tenant_id": record.tenant_id,
         "project_id": record.project_id,
         "environment": metadata.get("environment"),
@@ -135,24 +188,22 @@ def _refresh_schedule_record(
     tenant_id: int,
     project_id: int,
 ) -> None:
-    metadata = dict(record.metadata_json or {})
+    metadata = _apply_schedule_metadata(record)
     changed = False
-    last_run_id = metadata.get("last_run_id")
-    if isinstance(last_run_id, int):
-        run = runtime.get_run(last_run_id, tenant_id=tenant_id, project_id=project_id)
+    if isinstance(record.last_run_id, int):
+        run = runtime.get_run(record.last_run_id, tenant_id=tenant_id, project_id=project_id)
         next_status = run.status.value if run is not None else None
-        if metadata.get("last_run_status") != next_status:
-            metadata["last_run_status"] = next_status
+        if record.last_run_status != next_status:
+            record.last_run_status = next_status
             changed = True
-    last_task_id = metadata.get("last_task_id")
-    if isinstance(last_task_id, int):
-        task = runtime.get_task(last_task_id, tenant_id=tenant_id, project_id=project_id)
+    if isinstance(record.last_task_id, int):
+        task = runtime.get_task(record.last_task_id, tenant_id=tenant_id, project_id=project_id)
         next_status = task.status.value if task is not None else None
         if metadata.get("last_task_status") != next_status:
             metadata["last_task_status"] = next_status
             changed = True
     if changed:
-        record.metadata_json = metadata
+        _persist_schedule_metadata(record, metadata)
 
 
 def _create_scheduled_runtime_run(
@@ -297,6 +348,7 @@ def create_schedule(
             status="active",
             metadata_json=metadata,
         )
+        _apply_schedule_metadata(record)
         session.add(record)
         session.commit()
         session.refresh(record)
@@ -412,15 +464,16 @@ def _update_schedule_status(
                     "request_id": request_id,
                 },
             )
-        metadata = dict(record.metadata_json or {})
-        metadata["pause_reason"] = (
+        metadata = _apply_schedule_metadata(record)
+        record.pause_reason = (
             str(payload.get("pause_reason") or "").strip() or None
             if status_value == "paused"
             else None
         )
         metadata["next_fire_time"] = compute_next_fire_time(metadata)
+        record.next_fire_at = _parse_datetime(metadata["next_fire_time"])
         record.status = status_value
-        record.metadata_json = metadata
+        _persist_schedule_metadata(record, metadata)
         session.commit()
         session.refresh(record)
         return {"item": _schedule_item(record), "request_id": request_id}
@@ -508,7 +561,7 @@ def trigger_schedule(
                     "request_id": x_request_id,
                 },
             )
-        metadata = dict(record.metadata_json or {})
+        metadata = _apply_schedule_metadata(record)
         input_payload = data.get("input")
         if not isinstance(input_payload, dict):
             input_payload = dict(metadata.get("input_template") or {})
@@ -542,15 +595,16 @@ def trigger_schedule(
                     "request_id": x_request_id,
                 },
             )
-        metadata["last_triggered_at"] = datetime.now(UTC).isoformat()
-        metadata["last_run_id"] = run.id
-        metadata["last_task_id"] = task.id
-        metadata["last_run_status"] = run.status.value
+        record.last_triggered_at = datetime.now(UTC)
+        record.last_run_id = run.id
+        record.last_task_id = task.id
+        record.last_run_status = run.status.value
         metadata["last_task_status"] = task.status.value
         metadata["last_trigger_source"] = "manual"
-        metadata["trigger_count"] = int(metadata.get("trigger_count") or 0) + 1
+        record.trigger_count += 1
         metadata["next_fire_time"] = compute_next_fire_time(metadata)
-        record.metadata_json = metadata
+        record.next_fire_at = _parse_datetime(metadata["next_fire_time"])
+        _persist_schedule_metadata(record, metadata)
         session.commit()
         session.refresh(record)
         return {
@@ -599,7 +653,7 @@ def run_due_schedules(
         skipped: list[dict[str, Any]] = []
         now = datetime.now(UTC)
         for record in records:
-            metadata = dict(record.metadata_json or {})
+            metadata = _apply_schedule_metadata(record)
             if metadata.get("environment") != x_environment:
                 continue
             due_fire_times, next_fire_time = resolve_due_fire_times(
@@ -609,7 +663,8 @@ def run_due_schedules(
             )
             if not due_fire_times:
                 metadata["next_fire_time"] = next_fire_time
-                record.metadata_json = metadata
+                record.next_fire_at = _parse_datetime(next_fire_time)
+                _persist_schedule_metadata(record, metadata)
                 skipped.append({"schedule_id": record.id, "next_fire_time": next_fire_time})
                 continue
             input_payload = dict(metadata.get("input_template") or {})
@@ -643,17 +698,11 @@ def run_due_schedules(
                     )
                 run_ids.append(last_run.id)
                 task_ids.append(last_task.id)
-            metadata["last_triggered_at"] = now.isoformat()
-            metadata["last_run_id"] = (
-                last_run.id if last_run is not None else metadata.get("last_run_id")
-            )
-            metadata["last_task_id"] = (
-                last_task.id if last_task is not None else metadata.get("last_task_id")
-            )
-            metadata["last_run_status"] = (
-                last_run.status.value
-                if last_run is not None
-                else metadata.get("last_run_status")
+            record.last_triggered_at = now
+            record.last_run_id = last_run.id if last_run is not None else record.last_run_id
+            record.last_task_id = last_task.id if last_task is not None else record.last_task_id
+            record.last_run_status = (
+                last_run.status.value if last_run is not None else record.last_run_status
             )
             metadata["last_task_status"] = (
                 last_task.status.value
@@ -661,11 +710,10 @@ def run_due_schedules(
                 else metadata.get("last_task_status")
             )
             metadata["last_trigger_source"] = "automatic"
-            metadata["trigger_count"] = int(metadata.get("trigger_count") or 0) + len(
-                due_fire_times
-            )
+            record.trigger_count += len(due_fire_times)
             metadata["next_fire_time"] = next_fire_time
-            record.metadata_json = metadata
+            record.next_fire_at = _parse_datetime(next_fire_time)
+            _persist_schedule_metadata(record, metadata)
             triggered.append(
                 {
                     "schedule_id": record.id,

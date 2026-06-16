@@ -38,7 +38,13 @@ uv run python scripts/compose_runtime_smoke.py
 ```
 
 Expected result: the smoke script can reach server `/healthz` and the Console
-root page. Current failures are still valid evidence; do not hide them.
+root page, then validate the example package, create a ready agent version,
+create an active deployment, submit a task, wait for the run to reach a
+terminal state, and write local activation evidence. Current failures are still
+valid evidence; do not hide them.
+
+The local Compose activation path is proven by the integration workflow artifact
+`compose-evidence-index`.
 
 Current readiness status is tracked in
 [Production Readiness Scorecard](../readiness/scorecard.md).

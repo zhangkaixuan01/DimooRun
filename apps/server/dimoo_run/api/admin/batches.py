@@ -35,6 +35,60 @@ NativeRuntimeDep = Annotated[
     Depends(get_native_runtime),
 ]
 
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if value in {None, ""}:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _apply_batch_metadata(record: BatchRuns) -> dict[str, Any]:
+    metadata = dict(record.metadata_json or {})
+    progress_summary = dict(metadata.get("progress_summary") or {})
+    record.deployment_id = int(metadata["deployment_id"]) if metadata.get("deployment_id") else None
+    record.total_items = int(progress_summary.get("total_items") or 0)
+    record.queued_items = int(progress_summary.get("queued_items") or 0)
+    record.running_items = int(progress_summary.get("running_items") or 0)
+    record.completed_items = int(progress_summary.get("completed_items") or 0)
+    record.failed_items = int(progress_summary.get("failed_items") or 0)
+    record.dead_letter_items = int(progress_summary.get("dead_letter_items") or 0)
+    record.cancelled_items = int(progress_summary.get("cancelled_items") or 0)
+    record.partial_failure_policy = str(metadata.get("partial_failure_policy") or "continue")
+    record.cancel_policy = str(metadata.get("cancel_policy") or "queued_only")
+    record.last_recomputed_at = _parse_datetime(metadata.get("last_updated_at"))
+    return metadata
+
+
+def _persist_batch_metadata(record: BatchRuns, metadata: dict[str, Any]) -> None:
+    metadata["deployment_id"] = record.deployment_id
+    metadata["partial_failure_policy"] = record.partial_failure_policy
+    metadata["cancel_policy"] = record.cancel_policy
+    metadata["last_updated_at"] = (
+        record.last_recomputed_at.astimezone(UTC).isoformat()
+        if record.last_recomputed_at
+        else None
+    )
+    progress_summary = dict(metadata.get("progress_summary") or {})
+    progress_summary.update(
+        {
+            "total_items": record.total_items,
+            "queued_items": record.queued_items,
+            "running_items": record.running_items,
+            "completed_items": record.completed_items,
+            "failed_items": record.failed_items,
+            "dead_letter_items": record.dead_letter_items,
+            "cancelled_items": record.cancelled_items,
+        }
+    )
+    metadata["progress_summary"] = progress_summary
+    record.metadata_json = metadata
+
 def _session() -> Session:
     session_factory = create_session_factory(Settings.from_env().database.url)
     session = session_factory()
@@ -67,19 +121,29 @@ def _session_for_runtime(
 
 
 def _batch_item(record: BatchRuns) -> dict[str, Any]:
-    metadata = dict(record.metadata_json or {})
+    metadata = _apply_batch_metadata(record)
     return {
         "id": record.id,
         "name": metadata.get("name"),
         "status": record.status,
-        "deployment_id": metadata.get("deployment_id"),
+        "deployment_id": record.deployment_id,
         "dataset_id": metadata.get("dataset_id"),
         "concurrency": metadata.get("concurrency"),
         "retry_policy": metadata.get("retry_policy") or {},
-        "cancel_policy": metadata.get("cancel_policy"),
-        "partial_failure_policy": metadata.get("partial_failure_policy"),
+        "cancel_policy": record.cancel_policy,
+        "partial_failure_policy": record.partial_failure_policy,
         "artifact_output_ref": metadata.get("artifact_output_ref"),
         "progress_summary": _batch_progress_summary_payload(metadata),
+        "total_items": record.total_items,
+        "queued_items": record.queued_items,
+        "running_items": record.running_items,
+        "completed_items": record.completed_items,
+        "failed_items": record.failed_items,
+        "dead_letter_items": record.dead_letter_items,
+        "cancelled_items": record.cancelled_items,
+        "last_recomputed_at": (
+            record.last_recomputed_at.isoformat() if record.last_recomputed_at else None
+        ),
         "items": metadata.get("items") or [],
         "tenant_id": record.tenant_id,
         "project_id": record.project_id,
@@ -111,7 +175,7 @@ def _refresh_batch_record(
     tenant_id: int,
     project_id: int,
 ) -> None:
-    metadata = dict(record.metadata_json or {})
+    metadata = _apply_batch_metadata(record)
     items = list(metadata.get("items") or [])
     changed = False
     for item in items:
@@ -149,14 +213,22 @@ def _refresh_batch_record(
     if metadata.get("progress_summary") != next_summary:
         metadata["progress_summary"] = next_summary
         changed = True
-    metadata["last_updated_at"] = datetime.now(UTC).isoformat()
+    record.total_items = summary.total_items
+    record.queued_items = summary.queued_items
+    record.running_items = summary.running_items
+    record.completed_items = summary.completed_items
+    record.failed_items = summary.failed_items
+    record.dead_letter_items = summary.dead_letter_items
+    record.cancelled_items = summary.cancelled_items
+    record.last_recomputed_at = datetime.now(UTC)
+    metadata["last_updated_at"] = record.last_recomputed_at.isoformat()
     if summary.terminal_items == summary.total_items and summary.total_items > 0:
         metadata["completed_at"] = metadata.get("completed_at") or datetime.now(UTC).isoformat()
     if record.status != next_status:
         record.status = next_status
         changed = True
     if changed:
-        record.metadata_json = metadata
+        _persist_batch_metadata(record, metadata)
 
 
 @router.post("/v1/batch-runs", status_code=status.HTTP_201_CREATED)
@@ -282,6 +354,7 @@ def create_batch_run(
             status=overall_batch_status(summary),
             metadata_json=metadata,
         )
+        _apply_batch_metadata(record)
         session.add(record)
         session.commit()
         session.refresh(record)
@@ -410,7 +483,7 @@ def cancel_batch_run(
                     "request_id": x_request_id,
                 },
             )
-        metadata = dict(record.metadata_json or {})
+        metadata = _apply_batch_metadata(record)
         items = list(metadata.get("items") or [])
         task_map = {
             task.id: task
@@ -446,8 +519,16 @@ def cancel_batch_run(
         }
         metadata["cancelled_at"] = datetime.now(UTC).isoformat()
         metadata["cancel_audit_reason"] = reason
+        record.total_items = summary.total_items
+        record.queued_items = summary.queued_items
+        record.running_items = summary.running_items
+        record.completed_items = summary.completed_items
+        record.failed_items = summary.failed_items
+        record.dead_letter_items = summary.dead_letter_items
+        record.cancelled_items = summary.cancelled_items
+        record.last_recomputed_at = datetime.now(UTC)
         record.status = overall_batch_status(summary)
-        record.metadata_json = metadata
+        _persist_batch_metadata(record, metadata)
         session.commit()
         session.refresh(record)
         return {"item": _batch_item(record), "request_id": x_request_id}

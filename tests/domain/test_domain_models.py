@@ -584,12 +584,10 @@ def test_datetime_columns_are_timezone_aware() -> None:
                 assert column.type.timezone is True, f"{table_name}.{column.name}"
 
 
-def test_placeholder_tables_are_marked_until_domain_fields_are_hardened() -> None:
-    placeholder_tables = {
-        "scheduled_runs",
-        "batch_runs",
-        "extensions",
-    }
+def test_runtime_operation_tables_are_hardened() -> None:
+    for table_name in {"scheduled_runs", "batch_runs"}:
+        assert Base.metadata.tables[table_name].info.get("placeholder") is not True, table_name
 
-    for table_name in placeholder_tables:
-        assert Base.metadata.tables[table_name].info["placeholder"] is True, table_name
+
+def test_extensions_table_remains_placeholder_until_its_domain_is_hardened() -> None:
+    assert Base.metadata.tables["extensions"].info["placeholder"] is True

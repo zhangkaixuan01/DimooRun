@@ -52,7 +52,7 @@ Authoritative status:
 - Many Console pages remain partial product workflows rather than complete operator tools.
 - Hosted/default-browser proof is still incomplete even though the local browser suite now covers 58 workflow, accessibility, and responsive tests plus a focused 9-test Phase 7 accessibility verifier.
 - Clean-machine Compose and ephemeral Kubernetes smoke proof are not complete, even though the stronger runtime and Helm smoke scripts plus hosted diagnostics contracts are now in place.
-- Hosted Prometheus/OTel exporter proof and live monitoring-stack verification are not complete yet, even though the Phase 5 observability API and Console surfaces are now implemented and locally verified.
+- Local exporter validation proof exists; hosted monitoring-stack verification remains incomplete.
 - Hosted package publishing proof, release attestation evidence, generated
   screenshots, and externally hosted trust verification are incomplete.
 - Cost and budget workflows now have backend attribution, Console

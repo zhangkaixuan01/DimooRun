@@ -11,6 +11,8 @@ Production-shaped foundation: yes.
 External production-grade platform: not yet.
 ```
 
+Evidence index: [docs/readiness/evidence-gallery.md](readiness/evidence-gallery.md)
+
 ## Prerequisites
 
 - local `.env` created from `.env.example`
@@ -35,6 +37,7 @@ Narration:
 - explain tenant/project/environment scope
 - explain that the demo is local proof, not hosted GA proof
 - open the Console login page
+- note which screens have current evidence-gallery coverage and which are still local-only
 
 ## Agent Publish
 
@@ -119,6 +122,7 @@ Narration:
 
 - explain package validation token and ready version gating
 - show the deployment and run in Console
+- reference the gallery rows for dashboard, agent detail, and deployment workflow
 
 ## Deployment Promote
 
@@ -155,6 +159,7 @@ Narration:
 - open the replay comparison page in Console
 - explain source run versus replay run
 - call out that replay is for investigation, not silent mutation
+- point to the run workbench evidence row for follow-up verification
 
 ## Policy Approval
 
@@ -201,6 +206,7 @@ Narration:
 End with:
 
 - current maturity statement
+- evidence gallery location
 - trust/security docs location
 - example READMEs for follow-up evaluation
 - reminder that hosted proof still has gaps

@@ -13,9 +13,14 @@ test("explores compatibility migration and runtime mapping", async ({ page }) =>
   await page.getByLabel("Capabilities").fill("assistants,threads,runs,hosted_deployments");
   await page.getByRole("button", { name: "Generate migration report" }).click();
 
-  await expect(page.getByText("migration_required")).toBeVisible();
+  await expect(page.getByText("migration_required", { exact: true })).toBeVisible();
   await expect(page.getByText("hosted_deployments: compatibility_not_supported")).toBeVisible();
   await expect(page.getByText("supports_last_event_id_replay")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recommended remediation" })).toBeVisible();
+  await expect(page.getByText("manual_migration_required")).toBeVisible();
+  await expect(page.getByText("dimoorun.yaml")).toBeVisible();
+  await expect(page.getByText("uv run dimoorun deployment create --help")).toBeVisible();
+  await expect(page.getByRole("link", { name: "/deployments" })).toBeVisible();
 
   await page.getByLabel("Name").fill("support-agent");
   await page.getByRole("button", { name: "Create assistant" }).click();
