@@ -471,7 +471,8 @@ test("defines a live-backend published surface browser proof path", () => {
     assert.match(liveRunner, /function cleanupPortListeners/);
     assert.match(liveRunner, /netstat/);
     assert.match(liveRunner, /Listening port cleanup warning/);
-    assert.doesNotMatch(liveRunner, /playwright\.live\.config\.ts/);
+    assert.match(liveRunner, /playwright\.live\.config\.ts/);
+    assert.match(liveRunner, /tests\/e2e-live\/compatibility-live\.spec\.ts/);
     assert.match(liveSmoke, /\/v1\/ingress\/support\/triage/);
     assert.match(liveSmoke, /Open request log/);
     assert.match(liveSmoke, /authorization: \[REDACTED\]/);
@@ -849,8 +850,9 @@ test("defines a dedicated phase-6 browser workflow proof path", () => {
     assert.match(runtimeSpec, /Register Agent/);
     assert.match(runtimeSpec, /Create Deployment/);
     assert.match(runtimeSpec, /Compare replay/);
-    assert.match(responsiveSpec, /dashboard-desktop\.png/);
-    assert.match(responsiveSpec, /deployment-task-mobile\.png/);
+    assert.match(responsiveSpec, /evidence-dashboard-desktop\.png/);
+    assert.match(responsiveSpec, /evidence-deployment-workflow-mobile\.png/);
+    assert.match(responsiveSpec, /evidence-settings-danger-zone-mobile\.png/);
     assert.match(accessibilitySpec, /mobile agent drawer/i);
     assert.match(accessibilitySpec, /run detail diagnostics page/i);
     assert.match(fixture, /dimoorun\.console\.apiBaseUrlOverride/);
@@ -971,6 +973,7 @@ test("wires the scheduled and batch runtime workflow", () => {
     const schedulesPage = read("src/pages/runtime/ScheduledRunsPage.vue");
     const batchesPage = read("src/pages/runtime/BatchRunsPage.vue");
     const fixture = read("tests/fixtures/api.ts");
+    const messages = read("src/i18n/messages.ts");
 
     [
       "previewSchedule",
@@ -994,12 +997,15 @@ test("wires the scheduled and batch runtime workflow", () => {
     assert.match(schedulesPage, /consoleClient\.pauseSchedule/);
     assert.match(schedulesPage, /consoleClient\.resumeSchedule/);
     assert.match(schedulesPage, /consoleClient\.triggerSchedule/);
-    assert.match(schedulesPage, /Next-run timeline/);
-    assert.match(schedulesPage, /Missed-run policy/);
+    assert.match(schedulesPage, /t\("nextRunTimeline"\)/);
+    assert.match(schedulesPage, /t\("missedRunPolicy"\)/);
     assert.match(batchesPage, /consoleClient\.createBatchRun/);
     assert.match(batchesPage, /consoleClient\.listBatchRuns/);
     assert.match(batchesPage, /consoleClient\.cancelBatchRun/);
-    assert.match(batchesPage, /Failed item drilldown/);
+    assert.match(batchesPage, /t\("failedItemDrilldown"\)/);
+    assert.match(messages, /nextRunTimeline: "Next-run timeline"/);
+    assert.match(messages, /missedRunPolicy: "Missed-run policy"/);
+    assert.match(messages, /failedItemDrilldown: "Failed item drilldown"/);
     [
       'path === "/v1/schedules/preview"',
       'path === "/v1/schedules"',
@@ -1032,6 +1038,7 @@ test("defines a dedicated phase-0o browser workflow", () => {
     const catalogPage = read("src/pages/catalog/CatalogPage.vue");
     const detailPage = read("src/pages/catalog/AssetDetailPage.vue");
     const diffPage = read("src/pages/catalog/AssetVersionDiffPage.vue");
+    const messages = read("src/i18n/messages.ts");
 
     assert.match(packageJson, /"test:e2e:0o"/);
     assert.match(packageJson, /tests\/e2e\/catalog-assets\.spec\.ts/);
@@ -1046,9 +1053,11 @@ test("defines a dedicated phase-0o browser workflow", () => {
       "fulfillGovernedAssetDetail",
       "fulfillGovernedAssetAction",
     ].forEach((literal) => assert.match(fixture, new RegExp(literal.replaceAll("/", "\\/"))));
-    assert.match(catalogPage, /Create asset/);
-    assert.match(detailPage, /Rollback target/);
+    assert.match(catalogPage, /t\("createAsset"\)/);
+    assert.match(detailPage, /t\("rollbackTarget"\)/);
     assert.match(diffPage, /Changed fields/);
+    assert.match(messages, /createAsset: "Create asset"/);
+    assert.match(messages, /rollbackTarget: "Rollback target"/);
 });
 
 test("documents the shared phase-0l browser proof flow", () => {
@@ -1071,18 +1080,25 @@ test("documents the shared phase-0l browser proof flow", () => {
 test("renders platform settings boundaries and danger impact preview", () => {
     const settingsPage = read("src/pages/settings/PlatformSettingsPage.vue");
     const dangerPage = read("src/pages/settings/DangerZonePage.vue");
+    const messages = read("src/i18n/messages.ts");
 
     assert.match(settingsPage, /snapshot\.scope_defaults/);
-    assert.match(settingsPage, /Organization defaults/);
-    assert.match(settingsPage, /Project defaults/);
-    assert.match(settingsPage, /Environment defaults/);
-    assert.match(settingsPage, /read-only/);
+    assert.match(settingsPage, /t\("organizationDefaults"\)/);
+    assert.match(settingsPage, /t\("projectDefaults"\)/);
+    assert.match(settingsPage, /t\("environmentDefaults"\)/);
+    assert.match(settingsPage, /t\("readOnly"\)/);
 
     assert.match(dangerPage, /preview\.affected_resources/);
-    assert.match(dangerPage, /Affected resources/);
-    assert.match(dangerPage, /Confirmation phrase:/);
+    assert.match(dangerPage, /t\("affectedResources"\)/);
+    assert.match(dangerPage, /t\("confirmationPhrase"\)/);
     assert.match(dangerPage, /result\.request_id/);
     assert.match(dangerPage, /freeze_writes/);
+    assert.match(messages, /organizationDefaults: "Organization defaults"/);
+    assert.match(messages, /projectDefaults: "Project defaults"/);
+    assert.match(messages, /environmentDefaults: "Environment defaults"/);
+    assert.match(messages, /readOnly: "read-only"/);
+    assert.match(messages, /affectedResources: "Affected resources"/);
+    assert.match(messages, /confirmationPhrase: "Confirmation phrase"/);
 });
 
 test("verifies phase-0l proof files before emitting a derived report", () => {

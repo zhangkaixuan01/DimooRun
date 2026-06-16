@@ -40,12 +40,18 @@ def main() -> None:
         run = post_json(
             client,
             f"/compat/langgraph/threads/{thread['thread_id']}/runs",
-            {"assistant_id": assistant["assistant_id"], "input": {"message": "hello compatibility"}},
+            {
+                "assistant_id": assistant["assistant_id"],
+                "input": {"message": "hello compatibility"},
+            },
         )
         stream_text = post_stream(
             client,
             f"/compat/langgraph/threads/{thread['thread_id']}/runs/stream",
-            {"assistant_id": assistant["assistant_id"], "input": {"message": "stream compatibility"}},
+            {
+                "assistant_id": assistant["assistant_id"],
+                "input": {"message": "stream compatibility"},
+            },
         )
         replay = client.get(
             f"/compat/langgraph/threads/{thread['thread_id']}/runs/{run['run_id']}/events",

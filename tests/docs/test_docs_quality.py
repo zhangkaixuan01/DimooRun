@@ -280,7 +280,10 @@ def _write_minimal_docs_tree(root: Path) -> Path:
             "docs/DEMO_SCRIPT.md": _minimal_demo_script(),
             "docs/TRUST_AND_SECURITY.md": _minimal_trust_doc(),
             "docs/COMPARISONS.md": _minimal_comparisons(),
-            "CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n- Phase 12B trust and security docs.\n\n## 0.1.0\n",
+            "CHANGELOG.md": (
+                "# Changelog\n\n## Unreleased\n\n- Phase 12B trust and security docs."
+                "\n\n## 0.1.0\n"
+            ),
             ".github/ISSUE_TEMPLATE/bug_report.yml": "name: Bug report\n",
             ".github/ISSUE_TEMPLATE/feature_request.yml": "name: Feature request\n",
             ".github/pull_request_template.md": "## Summary\n",

@@ -231,7 +231,14 @@ def _activation_smoke(
         headers=ADMIN_HEADERS,
         timeout_seconds=30,
     )
+    if validation.get("ready") is not True:
+        raise RuntimeError(f"package validation did not succeed: {validation}")
     validation_token = validation.get("validation_token")
+    if not isinstance(validation_token, str) or not validation_token:
+        raise RuntimeError(
+            "package validation did not return a usable validation_token: "
+            f"{validation}"
+        )
     checked_steps = ["activation:package validation completed"]
 
     agent = runner.request_json(
@@ -338,15 +345,6 @@ def _support_agent_manifest() -> dict[str, Any]:
         "capabilities": {
             "invoke": True,
             "stream": True,
-            "checkpoint": True,
-            "resume": True,
-            "interrupt": True,
-            "human_in_loop": True,
-            "tool_events": True,
-            "model_events": True,
-            "token_usage": True,
-            "filesystem": False,
-            "subagents": False,
         },
     }
 

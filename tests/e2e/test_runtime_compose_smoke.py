@@ -48,7 +48,7 @@ class FakeRunner:
         _ = headers, timeout_seconds
         self.requests.append((url, payload))
         if url.endswith("/v1/packages/validate"):
-            return {"validation_token": "validation-token-1"}
+            return {"ready": True, "validation_token": "validation-token-1"}
         if url.endswith("/v1/agents"):
             return {"id": 101}
         if url.endswith("/v1/agents/101/versions"):
@@ -166,4 +166,37 @@ def test_runtime_compose_smoke_records_failure_and_still_tears_down() -> None:
 
     assert result.ok is False
     assert "compose up failed" in result.errors[0]
+    assert runner.commands[-1] == ["docker", "compose", "down", "--remove-orphans", "--volumes"]
+
+
+def test_runtime_compose_smoke_fails_fast_when_package_validation_is_not_ready() -> None:
+    class InvalidValidationRunner(FakeRunner):
+        def request_json(
+            self,
+            url: str,
+            *,
+            payload: dict[str, object],
+            headers: dict[str, str],
+            timeout_seconds: int,
+        ) -> dict[str, object]:
+            if url.endswith("/v1/packages/validate"):
+                return {
+                    "ready": False,
+                    "status": "invalid",
+                    "errors": [{"code": "unsupported_capability"}],
+                    "validation_token": None,
+                }
+            return super().request_json(
+                url,
+                payload=payload,
+                headers=headers,
+                timeout_seconds=timeout_seconds,
+            )
+
+    runner = InvalidValidationRunner()
+
+    result = run_compose_runtime_smoke(Path("."), runner=runner, retries=1, probe_delay_seconds=0)
+
+    assert result.ok is False
+    assert "package validation did not succeed" in result.errors[0]
     assert runner.commands[-1] == ["docker", "compose", "down", "--remove-orphans", "--volumes"]

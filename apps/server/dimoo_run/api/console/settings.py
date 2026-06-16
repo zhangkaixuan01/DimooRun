@@ -425,7 +425,12 @@ def validate_observability_exporter(
     if isinstance(reason, JSONResponse):
         return reason
     with _session_factory()() as session:
-        _ensure_scope_resources(session, tenant_id=tenant_id, project_id=project_id, environment=environment)
+        _ensure_scope_resources(
+            session,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            environment=environment,
+        )
         record = _scoped_model_or_404(
             session,
             ObservabilityExporter,
@@ -439,7 +444,11 @@ def validate_observability_exporter(
         if isinstance(record, JSONResponse):
             return record
         blocked_reason = str(record.metadata_json.get("blocked_reason") or "").strip()
-        validation_status = "blocked" if blocked_reason else ("reachable" if record.status == "active" else "unconfigured")
+        validation_status = (
+            "blocked"
+            if blocked_reason
+            else ("reachable" if record.status == "active" else "unconfigured")
+        )
         item = {
             "exporter_id": record.id,
             "name": record.name,
@@ -478,7 +487,12 @@ def validate_semantic_store_provider(
     if isinstance(reason, JSONResponse):
         return reason
     with _session_factory()() as session:
-        _ensure_scope_resources(session, tenant_id=tenant_id, project_id=project_id, environment=environment)
+        _ensure_scope_resources(
+            session,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            environment=environment,
+        )
         record = _scoped_model_or_404(
             session,
             SemanticStoreProvider,
@@ -491,9 +505,14 @@ def validate_semantic_store_provider(
         )
         if isinstance(record, JSONResponse):
             return record
-        index_coverage = record.metadata_json.get("index_coverage") if isinstance(record.metadata_json.get("index_coverage"), dict) else {}
+        index_coverage_value = record.metadata_json.get("index_coverage")
+        index_coverage = index_coverage_value if isinstance(index_coverage_value, dict) else {}
         minimum_coverage = min((int(value) for value in index_coverage.values()), default=0)
-        provider_status = "ready" if record.status == "active" and minimum_coverage >= 85 else ("degraded" if record.status == "active" else "unconfigured")
+        provider_status = (
+            "ready"
+            if record.status == "active" and minimum_coverage >= 85
+            else ("degraded" if record.status == "active" else "unconfigured")
+        )
         item = {
             "provider_id": record.id,
             "name": record.name,
@@ -535,7 +554,12 @@ def preview_sandbox_policy(
     if not isinstance(capabilities, list):
         capabilities = []
     with _session_factory()() as session:
-        _ensure_scope_resources(session, tenant_id=tenant_id, project_id=project_id, environment=environment)
+        _ensure_scope_resources(
+            session,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            environment=environment,
+        )
         record = _scoped_model_or_404(
             session,
             SandboxPolicy,
@@ -591,7 +615,12 @@ def estimate_container_pool_policy(
         return reason
     requested_workers = int(payload.get("requested_workers") or 0)
     with _session_factory()() as session:
-        _ensure_scope_resources(session, tenant_id=tenant_id, project_id=project_id, environment=environment)
+        _ensure_scope_resources(
+            session,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            environment=environment,
+        )
         record = _scoped_model_or_404(
             session,
             ContainerPoolPolicy,
@@ -611,7 +640,9 @@ def estimate_container_pool_policy(
             "name": record.name,
             "warm_capacity": warm_capacity,
             "scale_limit": scale_limit,
-            "estimated_saturation": min(1.0, requested_workers / scale_limit) if scale_limit else 1.0,
+            "estimated_saturation": (
+                min(1.0, requested_workers / scale_limit) if scale_limit else 1.0
+            ),
             "affected_worker_pools": list(record.metadata_json.get("worker_pools") or []),
             "request_id": x_request_id,
             "audit_reason": reason,

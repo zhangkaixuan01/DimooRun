@@ -37,19 +37,31 @@ def search_support_knowledge(category: str) -> dict[str, Any]:
     policies = {
         "billing": {
             "policy_id": "kb-billing-001",
-            "summary": "Confirm invoice id, payment status, and account owner before refund guidance.",
+            "summary": (
+                "Confirm invoice id, payment status, and account owner before refund "
+                "guidance."
+            ),
         },
         "order": {
             "policy_id": "kb-order-001",
-            "summary": "Check order status and carrier events before promising replacement or refund.",
+            "summary": (
+                "Check order status and carrier events before promising replacement "
+                "or refund."
+            ),
         },
         "account-risk": {
             "policy_id": "kb-risk-001",
-            "summary": "Destructive account actions require human approval and identity verification.",
+            "summary": (
+                "Destructive account actions require human approval and identity "
+                "verification."
+            ),
         },
         "technical": {
             "policy_id": "kb-technical-001",
-            "summary": "Collect request id, logs, timestamps, and reproduction steps before escalation.",
+            "summary": (
+                "Collect request id, logs, timestamps, and reproduction steps before "
+                "escalation."
+            ),
         },
     }
     return policies.get(category, policies["technical"])
@@ -63,7 +75,10 @@ def lookup_order_status(order_id: str) -> dict[str, Any]:
     return {
         "order_id": order_id,
         "status": "in_review",
-        "last_event": "Carrier handoff delayed; replacement eligibility requires supervisor review.",
+        "last_event": (
+            "Carrier handoff delayed; replacement eligibility requires supervisor "
+            "review."
+        ),
     }
 
 

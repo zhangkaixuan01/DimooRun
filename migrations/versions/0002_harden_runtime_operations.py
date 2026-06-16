@@ -6,8 +6,8 @@ Create Date: 2026-06-15 15:45:00.000000
 
 """
 
-from collections.abc import Sequence
 import json
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -183,7 +183,8 @@ def _backfill_runtime_operation_columns() -> None:
 
     for row in bind.execute(sa.select(batch_runs.c.id, batch_runs.c.metadata_json)):
         payload = _coerce_json(row.metadata_json)
-        progress = payload.get("progress_summary") if isinstance(payload.get("progress_summary"), dict) else {}
+        progress_value = payload.get("progress_summary")
+        progress = progress_value if isinstance(progress_value, dict) else {}
         bind.execute(
             batch_runs.update()
             .where(batch_runs.c.id == row.id)

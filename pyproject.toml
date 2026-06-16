@@ -64,6 +64,12 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [
+    ".codex",
+    ".superpowers",
+    "compose-diagnostics",
+    "docs/superpowers",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

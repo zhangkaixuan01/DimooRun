@@ -1589,7 +1589,14 @@ def _list(
     if collection == "audit_logs":
         return _list_audit_logs(request_id, tenant_id, project_id, filters)
     if collection in _DB_COLLECTIONS:
-        return _list_db_collection(collection, request_id, tenant_id, project_id, environment, filters)
+        return _list_db_collection(
+            collection,
+            request_id,
+            tenant_id,
+            project_id,
+            environment,
+            filters,
+        )
     items = [
         item
         for item in _COLLECTIONS[collection].values()

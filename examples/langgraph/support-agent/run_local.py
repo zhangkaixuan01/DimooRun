@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from langgraph.types import Command
-
 from agent import build_graph
+from langgraph.types import Command
 
 
 def main() -> None:
@@ -35,7 +34,10 @@ def main() -> None:
         Command(
             resume={
                 "approved": True,
-                "edited_answer": "Approved response: we can start a controlled deletion workflow after identity verification.",
+                "edited_answer": (
+                    "Approved response: we can start a controlled deletion workflow "
+                    "after identity verification."
+                ),
             }
         ),
         {"configurable": {"thread_id": "approval-thread"}},

@@ -32,7 +32,7 @@ class FakeRunner:
         _ = headers, timeout_seconds
         self.requests.append((url, payload))
         if url.endswith("/v1/packages/validate"):
-            return {"validation_token": "validation-token-1"}
+            return {"ready": True, "validation_token": "validation-token-1"}
         if url.endswith("/v1/agents"):
             return {"id": 101}
         if url.endswith("/v1/agents/101/versions"):
