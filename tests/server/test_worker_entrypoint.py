@@ -142,6 +142,84 @@ def test_worker_entrypoint_default_main_uses_forever_mode(monkeypatch) -> None: 
     assert calls == [1.0]
 
 
+def test_worker_entrypoint_run_forever_commits_each_sqlalchemy_iteration(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    add_project_root_to_path()
+    from apps.worker.dimoo_run_worker import main
+
+    class FakeSettings:
+        class Runtime:
+            native_runtime_store = "sqlalchemy"
+
+        class Database:
+            url = "sqlite:///worker-entrypoint-forever.db"
+
+        runtime = Runtime()
+        database = Database()
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.commits = 0
+            self.rollbacks = 0
+            self.closed = 0
+
+        def commit(self) -> None:
+            self.commits += 1
+
+        def rollback(self) -> None:
+            self.rollbacks += 1
+
+        def close(self) -> None:
+            self.closed += 1
+
+    class FakeWorkerLoop:
+        last_instance = None
+
+        def __init__(self, **_: Any) -> None:
+            self.stopped = False
+            self.calls = 0
+            type(self).last_instance = self
+
+        def run_once(self) -> Any:
+            self.calls += 1
+            self.stopped = True
+            return type("Heartbeat", (), {"status": "executed"})()
+
+        def request_shutdown(self, *, graceful: bool) -> None:
+            self.stopped = graceful
+
+    fake_session = FakeSession()
+
+    monkeypatch.setattr(
+        "dimoo_run.core.config.Settings.from_env",
+        lambda: FakeSettings(),
+    )
+    monkeypatch.setattr(
+        "dimoo_run.persistence.database.create_session_factory",
+        lambda _url: lambda: fake_session,
+    )
+    monkeypatch.setattr(
+        "dimoo_run.runtime.capacity.WorkerRegistry",
+        lambda **_: object(),
+    )
+    monkeypatch.setattr(
+        "dimoo_run.worker.loop.WorkerLoop",
+        FakeWorkerLoop,
+    )
+    monkeypatch.setattr(
+        "apps.worker.dimoo_run_worker.main.time.sleep",
+        lambda _seconds: None,
+    )
+
+    main.run_forever(adapters={"fake": FakeEntrypointAdapter()}, poll_interval_seconds=0.0)
+
+    assert fake_session.commits == 1
+    assert fake_session.rollbacks == 0
+    assert fake_session.closed == 1
+    assert FakeWorkerLoop.last_instance.calls == 1
+
+
 def test_worker_entrypoint_prints_ready_message() -> None:
     project_root = Path(__file__).resolve().parents[2]
     worker_entrypoint = project_root / "apps" / "worker" / "dimoo_run_worker" / "main.py"

@@ -106,11 +106,11 @@ def run_forever(
     try:
         while not loop.stopped:
             heartbeat = loop.run_once()
+            if session is not None:
+                session.commit()
             print(f"DimooRun worker process ready ({heartbeat.status})", flush=True)
             if not loop.stopped:
                 time.sleep(poll_interval_seconds)
-        if session is not None:
-            session.commit()
     except Exception:
         if session is not None:
             session.rollback()
