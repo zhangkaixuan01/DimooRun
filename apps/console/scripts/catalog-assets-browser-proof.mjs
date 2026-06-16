@@ -690,7 +690,7 @@ async function main() {
 
     await page.goto(`${baseUrl}/governance/prompt-assets/813`);
     await expect(page.getByRole("heading", { name: "broken-prompt", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Validate" }).click();
+    await page.getByRole("button", { name: "Validate asset" }).click();
     await expect(page.getByText("explicit_version_required")).toBeVisible();
     await expect(page.getByText("secret_ref_invalid")).toBeVisible();
     steps.push({ name: "show validation failure", screenshot: await screenshot(page, "02-validation-failure") });
@@ -703,12 +703,12 @@ async function main() {
     steps.push({ name: "render prompt diff", screenshot: await screenshot(page, "03-prompt-diff") });
 
     await page.goto(`${baseUrl}/governance/prompt-assets/811`);
-    await page.getByRole("button", { name: "Validate" }).click();
-    await expect(page.getByText("validation passed")).toBeVisible();
+    await page.getByRole("button", { name: "Validate asset" }).click();
+    await expect(page.getByText("Validation completed: passed")).toBeVisible();
     await page.getByRole("button", { name: "Approve" }).click();
-    await expect(page.getByText("approve -> approved")).toBeVisible();
+    await expect(page.getByText("Asset action completed: approve -> approved")).toBeVisible();
     await page.getByRole("button", { name: "Publish" }).click();
-    await expect(page.getByText("publish -> published")).toBeVisible();
+    await expect(page.getByText("Asset action completed: publish -> published")).toBeVisible();
 
     await page.goto(`${baseUrl}/governance/prompt-assets/812`);
     await page.getByRole("button", { name: "Deprecate" }).click();
