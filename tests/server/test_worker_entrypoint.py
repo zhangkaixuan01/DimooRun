@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from _pytest.monkeypatch import MonkeyPatch
-
 from dimoo_run.core.context import RuntimeContext
 from dimoo_run.core.events import AgentResult
 from dimoo_run.domain.models import Agent, AgentVersion, Run, Task
