@@ -5,8 +5,10 @@ from uuid import uuid4
 
 from dimoo_run.api.dependencies import default_api_key_authenticator, reset_api_key_authenticator
 from dimoo_run.api.native.deployments import default_deployment_control, reset_deployment_control
-from dimoo_run.api.native.runtime import reset_native_runtime
+from dimoo_run.api.native.replay_jobs import reset_replay_comparisons
+from dimoo_run.api.native.runtime import default_native_runtime, reset_native_runtime
 from dimoo_run.deployments.service import StaticPolicyEngine
+from dimoo_run.domain.enums import RunStatus
 from dimoo_run.identity.service_accounts import ServiceAccountRecord
 from dimoo_run.packages.validation import validation_token
 from dimoo_run.server import create_app
@@ -18,6 +20,7 @@ def setup_function() -> None:
     os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.gettempdir()}/dimoorun-promotion-{uuid4().hex}.db"
     reset_api_key_authenticator()
     reset_deployment_control()
+    reset_replay_comparisons()
     reset_native_runtime()
 
 
@@ -285,6 +288,96 @@ def test_deployment_promote_and_rollback_persist_audit_context() -> None:
     rollback_body = rollback.json()
     assert rollback_body["agent_version_id"] == current["id"]
     assert rollback_body["config"]["promotion"]["rollback_reason"] == "candidate regression"
+    actions = [entry.action for entry in default_deployment_control().audit_sink.entries]
+    assert "deployment.promote" in actions
+    assert "deployment.rollback" in actions
+
+
+def test_golden_operator_evidence_path_links_replay_quality_promotion_and_audit() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, current, candidate, deployment = create_deployment_fixture(client, key)
+    task = client.post(
+        f"/v1/deployments/{deployment['id']}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"ticket_id": "INC-501", "message": "provider timeout"}},
+    )
+    assert task.status_code == 202
+    source_run_id = task.json()["run_id"]
+    runtime = default_native_runtime()
+    source_run = runtime.get_run(source_run_id, tenant_id=1, project_id=1)
+    assert source_run is not None
+    source_run.status = RunStatus.failed
+    source_run.error = {"message": "provider timeout", "provider": "llm-a"}
+
+    comparison = client.post(
+        "/v1/replay-jobs/compare",
+        headers=auth_headers(key),
+        json={
+            "source_run_id": source_run_id,
+            "candidate_agent_version_id": candidate["id"],
+            "replay_config": {"temperature": 0, "dataset_label": "incident-triage"},
+        },
+    )
+    assert comparison.status_code == 201
+    comparison_body = comparison.json()
+    assert comparison_body["source_run"]["id"] == source_run_id
+    assert comparison_body["replay_run"]["agent_version_id"] == candidate["id"]
+    assert comparison_body["provenance"]["candidate_agent_version_id"] == candidate["id"]
+
+    capture = client.post(
+        f"/v1/replay-jobs/{comparison_body['comparison_id']}/dataset-captures",
+        headers=auth_headers(key),
+        json={"dataset_name": "support-regressions", "label": "provider-timeout"},
+    )
+    assert capture.status_code == 201
+    capture_body = capture.json()
+    assert capture_body["source_run_id"] == source_run_id
+    assert capture_body["replay_run_id"] == comparison_body["replay_run"]["id"]
+    assert capture_body["provenance"]["comparison_id"] == comparison_body["comparison_id"]
+
+    experiment_run_id = create_quality_gate_evidence(
+        client,
+        agent_id=agent_id,
+        candidate_version_id=cast(int, candidate["id"]),
+        source_run_id=source_run_id,
+    )
+    preview = client.get(
+        f"/v1/deployments/{deployment['id']}/promotion-preview",
+        headers=auth_headers(key),
+        params={
+            "candidate_version_id": cast(int, candidate["id"]),
+            "experiment_run_id": experiment_run_id,
+        },
+    )
+    assert preview.status_code == 200
+    assert preview.json()["quality_gate"]["evidence"]["experiment_run_id"] == experiment_run_id
+    assert preview.json()["rollback_agent_version_id"] == current["id"]
+
+    promoted = client.post(
+        f"/v1/deployments/{deployment['id']}/promote",
+        headers=auth_headers(key, idempotency_key="golden-promote-1"),
+        json={
+            "candidate_version_id": candidate["id"],
+            "expected_current_version_id": current["id"],
+            "experiment_run_id": experiment_run_id,
+            "rollout_reason": "ship replay-validated support improvements",
+        },
+    )
+    assert promoted.status_code == 200
+    assert promoted.json()["agent_version_id"] == candidate["id"]
+
+    rollback = client.post(
+        f"/v1/deployments/{deployment['id']}/rollback",
+        headers=auth_headers(key, idempotency_key="golden-rollback-1"),
+        json={
+            "expected_current_version_id": candidate["id"],
+            "rollback_reason": "candidate regression from golden demo",
+        },
+    )
+    assert rollback.status_code == 200
+    assert rollback.json()["agent_version_id"] == current["id"]
+
     actions = [entry.action for entry in default_deployment_control().audit_sink.entries]
     assert "deployment.promote" in actions
     assert "deployment.rollback" in actions

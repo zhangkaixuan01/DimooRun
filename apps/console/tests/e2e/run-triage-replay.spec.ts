@@ -15,7 +15,7 @@ test("triages a failed run and opens replay comparison evidence", async ({ page 
   await expect(page.getByRole("heading", { name: "Attempts" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Audit evidence" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Compare replay" }).click();
+  await page.getByRole("link", { name: "Compare replay", exact: true }).click();
   await expect(page).toHaveURL(/\/replay\/compare\?source_run_id=1001/);
   await expect(page.getByRole("heading", { name: "Replay comparison" })).toBeVisible();
 });

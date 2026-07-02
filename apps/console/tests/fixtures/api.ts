@@ -9,6 +9,7 @@ import type {
   NativeAgentVersionRead,
   NativeDeploymentRead,
   NativeEventRead,
+  NativeRunIntegrationEvidenceRead,
   NativeRunRead,
 } from "../../src/api/generated/dimoorun";
 
@@ -199,8 +200,16 @@ export function makeDashboardApi(options: { empty?: boolean } = {}): DashboardAp
         framework: "langgraph",
         adapter: "langgraph",
         entrypoint: "agent:create_agent",
-        capabilities: { streaming: true },
-        manifest: { name: "support-agent" },
+        capabilities: { invoke: true, streaming: true, required_secret_refs: ["secret://llm/provider"] },
+        manifest: {
+          name: "support-agent",
+          validation_token: "tok_support_100",
+          package_digest: "sha256:111111-support",
+          signature: { status: "verified" },
+          sbom: { status: "available", format: "spdx-json" },
+          runtime: { sandbox_profile: "network-egress-llm-only" },
+          required_secret_refs: ["secret://llm/provider"],
+        },
         status: "ready",
       },
       {
@@ -211,8 +220,16 @@ export function makeDashboardApi(options: { empty?: boolean } = {}): DashboardAp
         framework: "langgraph",
         adapter: "langgraph",
         entrypoint: "agent:create_agent",
-        capabilities: { streaming: true },
-        manifest: { name: "support-agent" },
+        capabilities: { invoke: true, streaming: true, required_secret_refs: ["secret://llm/provider"] },
+        manifest: {
+          name: "support-agent",
+          validation_token: "tok_support_110",
+          package_digest: "sha256:222222-support",
+          signature: { status: "verified" },
+          sbom: { status: "available", format: "spdx-json" },
+          runtime: { sandbox_profile: "network-egress-llm-only" },
+          required_secret_refs: ["secret://llm/provider"],
+        },
         status: "ready",
       },
     ],
@@ -1397,6 +1414,10 @@ export async function installConsoleApiMocks(
     if (runAttemptsMatch && route.request().method() === "GET") {
       return fulfillJson(route, runAttempts(Number(runAttemptsMatch[1])));
     }
+    const runIntegrationEvidenceMatch = path.match(/^\/v1\/runs\/(\d+)\/integration-evidence$/);
+    if (runIntegrationEvidenceMatch && route.request().method() === "GET") {
+      return fulfillJson(route, runIntegrationEvidence(Number(runIntegrationEvidenceMatch[1])));
+    }
     const runMatch = path.match(/^\/v1\/runs\/(\d+)$/);
     if (runMatch && route.request().method() === "GET") {
       return fulfillJson(route, api.runs.find((item) => item.id === Number(runMatch[1])) ?? makeAdminCollection([]));
@@ -2481,6 +2502,75 @@ function runAttempts(runId: number): Array<Record<string, unknown>> {
       error: "provider timeout",
     },
   ];
+}
+
+function runIntegrationEvidence(runId: number): NativeRunIntegrationEvidenceRead {
+  if (runId !== 1001) {
+    return {
+      run_id: runId,
+      trace_links: [],
+      exporters: [],
+      model_gateway: [],
+      failures: [],
+      records: [],
+    };
+  }
+  return {
+    run_id: runId,
+    trace_links: [
+      {
+        provider: "langfuse",
+        url: "https://langfuse.example.test/project/support/traces/trace-1001",
+        trace_id: "trace-1001",
+        label: "Langfuse trace",
+        status: "linked",
+      },
+    ],
+    exporters: [
+      {
+        provider: "opentelemetry",
+        exporter_type: "otlp",
+        target_ref: "http://otel:4318",
+        status: "delivered",
+        request_id: "otel-req-1001",
+        delivered_at: createdAt,
+        message: "Delivered to local OTLP collector",
+      },
+    ],
+    model_gateway: [
+      {
+        provider: "litellm",
+        gateway_id: null,
+        gateway_name: "local-litellm",
+        gateway_request_id: "gw-req-1001",
+        model: "gpt-4.1-mini",
+        route: "support-policy",
+        prompt_tokens: 118,
+        completion_tokens: 42,
+        total_tokens: 160,
+        cost: 0.0042,
+        currency: "USD",
+      },
+    ],
+    failures: [
+      {
+        provider: "opentelemetry",
+        status: "recovered",
+        error_code: "otlp_retry",
+        message: "First export attempt retried, second delivered",
+        retryable: true,
+        occurred_at: createdAt,
+      },
+    ],
+    records: [
+      {
+        evidence_id: "intev_1001",
+        source: "console-fixture-api",
+        observed_at: createdAt,
+        schema: "dimoorun.run.integration_evidence.v1",
+      },
+    ],
+  };
 }
 
 function replayComparisonResponse(route: Route, api: DashboardApiFixture): unknown {

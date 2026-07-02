@@ -162,6 +162,10 @@ test("shows real run detail payloads and attempts instead of sample data", () =>
     assert.match(runDetail, /formatJson\(currentRun\.input/);
     assert.match(runDetail, /formatJson\(currentRun\.output/);
     assert.match(runDetail, /formatJson\(currentRun\.error/);
+    assert.match(runDetail, /currentRun\.agent/);
+    assert.match(runDetail, /currentRun\.version/);
+    assert.match(runDetail, /\/observability\/artifacts\?run_id=/);
+    assert.match(runDetail, /\/observability\/audit-logs\?resource_type=run/);
     assert.doesNotMatch(runDetail, /ticket_id/);
     assert.doesNotMatch(runDetail, /POLICY_APPROVAL_REQUIRED/);
 });
@@ -187,6 +191,20 @@ test("uses live frontend data instead of fake runtime values", () => {
     assert.match(client, /overview\.trend_points/);
     assert.doesNotMatch(client, /recent_failures\.slice\(-12\)/);
     assert.doesNotMatch(dashboard, /v-if="mode === 'demo'"/);
+});
+
+test("dashboard exposes P0-A first-run next actions", () => {
+    const dashboard = read("src/pages/dashboard/DashboardPage.vue");
+    const messages = read("src/i18n/messages.ts");
+
+    assert.match(dashboard, /firstRunCommandCenter/);
+    assert.match(dashboard, /nextActions/);
+    assert.match(dashboard, /dimoorun publish examples\/langgraph\/support-agent/);
+    assert.match(dashboard, /dimoorun deploy support-agent --env local/);
+    assert.match(dashboard, /dimoorun run support-agent --env local --watch/);
+    assert.match(dashboard, /dimoorun open --run-id <RUN_ID>/);
+    assert.match(messages, /Publish existing Agent/);
+    assert.match(messages, /检查 Run 证据/);
 });
 
 test("wires operational filtering and event selection interactions", () => {
@@ -777,6 +795,82 @@ test("uses shared frontend state primitives in the deployments workflow", () => 
     assert.match(deploymentsPage, /<JsonSchemaEditor/);
     assert.doesNotMatch(deploymentsPage, /<textarea v-model="editDeploymentForm\.configJson"/);
     assert.doesNotMatch(deploymentsPage, /<textarea v-model="deploymentTaskInputJson"/);
+});
+
+test("links the P0-B operator evidence path across failed run workflow surfaces", () => {
+    const runDetail = read("src/pages/runs/RunDetailPage.vue");
+    const runTriage = read("src/pages/runs/RunTriagePage.vue");
+    const deploymentsPage = read("src/pages/deployments/DeploymentsPage.vue");
+    const observabilityWorkbench = read("src/pages/observability/ObservabilityWorkbenchPage.vue");
+    const messages = read("src/i18n/messages.ts");
+
+    assert.match(runDetail, /operatorEvidencePath/);
+    assert.match(runDetail, /\/runs\/\$\{currentRun\.id\}\/triage/);
+    assert.match(runDetail, /\/replay\/compare\?source_run_id=\$\{currentRun\.id\}/);
+    assert.match(runDetail, /\/governance\/human-tasks\?run_id=\$\{currentRun\.id\}/);
+    assert.match(runDetail, /\/deployments\/\$\{deploymentId\}\?tab=promotion/);
+    assert.match(runDetail, /\/observability\/audit-logs\?run_id=\$\{currentRun\.id\}/);
+
+    assert.match(runTriage, /goldenOperatorDemo/);
+    assert.match(runTriage, /\/runs\/\$\{run\.id\}/);
+    assert.match(runTriage, /\/replay\/compare\?source_run_id=\$\{run\.id\}/);
+    assert.match(runTriage, /\/governance\/human-tasks\?run_id=\$\{run\.id\}/);
+    assert.match(runTriage, /\/deployments\/\$\{deploymentId\}\?tab=promotion/);
+    assert.match(runTriage, /\/observability\/audit-logs\?run_id=\$\{run\.id\}/);
+
+    assert.match(deploymentsPage, /route\.query\.tab === "promotion"/);
+    assert.match(deploymentsPage, /openPromotionTab/);
+    assert.match(observabilityWorkbench, /useRoute/);
+    assert.match(observabilityWorkbench, /hydrateFiltersFromRoute/);
+    assert.match(observabilityWorkbench, /route\.query\[key\]/);
+    assert.match(observabilityWorkbench, /exportAuditEvidence/);
+    assert.match(observabilityWorkbench, /dimoorun-audit-evidence-\$\{runSuffix\}\.json/);
+
+    [
+      "operatorEvidencePath",
+      "goldenOperatorDemo",
+      "triageRun",
+      "compareReplayCopy",
+      "approvalEvidenceCopy",
+      "rollbackFromRunCopy",
+      "auditExportCopy",
+    ].forEach((key) => assert.match(messages, new RegExp(`${key}:`)));
+});
+
+test("shows first package trust evidence from AgentVersion manifest and capabilities", () => {
+    const agentsPage = read("src/pages/agents/AgentsPage.vue");
+    const messages = read("src/i18n/messages.ts");
+
+    [
+      "packageTrustEvidence",
+      "openTrustEvidenceDrawer",
+      "validationTokenFor",
+      "validation_token",
+      "packageDigest",
+      "digestFor",
+      "signatureStatus",
+      "signatureFor",
+      "sbomStatus",
+      "sbomFor",
+      "secretRefsFor",
+      "sandboxProfile",
+      "sandboxFor",
+      "capabilityListFor",
+      "manifestEvidence",
+      "notRecorded",
+    ].forEach((pattern) => assert.match(agentsPage, new RegExp(pattern)));
+
+    [
+      "packageTrustEvidence",
+      "openTrustEvidence",
+      "packageDigest",
+      "signatureStatus",
+      "sbomStatus",
+      "secretRefs",
+      "sandboxProfile",
+      "manifestEvidence",
+      "notRecorded",
+    ].forEach((key) => assert.match(messages, new RegExp(`${key}:`)));
 });
 
 test("loads the Events page from real run events", () => {

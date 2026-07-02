@@ -23,6 +23,7 @@ NATIVE_PATHS = [
     "/v1/agents/{agent_id}/stream",
     "/v1/runs",
     "/v1/runs/{run_id}",
+    "/v1/runs/{run_id}/integration-evidence",
     "/v1/runs/{run_id}/events",
     "/v1/events",
     "/v1/runs/{run_id}/attempts",
@@ -466,6 +467,82 @@ def test_native_agent_task_run_event_flow_is_real() -> None:
     tasks = client.get("/v1/tasks", headers=auth_headers(key))
     assert tasks.status_code == 200
     assert any(item["id"] == task_body["task_id"] for item in tasks.json())
+
+
+def test_run_integration_evidence_is_written_through_real_api() -> None:
+    client = TestClient(create_app())
+    key, _ = create_api_key()
+    agent_id, _ = create_agent_with_version(client, key)
+    task_body = client.post(
+        f"/v1/agents/{agent_id}/tasks",
+        headers=auth_headers(key),
+        json={"input": {"message": "integration proof"}},
+    ).json()
+    run_id = task_body["run_id"]
+
+    recorded = client.post(
+        f"/v1/runs/{run_id}/integration-evidence",
+        headers=auth_headers(key),
+        json={
+            "source": "integration-proof-test",
+            "trace_links": [
+                {
+                    "provider": "langfuse",
+                    "url": "http://localhost:3000/project/demo/traces/trace_1001",
+                    "trace_id": "trace_1001",
+                    "label": "Langfuse trace",
+                }
+            ],
+            "exporters": [
+                {
+                    "provider": "opentelemetry",
+                    "exporter_type": "otlp",
+                    "target_ref": "http://otel.local:4318",
+                    "status": "delivered",
+                    "request_id": "otel_req_1001",
+                }
+            ],
+            "model_gateway": {
+                "provider": "litellm",
+                "gateway_name": "local-litellm",
+                "gateway_request_id": "gw_req_1001",
+                "model": "gpt-4.1-mini",
+                "route": "support-policy",
+                "prompt_tokens": 120,
+                "completion_tokens": 40,
+                "total_tokens": 160,
+                "cost": 0.0042,
+                "currency": "USD",
+            },
+            "failures": [
+                {
+                    "provider": "opentelemetry",
+                    "error_code": "otlp_retry",
+                    "message": "first export attempt retried, second delivered",
+                    "retryable": True,
+                }
+            ],
+        },
+    )
+
+    assert recorded.status_code == 200
+    body = recorded.json()
+    assert body["run_id"] == run_id
+    assert body["trace_links"][0]["provider"] == "langfuse"
+    assert body["exporters"][0]["provider"] == "opentelemetry"
+    assert body["model_gateway"][0]["provider"] == "litellm"
+    assert body["failures"][0]["error_code"] == "otlp_retry"
+
+    fetched = client.get(
+        f"/v1/runs/{run_id}/integration-evidence",
+        headers=auth_headers(key),
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["records"][0]["source"] == "integration-proof-test"
+
+    events = client.get(f"/v1/runs/{run_id}/events", headers=auth_headers(key))
+    assert events.status_code == 200
+    assert any(event["type"] == "integration.evidence.recorded" for event in events.json())
 
 
 def test_native_deployment_task_run_flow_uses_active_deployment_version() -> None:
