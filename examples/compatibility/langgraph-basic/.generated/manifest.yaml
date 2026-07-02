@@ -1,0 +1,25 @@
+schema_version: '1.0'
+name: compatibility-basic
+version: 0.1.0
+runtime:
+  framework: langgraph
+  adapter: langgraph
+  entrypoint: agent:build_graph
+  python: '>=3.11'
+capabilities:
+  invoke: true
+  stream: true
+  checkpoint: true
+dependencies:
+- langgraph>=1.0.0
+- langchain-core>=1.0.0
+required_secrets:
+- NEWAPI_API_KEY
+security:
+  network_policy: restricted
+  allow_file_system_write: false
+metadata:
+  migration_source: examples\compatibility\langgraph-basic\source
+  langgraph_config: langgraph.json
+  checkpoint_backend: null
+  store_backend: null

@@ -1,0 +1,39 @@
+schema_version: '1.0'
+project:
+  name: compatibility-basic
+  tenant: default
+agents:
+- name: compatibility-basic
+  path: .
+  manifest: ./manifest.yaml
+adapters:
+  langgraph:
+    enabled: true
+  langchain-agent:
+    enabled: false
+  deepagents:
+    enabled: false
+deployments:
+  dev:
+    agent: compatibility-basic
+    version: 0.1.0
+    execution_profile: local-dev
+execution_profiles:
+  local-dev:
+    mode: in_process
+    storage: sqlite
+model_gateways:
+  default:
+    provider: newapi
+    secret: NEWAPI_API_KEY
+policies:
+  tool_approval:
+    destructive: required
+observability:
+  tracing: opentelemetry
+  langfuse:
+    enabled: false
+storage:
+  metadata: sqlite
+  queue: in_process
+  object_store: local
