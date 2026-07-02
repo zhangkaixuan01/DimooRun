@@ -252,6 +252,9 @@
                 </template>
                 <template #cell-actions="{ row }">
                   <div class="actions-cell">
+                    <button class="button" type="button" @click="openTrustEvidenceDrawer(row)">
+                      {{ t("openTrustEvidence") }}
+                    </button>
                     <button class="button" type="button" :disabled="pendingVersion === row.id" @click="openEditVersionDrawer(row)">
                       {{ t("edit") }}
                     </button>
@@ -403,6 +406,74 @@
       </form>
     </AppDrawer>
 
+    <AppDrawer
+      :open="Boolean(trustVersionTarget)"
+      :label="t('packageTrustEvidence')"
+      :title="t('packageTrustEvidence')"
+      :kicker="trustVersionTarget ? `${t('versionImplementation')} #${trustVersionTarget.id}` : t('versionImplementation')"
+      width="wide"
+      @close="closeTrustEvidenceDrawer"
+    >
+      <div v-if="trustVersionTarget" class="trust-evidence">
+        <p class="form-help">{{ t("packageTrustEvidenceCopy") }}</p>
+        <dl class="trust-grid">
+          <div>
+            <dt>{{ t("packageUri") }}</dt>
+            <dd class="mono">{{ trustVersionTarget.packageUri }}</dd>
+          </div>
+          <div>
+            <dt>{{ t("validationToken") }}</dt>
+            <dd class="mono">{{ validationTokenFor(trustVersionTarget) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t("packageDigest") }}</dt>
+            <dd class="mono">{{ digestFor(trustVersionTarget) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t("signatureStatus") }}</dt>
+            <dd>{{ signatureFor(trustVersionTarget) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t("sbomStatus") }}</dt>
+            <dd>{{ sbomFor(trustVersionTarget) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t("sandboxProfile") }}</dt>
+            <dd class="mono">{{ sandboxFor(trustVersionTarget) }}</dd>
+          </div>
+        </dl>
+        <section class="trust-section">
+          <h3>{{ t("secretRefs") }}</h3>
+          <ul v-if="secretRefsFor(trustVersionTarget).length > 0" class="pill-list">
+            <li v-for="secretRef in secretRefsFor(trustVersionTarget)" :key="secretRef" class="mono">{{ secretRef }}</li>
+          </ul>
+          <p v-else class="muted">{{ t("notRecorded") }}</p>
+        </section>
+        <section class="trust-section">
+          <h3>{{ t("capabilities") }}</h3>
+          <ul v-if="capabilityListFor(trustVersionTarget).length > 0" class="pill-list">
+            <li v-for="capability in capabilityListFor(trustVersionTarget)" :key="capability" class="mono">{{ capability }}</li>
+          </ul>
+          <p v-else class="muted">{{ t("notRecorded") }}</p>
+        </section>
+        <section class="trust-section">
+          <h3>{{ t("runtimeEvidenceLinks") }}</h3>
+          <div class="trust-link-list">
+            <ResourceLink :to="adapterCertificationPath(trustVersionTarget)">
+              {{ t("adapterCertificationMatrix") }}
+            </ResourceLink>
+            <ResourceLink :to="`/runs?agent_version_id=${trustVersionTarget.id}`">
+              {{ t("runEvidence") }}
+            </ResourceLink>
+          </div>
+        </section>
+        <section class="trust-section">
+          <h3>{{ t("manifestEvidence") }}</h3>
+          <pre class="trust-json">{{ formatJson(trustVersionTarget.manifest) }}</pre>
+        </section>
+      </div>
+    </AppDrawer>
+
     <DangerConfirmDialog
       :open="Boolean(archiveAgentTarget)"
       :title="t('deleteAgent')"
@@ -443,6 +514,7 @@ import ApiState from "../../components/ApiState.vue";
 import AppDrawer from "../../components/AppDrawer.vue";
 import DataTable from "../../components/DataTable.vue";
 import DangerConfirmDialog from "../../components/DangerConfirmDialog.vue";
+import ResourceLink from "../../components/ResourceLink.vue";
 import SkeletonBlock from "../../components/SkeletonBlock.vue";
 import StatusBadge from "../../components/StatusBadge.vue";
 import { useI18n } from "../../i18n/useI18n";
@@ -477,6 +549,7 @@ const editAgentTarget = ref<Agent | null>(null);
 const archiveAgentTarget = ref<Agent | null>(null);
 const editVersionTarget = ref<AgentVersion | null>(null);
 const archiveVersionTarget = ref<AgentVersion | null>(null);
+const trustVersionTarget = ref<AgentVersion | null>(null);
 const versions = ref<AgentVersion[]>([]);
 const readyVersionSource = ref<ReadyVersionDraft | null>(readReadyVersionDraft());
 const readyVersionSourceHandled = ref(false);
@@ -880,6 +953,119 @@ function closeEditVersionDrawer() {
   editVersionForm.status = "ready";
 }
 
+function openTrustEvidenceDrawer(version: AgentVersion) {
+  trustVersionTarget.value = version;
+}
+
+function closeTrustEvidenceDrawer() {
+  trustVersionTarget.value = null;
+}
+
+function formatJson(value: unknown): string {
+  return JSON.stringify(value || {}, null, 2);
+}
+
+function nestedRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = source[key];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function firstString(source: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function valueOrNotRecorded(value: string): string {
+  return value || t("notRecorded");
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function validationTokenFor(version: AgentVersion): string {
+  const manifest = version.manifest || {};
+  return valueOrNotRecorded(
+    firstString(manifest, ["validation_token", "validationToken"])
+    || firstString(nestedRecord(manifest, "validation"), ["token", "validation_token"]),
+  );
+}
+
+function digestFor(version: AgentVersion): string {
+  const manifest = version.manifest || {};
+  return valueOrNotRecorded(
+    firstString(manifest, ["package_digest", "packageDigest", "oci_digest", "digest"])
+    || firstString(nestedRecord(manifest, "package"), ["digest", "oci_digest"])
+    || firstString(nestedRecord(manifest, "artifact"), ["digest"])
+    || firstString(nestedRecord(manifest, "image"), ["digest"]),
+  );
+}
+
+function signatureFor(version: AgentVersion): string {
+  const manifest = version.manifest || {};
+  return valueOrNotRecorded(
+    firstString(manifest, ["signature_status", "signatureStatus"])
+    || firstString(nestedRecord(manifest, "signature"), ["status", "verification_status"])
+    || firstString(nestedRecord(manifest, "signing"), ["status", "verification_status"]),
+  );
+}
+
+function sbomFor(version: AgentVersion): string {
+  const manifest = version.manifest || {};
+  return valueOrNotRecorded(
+    firstString(manifest, ["sbom_status", "sbomStatus"])
+    || firstString(nestedRecord(manifest, "sbom"), ["status", "format", "uri"]),
+  );
+}
+
+function secretRefsFor(version: AgentVersion): string[] {
+  const manifest = version.manifest || {};
+  const capabilities = version.capabilities || {};
+  return [
+    ...stringList(manifest.required_secret_refs),
+    ...stringList(manifest.secret_refs),
+    ...stringList(manifest.requiredSecretRefs),
+    ...stringList(nestedRecord(manifest, "runtime").required_secret_refs),
+    ...stringList(capabilities.required_secret_refs),
+    ...stringList(capabilities.secret_refs),
+  ].filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function sandboxFor(version: AgentVersion): string {
+  const manifest = version.manifest || {};
+  return valueOrNotRecorded(
+    firstString(manifest, ["sandbox_profile", "sandboxProfile"])
+    || firstString(nestedRecord(manifest, "runtime"), ["sandbox_profile", "sandboxProfile"])
+    || firstString(nestedRecord(manifest, "sandbox"), ["profile", "name"]),
+  );
+}
+
+function capabilityListFor(version: AgentVersion): string[] {
+  const capabilities = version.capabilities || {};
+  const explicit = [
+    ...stringList(capabilities.capabilities),
+    ...stringList(capabilities.supported_capabilities),
+  ];
+  const enabledKeys = Object.entries(capabilities)
+    .filter(([, value]) => value === true)
+    .map(([key]) => key);
+  return [...explicit, ...enabledKeys].filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function adapterCertificationPath(version: AgentVersion): string {
+  const params = new URLSearchParams({
+    adapter: version.adapter,
+    framework: version.framework,
+  });
+  return `/compatibility?${params.toString()}`;
+}
+
 function parseJsonObject(value: string): Record<string, unknown> {
   const parsed = JSON.parse(value) as unknown;
   if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
@@ -1259,6 +1445,81 @@ label span {
   overflow: auto;
 }
 
+.trust-evidence {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.trust-grid div,
+.trust-section {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+  padding: 12px;
+}
+
+.trust-grid dt {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.trust-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.trust-section {
+  display: grid;
+  gap: 10px;
+}
+
+.trust-section h3 {
+  margin: 0;
+  font-size: 0.94rem;
+}
+
+.pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pill-list li {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 5px 9px;
+}
+
+.trust-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trust-json {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  margin: 0;
+  max-height: 320px;
+  padding: 12px;
+}
+
 .empty-child {
   border: 1px dashed var(--color-border);
   border-radius: 8px;
@@ -1294,7 +1555,8 @@ label span {
 
 @media (max-width: 900px) {
   .agent-detail-layout,
-  .form-grid {
+  .form-grid,
+  .trust-grid {
     grid-template-columns: 1fr;
   }
 
