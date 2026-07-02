@@ -18,6 +18,29 @@
       <MetricCard :label="t('monthlyCost')" :value="formatCurrency(summary.monthlyCostUsd)" :delta="t('noCostData')" tone="neutral" />
     </div>
 
+    <section class="panel command-center">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">{{ t("firstRunCommandCenter") }}</h2>
+          <p class="panel-copy">{{ t("firstRunCommandCenterCopy") }}</p>
+        </div>
+        <RouterLink class="command-center-link" to="/runs">{{ t("inspectRunEvidence") }}</RouterLink>
+      </div>
+      <div class="next-actions-grid">
+        <RouterLink
+          v-for="action in nextActions"
+          :key="action.label"
+          class="next-action-card"
+          :to="action.to"
+        >
+          <span class="next-action-step">{{ action.step }}</span>
+          <strong>{{ action.label }}</strong>
+          <span>{{ action.copy }}</span>
+          <code>{{ action.command }}</code>
+        </RouterLink>
+      </div>
+    </section>
+
     <div class="workbench-grid">
       <div class="workbench-main">
         <section class="panel trend-panel">
@@ -127,6 +150,36 @@ const failedRuns = ref<ConsoleRecentFailure[]>([]);
 const pendingActions = ref<ConsolePendingAction[]>([]);
 const modeLabel = computed(() => (mode === "live" ? t("live") : t("offline")));
 const trendPoints = ref<Array<{ label: string; runs: number; successRate: number }>>([]);
+const nextActions = computed(() => [
+  {
+    step: "01",
+    label: t("publishExistingAgent"),
+    copy: t("publishExistingAgentCopy"),
+    command: "dimoorun publish examples/langgraph/support-agent",
+    to: "/packages",
+  },
+  {
+    step: "02",
+    label: t("deployAgentVersion"),
+    copy: t("deployAgentVersionCopy"),
+    command: "dimoorun deploy support-agent --env local",
+    to: "/deployments",
+  },
+  {
+    step: "03",
+    label: t("runAgentTask"),
+    copy: t("runAgentTaskCopy"),
+    command: "dimoorun run support-agent --env local --watch",
+    to: "/tasks",
+  },
+  {
+    step: "04",
+    label: t("inspectRunEvidence"),
+    copy: t("inspectRunEvidenceCopy"),
+    command: "dimoorun open --run-id <RUN_ID>",
+    to: "/runs",
+  },
+]);
 
 async function loadDashboard() {
   if (mode === "offline") return;
@@ -176,6 +229,71 @@ onMounted(loadDashboard);
   gap: 8px;
 }
 
+.command-center {
+  margin-bottom: 18px;
+}
+
+.command-center-link {
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.next-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.next-action-card {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface-raised) 82%, var(--color-surface-muted));
+  color: inherit;
+  padding: 14px;
+  text-decoration: none;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.next-action-card:hover,
+.next-action-card:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-surface-raised);
+  outline: none;
+}
+
+.next-action-card strong {
+  font-size: 15px;
+}
+
+.next-action-card span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.next-action-card code {
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: 12px;
+  padding: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.next-action-step {
+  color: var(--color-accent) !important;
+  font-size: 12px !important;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
 .health-grid div {
   display: flex;
   align-items: baseline;
@@ -218,5 +336,17 @@ onMounted(loadDashboard);
 
 .empty-panel {
   color: var(--color-text-muted);
+}
+
+@media (max-width: 1024px) {
+  .next-actions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .next-actions-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
