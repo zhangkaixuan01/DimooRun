@@ -24,12 +24,11 @@ The intended evaluator path is:
 
 1. Start the server, worker, Console, Postgres, Redis, and object store.
 2. Sign in to the Console with the local operator account.
-3. Register an example agent package.
-4. Validate the package version.
-5. Create or promote a deployment.
-6. Submit a task.
-7. Inspect the run, attempts, events, artifacts, and audit evidence.
-8. Try replay or failure triage if the run fails.
+3. Publish the example agent with `uv run dimoorun publish examples/langgraph/support-agent`.
+4. Deploy it with `uv run dimoorun deploy support-agent --env local`.
+5. Submit work with `uv run dimoorun run support-agent --env local --watch`.
+6. Inspect the run, attempts, events, artifacts, and audit evidence.
+7. Try replay or failure triage if the run fails.
 
 This path is the product activation target. It proves local activation only, not
 external production readiness.
@@ -74,9 +73,11 @@ Use this path for the product happy path covered by the readiness scorecard.
 
 If you want scriptable evaluation instead of manual API calls, use:
 
-- Python SDK for validate, publish, create deployment, submit task, replay
-- CLI for run watch and deployment task submission
-- Console for visual inspection and operator workflows
+- Productized CLI for publish, deploy, run, open, and demo seed.
+- Explicit CLI commands for package validation, deployment task submission,
+  run watch, and replay.
+- Python SDK for lower-level automation.
+- Console for visual inspection and operator workflows.
 
 ## Where To Verify Status
 

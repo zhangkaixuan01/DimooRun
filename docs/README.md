@@ -22,7 +22,10 @@ Read these first, in order:
    path.
 3. [Quickstart](start/quickstart.md) gives a 15-minute local path with current
    caveats.
-4. [Current Maturity](readiness/current-maturity.md) states what is proven,
+4. Choose a persona path: [Evaluator](start/evaluator-path.md),
+   [Developer](start/developer-path.md), [Operator](start/operator-path.md),
+   [Security](start/security-path.md), or [Platform](start/platform-path.md).
+5. [Current Maturity](readiness/current-maturity.md) states what is proven,
    partial, or missing.
 
 ## Evaluation Path
@@ -43,6 +46,11 @@ Use this order when evaluating the project:
 - [Product Overview](start/product-overview.md)
 - [Getting Started](start/getting-started.md)
 - [Quickstart](start/quickstart.md)
+- [Evaluator Path](start/evaluator-path.md)
+- [Developer Path](start/developer-path.md)
+- [Operator Path](start/operator-path.md)
+- [Security Path](start/security-path.md)
+- [Platform Path](start/platform-path.md)
 
 ## API And SDK
 

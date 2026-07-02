@@ -24,16 +24,15 @@ Business logic is a black box.
 Runtime behavior is a white box.
 ```
 
-## First 15 Minutes
+## First 10 Minutes
 
 The fastest real path today is:
 
 1. Start the local Compose stack.
-2. Publish the `examples/langgraph/support-agent` example.
-3. Create a deployment for that version.
-4. Submit a task.
-5. Watch the run complete from CLI and inspect it in Console.
-6. Tear the stack down cleanly.
+2. Publish the `examples/langgraph/support-agent` example with productized CLI.
+3. Deploy the ready version to `local`.
+4. Submit a task and inspect the run evidence in Console.
+5. Tear the stack down cleanly.
 
 Working directory: repository root.
 
@@ -44,85 +43,23 @@ docker compose up --build
 
 Working directory: repository root.
 
-```powershell
-@'
-from dimoorun import DimooRun
-
-client = DimooRun(
-    api_key="dev-local-key",
-    base_url="http://127.0.0.1:8000",
-    tenant_id=1,
-    project_id=1,
-)
-
-manifest = {
-    "schema_version": "1.0",
-    "name": "support-agent",
-    "version": "0.1.0",
-    "runtime": {
-        "framework": "langgraph",
-        "adapter": "langgraph",
-        "entrypoint": "agent:build_graph",
-        "python": ">=3.11",
-    },
-    "capabilities": {
-        "invoke": True,
-        "stream": True,
-        "checkpoint": True,
-        "resume": True,
-        "interrupt": True,
-        "human_in_loop": True,
-        "tool_events": True,
-        "model_events": True,
-        "token_usage": True,
-        "filesystem": False,
-        "subagents": False,
-    },
-}
-
-validation = client.validate_package(
-    package_uri="file:///workspace/examples/langgraph/support-agent",
-    framework="langgraph",
-    adapter="langgraph",
-    entrypoint="agent:build_graph",
-    manifest=manifest,
-)
-agent = client.create_agent(name="support-agent", description="README quickstart")
-version = client.create_agent_version(
-    agent_id=agent["id"],
-    version="0.1.0",
-    package_uri="file:///workspace/examples/langgraph/support-agent",
-    framework="langgraph",
-    adapter="langgraph",
-    entrypoint="agent:build_graph",
-    manifest=manifest | {"validation_token": validation["validation_token"]},
-    capabilities=manifest["capabilities"],
-    status="ready",
-)
-deployment = client.create_deployment(
-    agent_id=agent["id"],
-    agent_version_id=version["id"],
-    environment="local",
-    desired_status="active",
-)
-run = client.submit_deployment_task(
-    deployment_id=deployment["id"],
-    input={"message": "customer refund request for order 42"},
-    thread_id="readme-quickstart",
-)
-
-print(f"agent_id={agent['id']}")
-print(f"version_id={version['id']}")
-print(f"deployment_id={deployment['id']}")
-print(f"run_id={run['run_id']}")
-client.close()
-'@ | uv run python -
+```bash
+uv run dimoorun publish examples/langgraph/support-agent
+uv run dimoorun deploy support-agent --env local
+uv run dimoorun run support-agent --env local --input-json "{\"message\":\"customer refund request for order 42\"}" --watch --show-events
+uv run dimoorun open --run-id <RUN_ID>
 ```
 
 Working directory: repository root.
 
 ```bash
 uv run dimoorun run watch --base-url http://127.0.0.1:8000 --api-key dev-local-key --tenant-id 1 --project-id 1 --run-id <RUN_ID> --show-events
+```
+
+For a single command that prepares demo data, use:
+
+```bash
+uv run dimoorun demo seed --watch
 ```
 
 Working directory: repository root.

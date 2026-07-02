@@ -1,6 +1,6 @@
 # Quickstart
 
-This quickstart describes the intended 15-minute local path. Treat it as a
+This quickstart describes the intended 10-minute local path. Treat it as a
 guided baseline, not proof that the project is externally production-ready.
 
 Current maturity shorthand:
@@ -52,88 +52,28 @@ Current readiness status is tracked in
 ## Publish The Example Agent
 
 Use the real `examples/langgraph/support-agent` package. The command below
-validates the package, creates an agent, publishes a ready version, creates an
-active deployment, and submits one task.
+validates the package, creates or reuses the agent, and publishes a ready
+version.
 
 Working directory: repository root.
 
-```powershell
-@'
-from dimoorun import DimooRun
-
-client = DimooRun(
-    api_key="dev-local-key",
-    base_url="http://127.0.0.1:8000",
-    tenant_id=1,
-    project_id=1,
-)
-
-manifest = {
-    "schema_version": "1.0",
-    "name": "support-agent",
-    "version": "0.1.0",
-    "runtime": {
-        "framework": "langgraph",
-        "adapter": "langgraph",
-        "entrypoint": "agent:build_graph",
-        "python": ">=3.11",
-    },
-    "capabilities": {
-        "invoke": True,
-        "stream": True,
-        "checkpoint": True,
-        "resume": True,
-        "interrupt": True,
-        "human_in_loop": True,
-        "tool_events": True,
-        "model_events": True,
-        "token_usage": True,
-        "filesystem": False,
-        "subagents": False,
-    },
-}
-
-validation = client.validate_package(
-    package_uri="file:///workspace/examples/langgraph/support-agent",
-    framework="langgraph",
-    adapter="langgraph",
-    entrypoint="agent:build_graph",
-    manifest=manifest,
-)
-agent = client.create_agent(name="support-agent", description="Phase 12A quickstart")
-version = client.create_agent_version(
-    agent_id=agent["id"],
-    version="0.1.0",
-    package_uri="file:///workspace/examples/langgraph/support-agent",
-    framework="langgraph",
-    adapter="langgraph",
-    entrypoint="agent:build_graph",
-    manifest=manifest | {"validation_token": validation["validation_token"]},
-    capabilities=manifest["capabilities"],
-    status="ready",
-)
-deployment = client.create_deployment(
-    agent_id=agent["id"],
-    agent_version_id=version["id"],
-    environment="local",
-    desired_status="active",
-)
-run = client.submit_deployment_task(
-    deployment_id=deployment["id"],
-    input={"message": "customer asks for refund and account deletion"},
-    thread_id="phase-12a-quickstart",
-)
-
-print(f"agent_id={agent['id']}")
-print(f"version_id={version['id']}")
-print(f"deployment_id={deployment['id']}")
-print(f"run_id={run['run_id']}")
-client.close()
-'@ | uv run python -
+```bash
+uv run dimoorun publish examples/langgraph/support-agent
 ```
 
-Expected result: you get numeric `agent_id`, `version_id`, `deployment_id`, and
-`run_id` values.
+Expected result: you get `agent_id`, `agent_version_id`, `validation_token`, and
+a next command for deployment.
+
+## Deploy The Agent
+
+Working directory: repository root.
+
+```bash
+uv run dimoorun deploy support-agent --env local
+```
+
+Expected result: you get a `deployment_id`, `agent_version_id`, desired status
+`active`, and a Console deep link.
 
 ## Open The Console
 
@@ -158,7 +98,17 @@ In Console, verify:
 
 ## Submit A Task
 
-The publish step already submitted one task. To submit another from CLI:
+Working directory: repository root.
+
+```bash
+uv run dimoorun run support-agent --env local --input-json "{\"message\":\"customer asks for refund and account deletion\"}" --watch --show-events
+```
+
+Expected result: you get a `run_id` and `task_id`, followed by run status
+updates until the run reaches a terminal state.
+
+If you prefer the explicit automation command, use the lower-level task submit
+and watch commands:
 
 Working directory: repository root.
 
@@ -184,11 +134,27 @@ Then inspect the run in Console:
 - attempts
 - events
 - deployment and version
+- input, output, and error payloads
+- artifacts and audit links when present
 - policy/approval evidence for high-risk messages
 - replay or triage next action where available
 
 Expected result: the LangGraph support-agent example reaches a visible terminal
 state and shows structured runtime evidence.
+
+## One-Command Demo Seed
+
+To prepare the same P0-A demo data with one command:
+
+Working directory: repository root.
+
+```bash
+uv run dimoorun demo seed --watch
+```
+
+Expected result: the command creates or reuses the `support-agent`, deploys it
+to `local`, submits a task, and prints Console links for Dashboard, Deployment,
+and Run evidence.
 
 ## Tear Down
 

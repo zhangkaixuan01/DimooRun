@@ -10,6 +10,12 @@ design history.
 2. [Getting Started](../start/getting-started.md) maps the first successful
    evaluator path.
 3. [Quickstart](../start/quickstart.md) gives the current local runtime path.
+4. Persona paths:
+   [Evaluator](../start/evaluator-path.md),
+   [Developer](../start/developer-path.md),
+   [Operator](../start/operator-path.md),
+   [Security](../start/security-path.md),
+   [Platform](../start/platform-path.md).
 
 ## Current Product Surface
 
@@ -25,6 +31,9 @@ DimooRun currently centers on these workflows:
 The authoritative maturity status is tracked in
 [Current Maturity](../readiness/current-maturity.md) and the
 [Production Readiness Scorecard](../readiness/scorecard.md).
+
+For competitive positioning, moat analysis, and the product improvement plan,
+read [Competitive Improvement Plan](competitive-improvement-plan.md).
 
 ## Boundaries
 

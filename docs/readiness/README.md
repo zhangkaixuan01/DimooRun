@@ -13,6 +13,8 @@ External production-grade platform: not yet.
 Read [Current Maturity](current-maturity.md) for the short operational status.
 Read [Production Readiness Scorecard](scorecard.md) before making any
 production-grade claim.
+Read [Readiness Gap Backlog](gap-backlog.md) for known gaps that are being
+tracked but are not all being fixed immediately.
 
 ## What Is Proven
 
