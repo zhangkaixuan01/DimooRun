@@ -11,6 +11,42 @@
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && !run" />
 
+    <section v-if="mode !== 'offline' && !loading && run" class="panel golden-path">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">{{ t("goldenOperatorDemo") }}</h2>
+          <p class="panel-copy">{{ t("goldenOperatorDemoCopy") }}</p>
+        </div>
+      </div>
+      <div class="path-steps">
+        <RouterLink class="path-step" :to="`/runs/${run.id}`">
+          <span>01</span>
+          <strong>{{ t("failureEvidence") }}</strong>
+          <small>{{ t("failureEvidenceCopy") }}</small>
+        </RouterLink>
+        <RouterLink class="path-step" :to="`/replay/compare?source_run_id=${run.id}`">
+          <span>02</span>
+          <strong>{{ t("compareReplay") }}</strong>
+          <small>{{ t("compareReplayCopy") }}</small>
+        </RouterLink>
+        <RouterLink class="path-step" :to="`/governance/human-tasks?run_id=${run.id}`">
+          <span>03</span>
+          <strong>{{ t("approval") }}</strong>
+          <small>{{ t("approvalEvidenceCopy") }}</small>
+        </RouterLink>
+        <RouterLink v-if="deploymentId" class="path-step" :to="`/deployments/${deploymentId}?tab=promotion`">
+          <span>04</span>
+          <strong>{{ t("promotionRollback") }}</strong>
+          <small>{{ t("rollbackFromRunCopy") }}</small>
+        </RouterLink>
+        <RouterLink class="path-step" :to="`/observability/audit-logs?run_id=${run.id}`">
+          <span>05</span>
+          <strong>{{ t("auditEvidence") }}</strong>
+          <small>{{ t("auditExportCopy") }}</small>
+        </RouterLink>
+      </div>
+    </section>
+
     <div v-if="mode !== 'offline' && !loading && run" class="triage-grid">
       <section class="panel">
         <div class="panel-header"><h2 class="panel-title">{{ t("failureContext") }}</h2></div>
@@ -92,6 +128,10 @@ const run = ref<Run | null>(null);
 const events = ref<RuntimeEvent[]>([]);
 const attempts = ref<RunAttempt[]>([]);
 const selectedEventId = ref<string | null>(null);
+const deploymentId = computed(() => {
+  const value = Number(run.value?.deployment);
+  return Number.isFinite(value) && value > 0 ? value : null;
+});
 const errorSummary = computed(() => {
   const value = run.value?.error;
   if (!value) return "No error payload.";
@@ -135,6 +175,42 @@ onMounted(loadTriage);
   gap: 14px;
 }
 
+.golden-path {
+  margin-bottom: 14px;
+}
+
+.path-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.path-step {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  padding: 12px;
+  text-decoration: none;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.path-step:hover,
+.path-step:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-surface-muted);
+}
+
+.path-step span {
+  color: var(--color-accent);
+  font-weight: 800;
+}
+
+.path-step small {
+  color: var(--color-text-muted);
+}
+
 .evidence-list {
   display: grid;
   gap: 12px;
@@ -167,7 +243,8 @@ pre {
 }
 
 @media (max-width: 1100px) {
-  .triage-grid {
+  .triage-grid,
+  .path-steps {
     grid-template-columns: 1fr;
   }
 }
