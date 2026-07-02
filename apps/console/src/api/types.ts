@@ -87,6 +87,56 @@ export type RunAttempt = {
   error: string | null;
 };
 
+export type IntegrationTraceLink = {
+  provider: string;
+  url: string;
+  traceId: string | null;
+  label: string | null;
+  status: string;
+};
+
+export type IntegrationExporterEvidence = {
+  provider: string;
+  exporterType: string | null;
+  targetRef: string | null;
+  status: string;
+  requestId: string | null;
+  deliveredAt: string | null;
+  message: string | null;
+};
+
+export type IntegrationModelGatewayEvidence = {
+  provider: string;
+  gatewayId: ResourceId | null;
+  gatewayName: string | null;
+  gatewayRequestId: string | null;
+  model: string | null;
+  route: string | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  cost: number | null;
+  currency: string;
+};
+
+export type IntegrationFailureEvidence = {
+  provider: string;
+  status: string;
+  errorCode: string | null;
+  message: string;
+  retryable: boolean | null;
+  occurredAt: string | null;
+};
+
+export type RunIntegrationEvidence = {
+  runId: ResourceId;
+  traceLinks: IntegrationTraceLink[];
+  exporters: IntegrationExporterEvidence[];
+  modelGateway: IntegrationModelGatewayEvidence[];
+  failures: IntegrationFailureEvidence[];
+  records: Array<Record<string, unknown>>;
+};
+
 export type Task = {
   id: ResourceId;
   runId: ResourceId;

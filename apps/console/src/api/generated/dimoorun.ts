@@ -332,6 +332,56 @@ export type NativeEventRead = {
   visibility_level: string;
 };
 
+export type NativeIntegrationTraceLinkRead = {
+  provider: string;
+  url: string;
+  trace_id: string | null;
+  label: string | null;
+  status: string;
+};
+
+export type NativeIntegrationExporterEvidenceRead = {
+  provider: string;
+  exporter_type: string | null;
+  target_ref: string | null;
+  status: string;
+  request_id: string | null;
+  delivered_at: string | null;
+  message: string | null;
+};
+
+export type NativeIntegrationModelGatewayEvidenceRead = {
+  provider: string;
+  gateway_id: ResourceId | null;
+  gateway_name: string | null;
+  gateway_request_id: string | null;
+  model: string | null;
+  route: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  cost: number | null;
+  currency: string;
+};
+
+export type NativeIntegrationFailureEvidenceRead = {
+  provider: string;
+  status: string;
+  error_code: string | null;
+  message: string;
+  retryable: boolean | null;
+  occurred_at: string | null;
+};
+
+export type NativeRunIntegrationEvidenceRead = {
+  run_id: ResourceId;
+  trace_links: NativeIntegrationTraceLinkRead[];
+  exporters: NativeIntegrationExporterEvidenceRead[];
+  model_gateway: NativeIntegrationModelGatewayEvidenceRead[];
+  failures: NativeIntegrationFailureEvidenceRead[];
+  records: Array<Record<string, unknown>>;
+};
+
 type ClientOptions = {
   baseUrl: string;
   headers: HeadersInit;
@@ -466,6 +516,13 @@ export function createDimooRunClient(options: ClientOptions) {
       }),
     listRuns: () => request<NativeRunRead[]>(options, "/v1/runs"),
     getRun: (runId: ResourceId) => request<NativeRunRead>(options, `/v1/runs/${runId}`),
+    getRunIntegrationEvidence: (runId: ResourceId) =>
+      request<NativeRunIntegrationEvidenceRead>(options, `/v1/runs/${runId}/integration-evidence`),
+    recordRunIntegrationEvidence: (runId: ResourceId, payload: Record<string, unknown>) =>
+      request<NativeRunIntegrationEvidenceRead>(options, `/v1/runs/${runId}/integration-evidence`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
     listRunEvents: (runId: ResourceId) => request<NativeEventRead[]>(options, `/v1/runs/${runId}/events`),
     listEvents: () => request<NativeEventRead[]>(options, "/v1/events"),
     listRunAttempts: (runId: ResourceId) => request<Record<string, unknown>[]>(options, `/v1/runs/${runId}/attempts`),

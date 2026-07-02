@@ -25,6 +25,10 @@ import type {
   ExperimentRunResult,
   HumanTask,
   IncidentWorkflowResult,
+  IntegrationExporterEvidence,
+  IntegrationFailureEvidence,
+  IntegrationModelGatewayEvidence,
+  IntegrationTraceLink,
   IngressRouteTestResult,
   ModelGatewayTestResult,
   NotificationChannelOption,
@@ -44,6 +48,7 @@ import type {
   Run,
   RunAttempt,
   RunDatasetCapture,
+  RunIntegrationEvidence,
   RuntimeAgentInstance,
   RuntimeAgentInstanceDetail,
   RuntimeCapacitySummary,
@@ -78,8 +83,13 @@ import {
   type NativeDeploymentTaskCreatePayload,
   type NativeDeploymentUpdatePayload,
   type NativeEventRead,
+  type NativeIntegrationExporterEvidenceRead,
+  type NativeIntegrationFailureEvidenceRead,
+  type NativeIntegrationModelGatewayEvidenceRead,
+  type NativeIntegrationTraceLinkRead,
   type PackageValidationPayload,
   type NativeRunRead,
+  type NativeRunIntegrationEvidenceRead,
   type NativeTaskCreatePayload,
   type NativeTaskRead,
   type ReplayComparisonRead,
@@ -532,6 +542,68 @@ function mapNativeEvent(event: NativeEventRead): RuntimeEvent {
     status: event.visibility_level,
     summary: `run ${event.run_id}: ${JSON.stringify(event.payload)}`,
     payload: event.payload,
+  };
+}
+
+function mapIntegrationTraceLink(item: NativeIntegrationTraceLinkRead): IntegrationTraceLink {
+  return {
+    provider: item.provider,
+    url: item.url,
+    traceId: item.trace_id,
+    label: item.label,
+    status: item.status,
+  };
+}
+
+function mapIntegrationExporter(item: NativeIntegrationExporterEvidenceRead): IntegrationExporterEvidence {
+  return {
+    provider: item.provider,
+    exporterType: item.exporter_type,
+    targetRef: item.target_ref,
+    status: item.status,
+    requestId: item.request_id,
+    deliveredAt: item.delivered_at,
+    message: item.message,
+  };
+}
+
+function mapIntegrationModelGateway(
+  item: NativeIntegrationModelGatewayEvidenceRead,
+): IntegrationModelGatewayEvidence {
+  return {
+    provider: item.provider,
+    gatewayId: item.gateway_id,
+    gatewayName: item.gateway_name,
+    gatewayRequestId: item.gateway_request_id,
+    model: item.model,
+    route: item.route,
+    promptTokens: item.prompt_tokens,
+    completionTokens: item.completion_tokens,
+    totalTokens: item.total_tokens,
+    cost: item.cost,
+    currency: item.currency,
+  };
+}
+
+function mapIntegrationFailure(item: NativeIntegrationFailureEvidenceRead): IntegrationFailureEvidence {
+  return {
+    provider: item.provider,
+    status: item.status,
+    errorCode: item.error_code,
+    message: item.message,
+    retryable: item.retryable,
+    occurredAt: item.occurred_at,
+  };
+}
+
+function mapRunIntegrationEvidence(payload: NativeRunIntegrationEvidenceRead): RunIntegrationEvidence {
+  return {
+    runId: payload.run_id,
+    traceLinks: payload.trace_links.map(mapIntegrationTraceLink),
+    exporters: payload.exporters.map(mapIntegrationExporter),
+    modelGateway: payload.model_gateway.map(mapIntegrationModelGateway),
+    failures: payload.failures.map(mapIntegrationFailure),
+    records: payload.records,
   };
 }
 
@@ -1785,6 +1857,9 @@ export const liveConsoleClient = {
   async getRun(runId: ResourceId): Promise<Run | null> {
     const payload = await nativeClient().getRun(runId);
     return mapNativeRun(payload);
+  },
+  async getRunIntegrationEvidence(runId: ResourceId): Promise<RunIntegrationEvidence> {
+    return mapRunIntegrationEvidence(await nativeClient().getRunIntegrationEvidence(runId));
   },
   async controlRun(runId: ResourceId, operation: string): Promise<Run> {
     const payload = await nativeClient(crypto.randomUUID()).controlRun(runId, operation);
