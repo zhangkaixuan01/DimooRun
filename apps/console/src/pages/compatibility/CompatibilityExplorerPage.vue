@@ -11,6 +11,39 @@
     <ApiState :mode="mode" :loading="loading" :error="error" />
 
     <div v-if="mode !== 'offline'" class="compatibility-layout">
+      <section class="panel certification-matrix" :aria-label="t('adapterCertificationMatrix')">
+        <header class="panel-header">
+          <div>
+            <p class="section-kicker">{{ t("adapterCertificationMatrix") }}</p>
+            <h2 class="panel-title">{{ t("adapterCapabilityBoundary") }}</h2>
+          </div>
+        </header>
+        <div class="matrix-scroll">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>{{ t("adapter") }}</th>
+                <th v-for="capability in certificationCapabilities" :key="capability">{{ capability }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in certificationRows" :key="row.adapter">
+                <th>
+                  <strong>{{ row.label }}</strong>
+                  <span class="mono">{{ row.adapter }}</span>
+                </th>
+                <td v-for="capability in certificationCapabilities" :key="`${row.adapter}-${capability}`">
+                  <span class="cert-pill" :class="`status-${row.statuses[capability].status}`">
+                    {{ certificationStatusLabel(row.statuses[capability].status) }}
+                  </span>
+                  <small>{{ row.statuses[capability].evidence }}</small>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <form class="panel migration-form" @submit.prevent="runMigrationReport">
         <header class="panel-header">
           <div>
@@ -224,6 +257,68 @@ const threadId = ref("");
 const runId = ref("");
 const lastEventId = ref("");
 const inputMessage = ref("hello from compatibility explorer");
+
+const certificationCapabilities = [
+  "invoke",
+  "stream",
+  "resume",
+  "checkpoint",
+  "interrupt",
+  "cancel",
+  "idempotency",
+  "error mapping",
+] as const;
+type CertificationCapability = typeof certificationCapabilities[number];
+type CertificationStatus = "certified" | "limited" | "unsupported" | "not-exercised";
+type CertificationCell = { status: CertificationStatus; evidence: string };
+const certificationRows: Array<{
+  label: string;
+  adapter: string;
+  statuses: Record<CertificationCapability, CertificationCell>;
+}> = [
+  {
+    label: "LangGraph",
+    adapter: "langgraph",
+    statuses: {
+      invoke: { status: "certified", evidence: "real framework smoke" },
+      stream: { status: "certified", evidence: "stream probe" },
+      resume: { status: "limited", evidence: "thread resume only" },
+      checkpoint: { status: "certified", evidence: "checkpoint contract" },
+      interrupt: { status: "limited", evidence: "HITL mapped" },
+      cancel: { status: "certified", evidence: "run cancel" },
+      idempotency: { status: "certified", evidence: "native task key" },
+      "error mapping": { status: "certified", evidence: "normalized errors" },
+    },
+  },
+  {
+    label: "LangChain Agent",
+    adapter: "langchain-agent",
+    statuses: {
+      invoke: { status: "certified", evidence: "real framework smoke" },
+      stream: { status: "limited", evidence: "token/event bridge" },
+      resume: { status: "unsupported", evidence: "no native checkpoint" },
+      checkpoint: { status: "limited", evidence: "external store required" },
+      interrupt: { status: "limited", evidence: "middleware mapped" },
+      cancel: { status: "certified", evidence: "run cancel" },
+      idempotency: { status: "certified", evidence: "native task key" },
+      "error mapping": { status: "certified", evidence: "normalized errors" },
+    },
+  },
+  {
+    label: "DeepAgents",
+    adapter: "deepagents",
+    statuses: {
+      invoke: { status: "certified", evidence: "real framework smoke" },
+      stream: { status: "limited", evidence: "events only" },
+      resume: { status: "limited", evidence: "backend dependent" },
+      checkpoint: { status: "limited", evidence: "state backend" },
+      interrupt: { status: "limited", evidence: "approval bridge" },
+      cancel: { status: "not-exercised", evidence: "contract pending" },
+      idempotency: { status: "certified", evidence: "native task key" },
+      "error mapping": { status: "certified", evidence: "normalized errors" },
+    },
+  },
+];
 
 const migrationForm = ref({
   framework: "langgraph",
@@ -479,6 +574,13 @@ function setQueryParam(url: URL, key: string, value: string) {
   url.searchParams.delete(key);
 }
 
+function certificationStatusLabel(status: CertificationStatus): string {
+  if (status === "certified") return t("certified");
+  if (status === "limited") return t("limited");
+  if (status === "unsupported") return t("unsupported");
+  return t("notExercised");
+}
+
 watch([assistantId, threadId, runId, lastEventId], syncQuery);
 
 onMounted(async () => {
@@ -498,9 +600,68 @@ onMounted(async () => {
 }
 
 .migration-form,
-.explorer-results {
+.explorer-results,
+.certification-matrix {
   display: grid;
   gap: 14px;
+}
+
+.matrix-scroll {
+  overflow-x: auto;
+}
+
+.matrix-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.matrix-table th,
+.matrix-table td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.matrix-table th:first-child {
+  width: 180px;
+}
+
+.matrix-table th span {
+  display: block;
+  margin-top: 4px;
+}
+
+.cert-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.cert-pill.status-certified {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.cert-pill.status-limited,
+.cert-pill.status-not-exercised {
+  background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  color: var(--color-warning);
+}
+
+.cert-pill.status-unsupported {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+}
+
+.matrix-table small {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-text-muted);
 }
 
 .section-kicker {

@@ -6,9 +6,14 @@
         <h1 class="page-title">{{ config.title }}</h1>
         <p class="page-subtitle">{{ config.subtitle }}</p>
       </div>
-      <button class="button" type="button" :disabled="loading" @click="load">
-        {{ loading ? "Loading" : "Refresh" }}
-      </button>
+      <div class="header-actions">
+        <button v-if="config.kind === 'audit-logs'" class="button" type="button" :disabled="rows.length === 0" @click="exportAuditEvidence">
+          Export audit evidence
+        </button>
+        <button class="button" type="button" :disabled="loading" @click="load">
+          {{ loading ? "Loading" : "Refresh" }}
+        </button>
+      </div>
     </header>
 
     <ApiState :mode="mode" :loading="loading" :error="error" :empty="!loading && !error && rows.length === 0" />
@@ -133,7 +138,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 
 import { apiMode, consoleClient, toConsoleApiError, type AdminResource, type ConsoleApiError } from "../../api/client";
 import ApiState from "../../components/ApiState.vue";
@@ -149,6 +154,7 @@ const props = defineProps<{
   kind: WorkbenchKind;
 }>();
 
+const route = useRoute();
 const mode = apiMode();
 const loading = ref(false);
 const error = ref<ConsoleApiError | null>(null);
@@ -277,10 +283,52 @@ function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-onMounted(load);
+function hydrateFiltersFromRoute() {
+  const queryKeys = ["actor", "sentiment", "status", "run_id", "deployment_id"];
+  for (const key of queryKeys) {
+    const value = route.query[key];
+    if (typeof value === "string") filters[key] = value;
+  }
+}
+
+function exportAuditEvidence() {
+  const payload = {
+    exported_at: new Date().toISOString(),
+    kind: "audit-logs",
+    filters: {
+      actor: filters.actor,
+      run_id: filters.run_id,
+      deployment_id: filters.deployment_id,
+    },
+    count: rows.value.length,
+    items: rows.value,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const runSuffix = filters.run_id ? `run-${filters.run_id}` : "all";
+  link.href = url;
+  link.download = `dimoorun-audit-evidence-${runSuffix}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+onMounted(() => {
+  hydrateFiltersFromRoute();
+  void load();
+});
 </script>
 
 <style scoped>
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .filters-panel {
   padding: 14px 16px;
 }

@@ -337,6 +337,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute } from "vue-router";
 
 import { apiMode, consoleClient, toConsoleApiError, type ConsoleApiError } from "../../api/client";
 import { createMutationAction } from "../../api/mutations";
@@ -356,6 +357,7 @@ import { validateDeploymentConfig } from "../../forms/validators";
 import { useI18n } from "../../i18n/useI18n";
 
 const { t } = useI18n();
+const route = useRoute();
 const props = defineProps<{
   initialDeploymentId?: string | number;
 }>();
@@ -538,6 +540,9 @@ async function loadRuntimeEntry() {
     );
   } else if (selectedDeployment.value) {
     selectedDeployment.value = deployments.value.find((item) => item.id === selectedDeployment.value?.id) ?? deployments.value[0] ?? null;
+  }
+  if (selectedDeployment.value && route.query.tab === "promotion") {
+    await openPromotionTab();
   }
   if (!deploymentForm.agentId && agents.value[0]) {
     deploymentForm.agentId = agents.value[0].id;
