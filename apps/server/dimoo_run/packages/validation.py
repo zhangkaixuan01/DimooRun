@@ -9,7 +9,20 @@ SUPPORTED_RUNTIME_PAIRS = {
     "langchain-agent": "langchain-agent",
     "deepagents": "deepagents",
 }
-SUPPORTED_CAPABILITIES = {"invoke", "stream", "streaming"}
+SUPPORTED_CAPABILITIES = {
+    "invoke",
+    "stream",
+    "streaming",
+    "checkpoint",
+    "resume",
+    "interrupt",
+    "human_in_loop",
+    "tool_events",
+    "model_events",
+    "token_usage",
+    "filesystem",
+    "subagents",
+}
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"^[A-Za-z]:[/\\]")
 
 

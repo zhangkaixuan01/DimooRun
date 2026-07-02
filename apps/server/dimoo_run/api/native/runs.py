@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Annotated, Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -19,7 +20,9 @@ from dimoo_run.api.native.runtime import (
     NativeRuntimeStore,
     SQLAlchemyNativeRuntimeStore,
 )
-from dimoo_run.domain.models import RunAttempt
+from dimoo_run.core.events import AgentEvent
+from dimoo_run.domain.models import ModelUsageSnapshot, RunAttempt
+from dimoo_run.persistence.repositories import AuditLogRepository, EventRepository
 
 router = APIRouter(tags=["native-runs"])
 NativeRuntimeDep = Annotated[
@@ -68,6 +71,77 @@ class RunAttemptRead(BaseModel):
 
 class ReplayRunRequest(BaseModel):
     agent_version_id: int | None = None
+
+
+class IntegrationTraceLink(BaseModel):
+    provider: str
+    url: str
+    trace_id: str | None = None
+    label: str | None = None
+    status: str = "linked"
+
+
+class IntegrationExporterEvidence(BaseModel):
+    provider: str
+    exporter_type: str | None = None
+    target_ref: str | None = None
+    status: str
+    request_id: str | None = None
+    delivered_at: datetime | None = None
+    message: str | None = None
+
+
+class IntegrationModelGatewayEvidence(BaseModel):
+    provider: str
+    gateway_id: int | None = None
+    gateway_name: str | None = None
+    gateway_request_id: str | None = None
+    model: str | None = None
+    route: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    cost: float | None = None
+    currency: str = "USD"
+
+
+class IntegrationFailureEvidence(BaseModel):
+    provider: str
+    status: str = "failed"
+    error_code: str | None = None
+    message: str
+    retryable: bool | None = None
+    occurred_at: datetime | None = None
+
+
+class RunIntegrationEvidenceRecord(BaseModel):
+    evidence_id: str
+    source: str
+    observed_at: datetime
+    trace_links: list[IntegrationTraceLink] = []
+    exporters: list[IntegrationExporterEvidence] = []
+    model_gateway: IntegrationModelGatewayEvidence | None = None
+    failures: list[IntegrationFailureEvidence] = []
+    raw: dict[str, Any] = {}
+
+
+class RunIntegrationEvidenceWrite(BaseModel):
+    source: str = "api"
+    observed_at: datetime | None = None
+    trace_links: list[IntegrationTraceLink] = []
+    exporters: list[IntegrationExporterEvidence] = []
+    model_gateway: IntegrationModelGatewayEvidence | None = None
+    failures: list[IntegrationFailureEvidence] = []
+    raw: dict[str, Any] = {}
+
+
+class RunIntegrationEvidenceRead(BaseModel):
+    run_id: int
+    trace_links: list[IntegrationTraceLink] = []
+    exporters: list[IntegrationExporterEvidence] = []
+    model_gateway: list[IntegrationModelGatewayEvidence] = []
+    failures: list[IntegrationFailureEvidence] = []
+    records: list[RunIntegrationEvidenceRecord] = []
 
 
 def _auth(
@@ -147,6 +221,86 @@ def _find_run(
     return run
 
 
+def _event_record(event: AgentEvent) -> RunIntegrationEvidenceRecord | None:
+    if event.type != "integration.evidence.recorded":
+        return None
+    payload = event.payload or {}
+    if payload.get("schema") != "dimoorun.run.integration_evidence.v1":
+        return None
+    return RunIntegrationEvidenceRecord.model_validate(
+        {
+            "evidence_id": payload.get("evidence_id") or event.event_id or "",
+            "source": payload.get("source") or "event",
+            "observed_at": payload.get("observed_at") or event.created_at,
+            "trace_links": payload.get("trace_links") or [],
+            "exporters": payload.get("exporters") or [],
+            "model_gateway": payload.get("model_gateway"),
+            "failures": payload.get("failures") or [],
+            "raw": payload.get("raw") or {},
+        }
+    )
+
+
+def _aggregate_integration_evidence(
+    run: NativeRun,
+    runtime: NativeRuntimeStore | SQLAlchemyNativeRuntimeStore,
+) -> RunIntegrationEvidenceRead:
+    records = [
+        record
+        for event in runtime.list_run_events(run.id)
+        if (record := _event_record(event)) is not None
+    ]
+    model_gateway = [
+        record.model_gateway for record in records if record.model_gateway is not None
+    ]
+    if isinstance(runtime, SQLAlchemyNativeRuntimeStore):
+        snapshots = runtime.session.scalars(
+            select(ModelUsageSnapshot)
+            .where(ModelUsageSnapshot.run_id == run.id)
+            .order_by(ModelUsageSnapshot.created_at, ModelUsageSnapshot.id)
+        )
+        model_gateway.extend(
+            IntegrationModelGatewayEvidence(
+                provider=snapshot.provider or "model_gateway",
+                gateway_id=snapshot.gateway_id,
+                gateway_request_id=snapshot.gateway_request_id,
+                model=snapshot.model,
+                prompt_tokens=snapshot.prompt_tokens,
+                completion_tokens=snapshot.completion_tokens,
+                total_tokens=snapshot.total_tokens,
+                cost=snapshot.cost,
+                currency=snapshot.currency,
+            )
+            for snapshot in snapshots
+        )
+    return RunIntegrationEvidenceRead(
+        run_id=run.id,
+        trace_links=[item for record in records for item in record.trace_links],
+        exporters=[item for record in records for item in record.exporters],
+        model_gateway=model_gateway,
+        failures=[item for record in records for item in record.failures],
+        records=records,
+    )
+
+
+def _integration_event_payload(
+    payload: RunIntegrationEvidenceWrite,
+) -> dict[str, Any]:
+    record = RunIntegrationEvidenceRecord(
+        evidence_id=f"intev_{uuid4().hex[:12]}",
+        source=payload.source,
+        observed_at=payload.observed_at or datetime.utcnow(),
+        trace_links=payload.trace_links,
+        exporters=payload.exporters,
+        model_gateway=payload.model_gateway,
+        failures=payload.failures,
+        raw=payload.raw,
+    )
+    event_payload = record.model_dump(mode="json")
+    event_payload["schema"] = "dimoorun.run.integration_evidence.v1"
+    return event_payload
+
+
 @router.get("/runs/{run_id}", response_model=RunRead)
 def get_run(
     run_id: int,
@@ -167,6 +321,102 @@ def get_run(
     if isinstance(run, JSONResponse):
         return run
     return _run_to_read(run)
+
+
+@router.get("/runs/{run_id}/integration-evidence", response_model=RunIntegrationEvidenceRead)
+def get_run_integration_evidence(
+    run_id: int,
+    runtime: NativeRuntimeDep,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> RunIntegrationEvidenceRead | JSONResponse:
+    run = _find_run(
+        run_id,
+        runtime=runtime,
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        request_id=x_request_id,
+    )
+    if isinstance(run, JSONResponse):
+        return run
+    return _aggregate_integration_evidence(run, runtime)
+
+
+@router.post("/runs/{run_id}/integration-evidence", response_model=RunIntegrationEvidenceRead)
+def record_run_integration_evidence(
+    run_id: int,
+    runtime: NativeRuntimeDep,
+    payload: RunIntegrationEvidenceWrite,
+    authorization: AuthorizationHeader = None,
+    x_tenant_id: TenantIdHeader = None,
+    x_project_id: ProjectIdHeader = None,
+    x_request_id: RequestIdHeader = None,
+) -> RunIntegrationEvidenceRead | JSONResponse:
+    run = _find_run(
+        run_id,
+        runtime=runtime,
+        authorization=authorization,
+        tenant_id=x_tenant_id,
+        project_id=x_project_id,
+        request_id=x_request_id,
+        required_scope="agent:invoke",
+    )
+    if isinstance(run, JSONResponse):
+        return run
+    event_payload = _integration_event_payload(payload)
+    if isinstance(runtime, SQLAlchemyNativeRuntimeStore):
+        EventRepository(runtime.session).append(
+            event_id=event_payload["evidence_id"],
+            run_id=run.id,
+            tenant_id=run.tenant_id,
+            project_id=run.project_id,
+            type="integration.evidence.recorded",
+            payload=event_payload,
+            visibility_level="public",
+        )
+        AuditLogRepository(runtime.session).append(
+            tenant_id=run.tenant_id,
+            project_id=run.project_id,
+            action="run.integration_evidence.record",
+            resource_type="run",
+            resource_id=run.id,
+            result="allow",
+            request_id=x_request_id,
+            metadata=event_payload,
+        )
+        if payload.model_gateway and payload.model_gateway.gateway_id is not None:
+            runtime.session.add(
+                ModelUsageSnapshot(
+                    tenant_id=run.tenant_id,
+                    project_id=run.project_id,
+                    run_id=run.id,
+                    gateway_id=payload.model_gateway.gateway_id,
+                    gateway_request_id=payload.model_gateway.gateway_request_id,
+                    model=payload.model_gateway.model or "unknown",
+                    provider=payload.model_gateway.provider,
+                    prompt_tokens=payload.model_gateway.prompt_tokens or 0,
+                    completion_tokens=payload.model_gateway.completion_tokens or 0,
+                    total_tokens=payload.model_gateway.total_tokens or 0,
+                    cost=payload.model_gateway.cost or 0,
+                    currency=payload.model_gateway.currency,
+                    raw_usage_json=payload.model_gateway.model_dump(mode="json"),
+                )
+            )
+        runtime.session.flush()
+    else:
+        runtime.replay_buffer.append(
+            run.id,
+            None,
+            AgentEvent(
+                type="integration.evidence.recorded",
+                payload=event_payload,
+                visibility_level="public",
+            ),
+        )
+    return _aggregate_integration_evidence(run, runtime)
 
 
 @router.get("/runs", response_model=list[RunRead])
